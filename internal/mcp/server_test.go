@@ -69,6 +69,16 @@ func (f *fakeEnrichmentQuery) List(_ context.Context, _ *service.EnrichmentListP
 	return f.enrichments, nil
 }
 
+// fakeFileContentReader implements FileContentReader with canned content.
+type fakeFileContentReader struct {
+	content   []byte
+	commitSHA string
+}
+
+func (f *fakeFileContentReader) Content(_ context.Context, _ int64, _, _ string) (service.BlobContent, error) {
+	return service.NewBlobContent(f.content, f.commitSHA), nil
+}
+
 // sendMessage marshals a JSON-RPC request, sends it through HandleMessage,
 // and returns the JSONRPCResponse. It fatals on marshal failure or unexpected
 // response type.
@@ -174,6 +184,7 @@ func testServer() *Server {
 		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
 		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
 		&fakeEnrichmentQuery{enrichments: []enrichment.Enrichment{testArchEnrichment()}},
+		&fakeFileContentReader{content: []byte("alpha\nbeta\ngamma\ndelta\nepsilon\nzeta\neta"), commitSHA: "abc1234567890"},
 		"1.0.0-test",
 		nil,
 	)
@@ -474,10 +485,129 @@ func searchStr(s, sub string) bool {
 	return false
 }
 
+func TestServer_ReadFileResource(t *testing.T) {
+	srv := testServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "resources/read", 2, map[string]any{
+		"uri": "file://1/main/README.md",
+	})
+
+	b, err := json.Marshal(resp.Result)
+	if err != nil {
+		t.Fatalf("marshal result: %v", err)
+	}
+
+	var result struct {
+		Contents []struct {
+			URI      string `json:"uri"`
+			MIMEType string `json:"mimeType"`
+			Text     string `json:"text"`
+		} `json:"contents"`
+	}
+	if err := json.Unmarshal(b, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+
+	if len(result.Contents) != 1 {
+		t.Fatalf("expected 1 content item, got %d", len(result.Contents))
+	}
+	if result.Contents[0].Text != "alpha\nbeta\ngamma\ndelta\nepsilon\nzeta\neta" {
+		t.Errorf("expected full content, got %q", result.Contents[0].Text)
+	}
+	if result.Contents[0].URI != "file://1/main/README.md" {
+		t.Errorf("expected URI file://1/main/README.md, got %s", result.Contents[0].URI)
+	}
+}
+
+func TestServer_ReadFileResource_WithLines(t *testing.T) {
+	srv := testServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	text := readResourceText(t, srv, "file://1/main/README.md?lines=L2-L3")
+	expected := "beta\ngamma"
+	if text != expected {
+		t.Errorf("expected %q, got %q", expected, text)
+	}
+}
+
+func TestServer_ReadFileResource_WithLineNumbers(t *testing.T) {
+	srv := testServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	text := readResourceText(t, srv, "file://1/main/README.md?line_numbers=true")
+	expected := "1\talpha\n2\tbeta\n3\tgamma\n4\tdelta\n5\tepsilon\n6\tzeta\n7\teta"
+	if text != expected {
+		t.Errorf("expected %q, got %q", expected, text)
+	}
+}
+
+func TestServer_ReadFileResource_WithLinesAndLineNumbers(t *testing.T) {
+	srv := testServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	text := readResourceText(t, srv, "file://1/main/README.md?lines=L2-L3&line_numbers=true")
+	expected := "2\tbeta\n3\tgamma"
+	if text != expected {
+		t.Errorf("expected %q, got %q", expected, text)
+	}
+}
+
+func TestServer_ReadFileResource_WithNonContiguousRanges(t *testing.T) {
+	srv := testServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	text := readResourceText(t, srv, "file://1/main/README.md?lines=L1-L2,L5&line_numbers=true")
+	expected := "1\talpha\n2\tbeta\n...\n5\tepsilon"
+	if text != expected {
+		t.Errorf("expected %q, got %q", expected, text)
+	}
+}
+
+func TestServer_ReadFileResource_WithContiguousRanges(t *testing.T) {
+	srv := testServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	text := readResourceText(t, srv, "file://1/main/README.md?lines=L1-L3,L4-L5")
+	expected := "alpha\nbeta\ngamma\ndelta\nepsilon"
+	if text != expected {
+		t.Errorf("expected %q, got %q", expected, text)
+	}
+}
+
+// readResourceText is a helper that reads an MCP resource and returns the text content.
+func readResourceText(t *testing.T, srv *Server, uri string) string {
+	t.Helper()
+
+	resp := sendMessage(t, srv, "resources/read", 2, map[string]any{
+		"uri": uri,
+	})
+
+	b, err := json.Marshal(resp.Result)
+	if err != nil {
+		t.Fatalf("marshal result: %v", err)
+	}
+
+	var result struct {
+		Contents []struct {
+			Text string `json:"text"`
+		} `json:"contents"`
+	}
+	if err := json.Unmarshal(b, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+
+	if len(result.Contents) != 1 {
+		t.Fatalf("expected 1 content item, got %d", len(result.Contents))
+	}
+	return result.Contents[0].Text
+}
+
 // Ensure fakes satisfy interfaces at compile time.
 var (
-	_ Searcher         = (*fakeSearch)(nil)
-	_ RepositoryLister = (*fakeRepositoryLister)(nil)
-	_ CommitFinder     = (*fakeCommitFinder)(nil)
-	_ EnrichmentQuery  = (*fakeEnrichmentQuery)(nil)
+	_ Searcher          = (*fakeSearch)(nil)
+	_ RepositoryLister  = (*fakeRepositoryLister)(nil)
+	_ CommitFinder      = (*fakeCommitFinder)(nil)
+	_ EnrichmentQuery   = (*fakeEnrichmentQuery)(nil)
+	_ FileContentReader = (*fakeFileContentReader)(nil)
 )

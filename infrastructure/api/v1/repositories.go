@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit"
@@ -58,6 +60,7 @@ func (r *RepositoriesRouter) Routes() chi.Router {
 	router.Get("/{id}/enrichments", r.ListRepositoryEnrichments)
 	router.Get("/{id}/tracking-config", r.GetTrackingConfig)
 	router.Put("/{id}/tracking-config", r.UpdateTrackingConfig)
+	router.Get("/{id}/blob/{blob_name}/*", r.GetBlob)
 
 	return router
 }
@@ -1415,4 +1418,77 @@ func repoToDTO(repo repository.Repository, numCommits, numBranches, numTags int6
 		ID:         fmt.Sprintf("%d", repo.ID()),
 		Attributes: attrs,
 	}
+}
+
+// GetBlob handles GET /api/v1/repositories/{id}/blob/{blob_name}/*.
+//
+//	@Summary		Get raw file content
+//	@Description	Returns raw file content from a Git repository at a given blob reference (commit SHA, tag, or branch)
+//	@Tags			repositories
+//	@Produce		octet-stream
+//	@Produce		plain
+//	@Param			id			path	int		true	"Repository ID"
+//	@Param			blob_name	path	string	true	"Commit SHA, tag name, or branch name"
+//	@Param			path		path	string	true	"File path within the repository"
+//	@Param			lines			query	string	false	"Line ranges to extract (e.g. L17-L26,L45,L55-L90)"
+//	@Param			line_numbers	query	bool	false	"Prefix each line with its 1-based line number"
+//	@Success		200
+//	@Failure		400	{object}	middleware.JSONAPIErrorResponse
+//	@Failure		404	{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500	{object}	middleware.JSONAPIErrorResponse
+//	@Router			/repositories/{id}/blob/{blob_name}/{path} [get]
+func (r *RepositoriesRouter) GetBlob(w http.ResponseWriter, req *http.Request) {
+	repoID, err := r.repositoryID(req)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	blobName := chi.URLParam(req, "blob_name")
+	rawPath := strings.TrimPrefix(chi.URLParam(req, "*"), "/")
+	filePath, err := url.PathUnescape(rawPath)
+	if err != nil {
+		filePath = rawPath
+	}
+
+	if blobName == "" || filePath == "" {
+		middleware.WriteError(w, req, fmt.Errorf("blob_name and file path are required: %w", middleware.ErrValidation), r.logger)
+		return
+	}
+
+	result, err := r.client.Blobs.Content(req.Context(), repoID, blobName, filePath)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	w.Header().Set("X-Commit-SHA", result.CommitSHA())
+
+	linesParam := req.URL.Query().Get("lines")
+	lineNumbers := req.URL.Query().Get("line_numbers") == "true"
+
+	if linesParam != "" || lineNumbers {
+		filter, filterErr := service.NewLineFilter(linesParam)
+		if filterErr != nil {
+			middleware.WriteError(w, req, fmt.Errorf("%s: %w", filterErr.Error(), middleware.ErrValidation), r.logger)
+			return
+		}
+
+		var output []byte
+		if lineNumbers {
+			output = filter.ApplyWithLineNumbers(result.Content())
+		} else {
+			output = filter.Apply(result.Content())
+		}
+
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(output)
+		return
+	}
+
+	contentType := http.DetectContentType(result.Content())
+	w.Header().Set("Content-Type", contentType)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(result.Content())
 }

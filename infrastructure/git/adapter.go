@@ -3,8 +3,12 @@ package git
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+// ErrFileNotFound indicates the requested file does not exist in the repository at the given commit.
+var ErrFileNotFound = errors.New("file not found")
 
 // Adapter defines the interface for Git repository operations.
 // Implementations wrap specific git libraries (e.g., Gitea's git module).

@@ -398,6 +398,9 @@ func (g *GiteaAdapter) FileContent(ctx context.Context, localPath string, commit
 
 	content, err := commit.GetFileContent(filePath, 0)
 	if err != nil {
+		if giteagit.IsErrNotExist(err) {
+			return nil, fmt.Errorf("get file %s: %w", filePath, ErrFileNotFound)
+		}
 		return nil, fmt.Errorf("get file: %w", err)
 	}
 

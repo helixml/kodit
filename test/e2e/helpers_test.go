@@ -326,6 +326,53 @@ func (ts *TestServer) CreateEnrichmentAssociation(e enrichment.Enrichment, entit
 	return saved
 }
 
+// CreateRepositoryWithRealWorkingCopy creates a repository whose working copy
+// points to an actual git repository on disk.
+func (ts *TestServer) CreateRepositoryWithRealWorkingCopy(remoteURL, localPath string) repository.Repository {
+	ts.t.Helper()
+	ctx := context.Background()
+
+	repo, err := repository.NewRepository(remoteURL)
+	if err != nil {
+		ts.t.Fatalf("create repo: %v", err)
+	}
+
+	workingCopy := repository.NewWorkingCopy(localPath, remoteURL)
+	repo = repo.WithWorkingCopy(workingCopy)
+
+	saved, err := ts.repoStore.Save(ctx, repo)
+	if err != nil {
+		ts.t.Fatalf("save repo: %v", err)
+	}
+	return saved
+}
+
+// CreateBranch creates a branch in the database directly.
+func (ts *TestServer) CreateBranch(repo repository.Repository, name, headCommitSHA string, isDefault bool) repository.Branch {
+	ts.t.Helper()
+	ctx := context.Background()
+
+	branch := repository.NewBranch(repo.ID(), name, headCommitSHA, isDefault)
+	saved, err := ts.branchStore.Save(ctx, branch)
+	if err != nil {
+		ts.t.Fatalf("save branch: %v", err)
+	}
+	return saved
+}
+
+// CreateTag creates a tag in the database directly.
+func (ts *TestServer) CreateTag(repo repository.Repository, name, commitSHA string) repository.Tag {
+	ts.t.Helper()
+	ctx := context.Background()
+
+	tag := repository.NewTag(repo.ID(), name, commitSHA)
+	saved, err := ts.tagStore.Save(ctx, tag)
+	if err != nil {
+		ts.t.Fatalf("save tag: %v", err)
+	}
+	return saved
+}
+
 // SeedBM25 inserts a document into the SQLite FTS5 BM25 index.
 func (ts *TestServer) SeedBM25(snippetID, passage string) {
 	ts.t.Helper()

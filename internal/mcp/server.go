@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -43,6 +44,11 @@ type EnrichmentQuery interface {
 	List(ctx context.Context, params *service.EnrichmentListParams) ([]enrichment.Enrichment, error)
 }
 
+// FileContentReader provides raw file content from Git repositories.
+type FileContentReader interface {
+	Content(ctx context.Context, repoID int64, blobName, filePath string) (service.BlobContent, error)
+}
+
 // Server wraps the MCP server with kodit-specific tools.
 type Server struct {
 	mcpServer       *server.MCPServer
@@ -50,6 +56,7 @@ type Server struct {
 	repositories    RepositoryLister
 	commits         CommitFinder
 	enrichmentQuery EnrichmentQuery
+	fileContent     FileContentReader
 	version         string
 	logger          *slog.Logger
 }
@@ -67,6 +74,11 @@ const instructions = "This server provides access to code knowledge through mult
 	"- get_database_schema() - Data models\n" +
 	"- get_cookbook() - Complete usage examples\n" +
 	"- search() - Find specific code snippets matching keywords\n\n" +
+	"**Reading file content:**\n" +
+	"Use the file resource template: file://{id}/{blob_name}/{+path}\n" +
+	"where id is the repository ID, blob_name is a commit SHA, tag, or branch name, " +
+	"and path is the file path within the repository.\n" +
+	"Optional query parameters: ?lines=L17-L26,L45 and ?line_numbers=true\n\n" +
 	"Choose the most appropriate tool based on what information you need. " +
 	"Often starting with architecture or API docs provides better context than " +
 	"immediately searching for code snippets."
@@ -77,6 +89,7 @@ func NewServer(
 	repositories RepositoryLister,
 	commits CommitFinder,
 	enrichmentQuery EnrichmentQuery,
+	fileContent FileContentReader,
 	version string,
 	logger *slog.Logger,
 ) *Server {
@@ -89,6 +102,7 @@ func NewServer(
 		repositories:    repositories,
 		commits:         commits,
 		enrichmentQuery: enrichmentQuery,
+		fileContent:     fileContent,
 		version:         version,
 		logger:          logger,
 	}
@@ -97,10 +111,12 @@ func NewServer(
 		"kodit",
 		"1.0.0",
 		server.WithToolCapabilities(true),
+		server.WithResourceCapabilities(false, false),
 		server.WithInstructions(instructions),
 	)
 
 	s.registerTools(mcpServer)
+	s.registerResources(mcpServer)
 
 	s.mcpServer = mcpServer
 	return s
@@ -212,6 +228,7 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 			mcp.Description("The commit SHA to get docs for (defaults to latest)"),
 		),
 	), s.handleGetCookbook)
+
 }
 
 // handleSearch handles the search tool invocation.
@@ -444,6 +461,85 @@ func (s *Server) handleEnrichmentDocs(
 		parts[i] = e.Content()
 	}
 	return mcp.NewToolResultText(strings.Join(parts, "\n\n")), nil
+}
+
+// registerResources registers MCP resource templates with the server.
+func (s *Server) registerResources(mcpServer *server.MCPServer) {
+	mcpServer.AddResourceTemplate(
+		mcp.NewResourceTemplate(
+			"file://{id}/{blob_name}/{+path}",
+			"File content",
+			mcp.WithTemplateDescription("Raw file content from a Git repository at a given commit, tag, or branch"),
+			mcp.WithTemplateMIMEType("text/plain"),
+		),
+		s.handleReadFile,
+	)
+}
+
+// handleReadFile handles resource reads for file://{id}/{blob_name}/{+path}.
+// Supports optional query parameters:
+//   - lines: line ranges to extract (e.g. L17-L26,L45)
+//   - line_numbers: "true" to prefix each line with its 1-based number
+func (s *Server) handleReadFile(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+	uri := request.Params.URI
+
+	// Parse: file://{id}/{blob_name}/{+path}[?lines=...&line_numbers=true]
+	// URI looks like: file://1/main/src/foo.go?lines=L1-L10&line_numbers=true
+	parsed, err := url.Parse(uri)
+	if err != nil {
+		return nil, fmt.Errorf("invalid file URI: %w", err)
+	}
+	if parsed.Scheme != "file" {
+		return nil, fmt.Errorf("invalid file URI: %s", uri)
+	}
+
+	// parsed.Host = "1", parsed.Path = "/main/src/foo.go"
+	rest := parsed.Host + parsed.Path
+	// rest = "1/main/src/foo.go"
+
+	// Split into at least 3 parts: id / blob_name / path...
+	parts := strings.SplitN(rest, "/", 3)
+	if len(parts) < 3 {
+		return nil, fmt.Errorf("invalid file URI: expected file://{id}/{blob_name}/{path}, got %s", uri)
+	}
+
+	repoID, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid repository ID %q: %w", parts[0], err)
+	}
+	blobName := parts[1]
+	filePath := parts[2]
+
+	result, err := s.fileContent.Content(ctx, repoID, blobName, filePath)
+	if err != nil {
+		return nil, fmt.Errorf("read file content: %w", err)
+	}
+
+	content := result.Content()
+	query := parsed.Query()
+	linesParam := query.Get("lines")
+	lineNumbers := query.Get("line_numbers") == "true"
+
+	if linesParam != "" || lineNumbers {
+		filter, filterErr := service.NewLineFilter(linesParam)
+		if filterErr != nil {
+			return nil, fmt.Errorf("invalid lines parameter: %w", filterErr)
+		}
+
+		if lineNumbers {
+			content = filter.ApplyWithLineNumbers(content)
+		} else {
+			content = filter.Apply(content)
+		}
+	}
+
+	return []mcp.ResourceContents{
+		mcp.TextResourceContents{
+			URI:      uri,
+			MIMEType: "text/plain",
+			Text:     string(content),
+		},
+	}, nil
 }
 
 // MCPServer returns the underlying MCP server for stdio serving.

@@ -1,1975 +1,7 @@
 {
-    "openapi": "3.0.0",
-    "info": {
-        "description": "Code understanding platform with hybrid search and LLM-powered enrichments",
-        "title": "Kodit API",
-        "contact": {},
-        "version": "1.0"
-    },
-    "paths": {
-        "/enrichments": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "List enrichments with optional filters",
-                "tags": [
-                    "enrichments"
-                ],
-                "summary": "List enrichments",
-                "parameters": [
-                    {
-                        "description": "Filter by enrichment type",
-                        "name": "enrichment_type",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Filter by enrichment subtype",
-                        "name": "enrichment_subtype",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Page number (default: 1)",
-                        "name": "page",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Results per page (default: 20, max: 100)",
-                        "name": "page_size",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.EnrichmentJSONAPIListResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/enrichments/{id}": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Get an enrichment by ID",
-                "tags": [
-                    "enrichments"
-                ],
-                "summary": "Get enrichment",
-                "parameters": [
-                    {
-                        "description": "Enrichment ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.EnrichmentJSONAPIResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Delete an enrichment by ID",
-                "tags": [
-                    "enrichments"
-                ],
-                "summary": "Delete enrichment",
-                "parameters": [
-                    {
-                        "description": "Enrichment ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "patch": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Update an enrichment's content",
-                "tags": [
-                    "enrichments"
-                ],
-                "summary": "Update enrichment",
-                "parameters": [
-                    {
-                        "description": "Enrichment ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/dto.EnrichmentUpdateRequest"
-                            }
-                        }
-                    },
-                    "description": "Update request",
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.EnrichmentJSONAPIResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/queue": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "List tasks in the queue",
-                "tags": [
-                    "queue"
-                ],
-                "summary": "List tasks",
-                "parameters": [
-                    {
-                        "description": "Page number (default: 1)",
-                        "name": "page",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Results per page (default: 20, max: 100)",
-                        "name": "page_size",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Filter by task type",
-                        "name": "task_type",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.TaskListResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/queue/{task_id}": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Get a task by ID",
-                "tags": [
-                    "queue"
-                ],
-                "summary": "Get task",
-                "parameters": [
-                    {
-                        "description": "Task ID",
-                        "name": "task_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.TaskResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/repositories": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Get all tracked Git repositories",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "List repositories",
-                "parameters": [
-                    {
-                        "description": "Page number (default: 1)",
-                        "name": "page",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Results per page (default: 20, max: 100)",
-                        "name": "page_size",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.RepositoryListResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Add a new Git repository to track",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "Add repository",
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/dto.RepositoryCreateRequest"
-                            }
-                        }
-                    },
-                    "description": "Repository request",
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "description": "Repository already exists",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.RepositoryResponse"
-                                }
-                            }
-                        }
-                    },
-                    "201": {
-                        "description": "Repository created",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.RepositoryResponse"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/repositories/{id}": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Get a repository by ID",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "Get repository",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.RepositoryDetailsResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Delete a repository by ID",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "Delete repository",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/repositories/{id}/commits": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "List commits for a repository",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "List commits",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Page number (default: 1)",
-                        "name": "page",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Results per page (default: 20, max: 100)",
-                        "name": "page_size",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.CommitJSONAPIListResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/repositories/{id}/commits/{commit_sha}": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Get a commit by SHA",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "Get commit",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Commit SHA",
-                        "name": "commit_sha",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.CommitJSONAPIResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/repositories/{id}/commits/{commit_sha}/embeddings": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "This endpoint has been removed. Embeddings are an internal detail of snippets and enrichments.",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "List commit embeddings (deprecated)",
-                "deprecated": true,
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Commit SHA",
-                        "name": "commit_sha",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "410": {
-                        "description": "Gone",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/repositories/{id}/commits/{commit_sha}/enrichments": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "List enrichments for a commit",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "List commit enrichments",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Commit SHA",
-                        "name": "commit_sha",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Filter by enrichment type",
-                        "name": "enrichment_type",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Filter by enrichment subtype",
-                        "name": "enrichment_subtype",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Page number (default: 1)",
-                        "name": "page",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Results per page (default: 20, max: 100)",
-                        "name": "page_size",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.EnrichmentJSONAPIListResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Delete all enrichments for a commit",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "Delete commit enrichments",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Commit SHA",
-                        "name": "commit_sha",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/repositories/{id}/commits/{commit_sha}/enrichments/{enrichment_id}": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Get an enrichment by ID within commit context",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "Get commit enrichment",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Commit SHA",
-                        "name": "commit_sha",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Enrichment ID",
-                        "name": "enrichment_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.EnrichmentJSONAPIResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Delete a specific enrichment from a commit",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "Delete commit enrichment",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Commit SHA",
-                        "name": "commit_sha",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Enrichment ID",
-                        "name": "enrichment_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/repositories/{id}/commits/{commit_sha}/files": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "List files for a commit",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "List commit files",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Commit SHA",
-                        "name": "commit_sha",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Page number (default: 1)",
-                        "name": "page",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Results per page (default: 20, max: 100)",
-                        "name": "page_size",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.FileJSONAPIListResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/repositories/{id}/commits/{commit_sha}/files/{blob_sha}": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Get a file by blob SHA",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "Get commit file",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Commit SHA",
-                        "name": "commit_sha",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Blob SHA",
-                        "name": "blob_sha",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.FileJSONAPIResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/repositories/{id}/commits/{commit_sha}/rescan": {
-            "post": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Trigger a rescan of a specific commit",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "Rescan commit",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Commit SHA",
-                        "name": "commit_sha",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "202": {
-                        "description": "Accepted"
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/repositories/{id}/commits/{commit_sha}/snippets": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "List code snippets for a commit (backed by enrichments)",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "List commit snippets",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Commit SHA",
-                        "name": "commit_sha",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Page number (default: 1)",
-                        "name": "page",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Results per page (default: 20, max: 100)",
-                        "name": "page_size",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.SnippetListResponse"
-                                }
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/repositories/{id}/enrichments": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "List recent enrichments across commits for a repository",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "List repository enrichments",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Filter by enrichment type",
-                        "name": "enrichment_type",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Max commits to check (default: 100)",
-                        "name": "max_commits_to_check",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Page number (default: 1)",
-                        "name": "page",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Results per page (default: 20, max: 100)",
-                        "name": "page_size",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.EnrichmentJSONAPIListResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/repositories/{id}/status": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Get indexing task status for a repository",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "Get repository status",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.TaskStatusListResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/repositories/{id}/status/summary": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Get aggregated indexing status summary for a repository",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "Get repository status summary",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.RepositoryStatusSummaryResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/repositories/{id}/sync": {
-            "post": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Trigger a sync (git fetch + branch scan + commit indexing) for a repository",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "Sync repository",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "202": {
-                        "description": "Accepted"
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/repositories/{id}/tags": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "List tags for a repository",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "List tags",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Page number (default: 1)",
-                        "name": "page",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Results per page (default: 20, max: 100)",
-                        "name": "page_size",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.TagJSONAPIListResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/repositories/{id}/tags/{tag_name}": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Get a tag by name",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "Get tag",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Tag name",
-                        "name": "tag_name",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.TagJSONAPIResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/repositories/{id}/tracking-config": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Get current tracking configuration for a repository",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "Get tracking config",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.TrackingConfigResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "put": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Update tracking configuration for a repository",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "Update tracking config",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/dto.TrackingConfigUpdateRequest"
-                            }
-                        }
-                    },
-                    "description": "Tracking config",
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.TrackingConfigResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/search": {
-            "post": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Hybrid search across code snippets and enrichments",
-                "tags": [
-                    "search"
-                ],
-                "summary": "Search code",
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/dto.SearchRequest"
-                            }
-                        }
-                    },
-                    "description": "Search request",
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.SearchResponse"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    },
-    "servers": [
-        {
-            "url": "//localhost:8080/api/v1"
-        }
-    ],
     "components": {
-        "securitySchemes": {
-            "APIKeyAuth": {
-                "type": "apiKey",
-                "name": "X-API-KEY",
-                "in": "header"
-            }
-        },
         "schemas": {
             "dto.CommitAttributes": {
-                "type": "object",
                 "properties": {
                     "author": {
                         "type": "string"
@@ -1986,10 +18,10 @@
                     "parent_commit_sha": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.CommitData": {
-                "type": "object",
                 "properties": {
                     "attributes": {
                         "$ref": "#/components/schemas/dto.CommitAttributes"
@@ -2000,16 +32,16 @@
                     "type": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.CommitJSONAPIListResponse": {
-                "type": "object",
                 "properties": {
                     "data": {
-                        "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/dto.CommitData"
-                        }
+                        },
+                        "type": "array"
                     },
                     "links": {
                         "$ref": "#/components/schemas/jsonapi.Links"
@@ -2017,18 +49,18 @@
                     "meta": {
                         "$ref": "#/components/schemas/jsonapi.Meta"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.CommitJSONAPIResponse": {
-                "type": "object",
                 "properties": {
                     "data": {
                         "$ref": "#/components/schemas/dto.CommitData"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.EnrichmentAttributes": {
-                "type": "object",
                 "properties": {
                     "content": {
                         "type": "string"
@@ -2045,10 +77,10 @@
                     "updated_at": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.EnrichmentData": {
-                "type": "object",
                 "properties": {
                     "attributes": {
                         "$ref": "#/components/schemas/dto.EnrichmentAttributes"
@@ -2059,16 +91,16 @@
                     "type": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.EnrichmentJSONAPIListResponse": {
-                "type": "object",
                 "properties": {
                     "data": {
-                        "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/dto.EnrichmentData"
-                        }
+                        },
+                        "type": "array"
                     },
                     "links": {
                         "$ref": "#/components/schemas/jsonapi.Links"
@@ -2076,18 +108,18 @@
                     "meta": {
                         "$ref": "#/components/schemas/jsonapi.Meta"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.EnrichmentJSONAPIResponse": {
-                "type": "object",
                 "properties": {
                     "data": {
                         "$ref": "#/components/schemas/dto.EnrichmentData"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.EnrichmentSchema": {
-                "type": "object",
                 "properties": {
                     "content": {
                         "type": "string"
@@ -2095,18 +127,18 @@
                     "type": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.EnrichmentUpdateAttributes": {
-                "type": "object",
                 "properties": {
                     "content": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.EnrichmentUpdateData": {
-                "type": "object",
                 "properties": {
                     "attributes": {
                         "$ref": "#/components/schemas/dto.EnrichmentUpdateAttributes"
@@ -2114,18 +146,18 @@
                     "type": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.EnrichmentUpdateRequest": {
-                "type": "object",
                 "properties": {
                     "data": {
                         "$ref": "#/components/schemas/dto.EnrichmentUpdateData"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.FileAttributes": {
-                "type": "object",
                 "properties": {
                     "blob_sha": {
                         "type": "string"
@@ -2142,10 +174,10 @@
                     "size": {
                         "type": "integer"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.FileData": {
-                "type": "object",
                 "properties": {
                     "attributes": {
                         "$ref": "#/components/schemas/dto.FileAttributes"
@@ -2156,16 +188,16 @@
                     "type": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.FileJSONAPIListResponse": {
-                "type": "object",
                 "properties": {
                     "data": {
-                        "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/dto.FileData"
-                        }
+                        },
+                        "type": "array"
                     },
                     "links": {
                         "$ref": "#/components/schemas/jsonapi.Links"
@@ -2173,18 +205,18 @@
                     "meta": {
                         "$ref": "#/components/schemas/jsonapi.Meta"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.FileJSONAPIResponse": {
-                "type": "object",
                 "properties": {
                     "data": {
                         "$ref": "#/components/schemas/dto.FileData"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.GitFileSchema": {
-                "type": "object",
                 "properties": {
                     "blob_sha": {
                         "type": "string"
@@ -2198,10 +230,10 @@
                     "size": {
                         "type": "integer"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.RepositoryAttributes": {
-                "type": "object",
                 "properties": {
                     "cloned_path": {
                         "type": "string"
@@ -2230,10 +262,10 @@
                     "updated_at": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.RepositoryBranchData": {
-                "type": "object",
                 "properties": {
                     "commit_count": {
                         "type": "integer"
@@ -2244,10 +276,10 @@
                     "name": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.RepositoryCommitData": {
-                "type": "object",
                 "properties": {
                     "author": {
                         "type": "string"
@@ -2261,18 +293,18 @@
                     "timestamp": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.RepositoryCreateAttributes": {
-                "type": "object",
                 "properties": {
                     "remote_uri": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.RepositoryCreateData": {
-                "type": "object",
                 "properties": {
                     "attributes": {
                         "$ref": "#/components/schemas/dto.RepositoryCreateAttributes"
@@ -2280,18 +312,18 @@
                     "type": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.RepositoryCreateRequest": {
-                "type": "object",
                 "properties": {
                     "data": {
                         "$ref": "#/components/schemas/dto.RepositoryCreateData"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.RepositoryData": {
-                "type": "object",
                 "properties": {
                     "attributes": {
                         "$ref": "#/components/schemas/dto.RepositoryAttributes"
@@ -2302,36 +334,36 @@
                     "type": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.RepositoryDetailsResponse": {
-                "type": "object",
                 "properties": {
                     "branches": {
-                        "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/dto.RepositoryBranchData"
-                        }
+                        },
+                        "type": "array"
                     },
                     "data": {
                         "$ref": "#/components/schemas/dto.RepositoryData"
                     },
                     "recent_commits": {
-                        "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/dto.RepositoryCommitData"
-                        }
+                        },
+                        "type": "array"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.RepositoryListResponse": {
-                "type": "object",
                 "properties": {
                     "data": {
-                        "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/dto.RepositoryData"
-                        }
+                        },
+                        "type": "array"
                     },
                     "links": {
                         "$ref": "#/components/schemas/jsonapi.Links"
@@ -2339,18 +371,18 @@
                     "meta": {
                         "$ref": "#/components/schemas/jsonapi.Meta"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.RepositoryResponse": {
-                "type": "object",
                 "properties": {
                     "data": {
                         "$ref": "#/components/schemas/dto.RepositoryData"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.RepositoryStatusSummaryAttributes": {
-                "type": "object",
                 "properties": {
                     "message": {
                         "type": "string"
@@ -2361,10 +393,10 @@
                     "updated_at": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.RepositoryStatusSummaryData": {
-                "type": "object",
                 "properties": {
                     "attributes": {
                         "$ref": "#/components/schemas/dto.RepositoryStatusSummaryAttributes"
@@ -2375,18 +407,18 @@
                     "type": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.RepositoryStatusSummaryResponse": {
-                "type": "object",
                 "properties": {
                     "data": {
                         "$ref": "#/components/schemas/dto.RepositoryStatusSummaryData"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.SearchAttributes": {
-                "type": "object",
                 "properties": {
                     "code": {
                         "type": "string"
@@ -2395,10 +427,10 @@
                         "$ref": "#/components/schemas/dto.SearchFilters"
                     },
                     "keywords": {
-                        "type": "array",
                         "items": {
                             "type": "string"
-                        }
+                        },
+                        "type": "array"
                     },
                     "limit": {
                         "type": "integer"
@@ -2406,10 +438,10 @@
                     "text": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.SearchData": {
-                "type": "object",
                 "properties": {
                     "attributes": {
                         "$ref": "#/components/schemas/dto.SearchAttributes"
@@ -2417,82 +449,82 @@
                     "type": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.SearchFilters": {
-                "type": "object",
                 "properties": {
                     "authors": {
-                        "type": "array",
                         "items": {
                             "type": "string"
-                        }
+                        },
+                        "type": "array"
                     },
                     "commit_sha": {
-                        "type": "array",
                         "items": {
                             "type": "string"
-                        }
+                        },
+                        "type": "array"
                     },
                     "end_date": {
                         "type": "string"
                     },
                     "enrichment_subtypes": {
-                        "type": "array",
                         "items": {
                             "type": "string"
-                        }
+                        },
+                        "type": "array"
                     },
                     "enrichment_types": {
-                        "type": "array",
                         "items": {
                             "type": "string"
-                        }
+                        },
+                        "type": "array"
                     },
                     "file_patterns": {
-                        "type": "array",
                         "items": {
                             "type": "string"
-                        }
+                        },
+                        "type": "array"
                     },
                     "languages": {
-                        "type": "array",
                         "items": {
                             "type": "string"
-                        }
+                        },
+                        "type": "array"
                     },
                     "sources": {
-                        "type": "array",
                         "items": {
                             "type": "string"
-                        }
+                        },
+                        "type": "array"
                     },
                     "start_date": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.SearchRequest": {
-                "type": "object",
                 "properties": {
                     "data": {
                         "$ref": "#/components/schemas/dto.SearchData"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.SearchResponse": {
-                "type": "object",
                 "properties": {
                     "data": {
-                        "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/dto.SnippetData"
-                        }
+                        },
+                        "type": "array"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.SnippetAttributes": {
-                "type": "object",
                 "properties": {
                     "content": {
                         "$ref": "#/components/schemas/dto.SnippetContentSchema"
@@ -2501,30 +533,30 @@
                         "type": "string"
                     },
                     "derives_from": {
-                        "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/dto.GitFileSchema"
-                        }
+                        },
+                        "type": "array"
                     },
                     "enrichments": {
-                        "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/dto.EnrichmentSchema"
-                        }
+                        },
+                        "type": "array"
                     },
                     "original_scores": {
-                        "type": "array",
                         "items": {
                             "type": "number"
-                        }
+                        },
+                        "type": "array"
                     },
                     "updated_at": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.SnippetContentSchema": {
-                "type": "object",
                 "properties": {
                     "language": {
                         "type": "string"
@@ -2532,10 +564,10 @@
                     "value": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.SnippetData": {
-                "type": "object",
                 "properties": {
                     "attributes": {
                         "$ref": "#/components/schemas/dto.SnippetAttributes"
@@ -2549,10 +581,10 @@
                     "type": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.SnippetLinks": {
-                "type": "object",
                 "properties": {
                     "commit": {
                         "type": "string"
@@ -2563,16 +595,16 @@
                     "repository": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.SnippetListResponse": {
-                "type": "object",
                 "properties": {
                     "data": {
-                        "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/dto.SnippetData"
-                        }
+                        },
+                        "type": "array"
                     },
                     "links": {
                         "$ref": "#/components/schemas/jsonapi.Links"
@@ -2580,10 +612,10 @@
                     "meta": {
                         "$ref": "#/components/schemas/jsonapi.Meta"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.TagAttributes": {
-                "type": "object",
                 "properties": {
                     "is_version_tag": {
                         "type": "boolean"
@@ -2594,10 +626,10 @@
                     "target_commit_sha": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.TagData": {
-                "type": "object",
                 "properties": {
                     "attributes": {
                         "$ref": "#/components/schemas/dto.TagAttributes"
@@ -2608,16 +640,16 @@
                     "type": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.TagJSONAPIListResponse": {
-                "type": "object",
                 "properties": {
                     "data": {
-                        "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/dto.TagData"
-                        }
+                        },
+                        "type": "array"
                     },
                     "links": {
                         "$ref": "#/components/schemas/jsonapi.Links"
@@ -2625,18 +657,18 @@
                     "meta": {
                         "$ref": "#/components/schemas/jsonapi.Meta"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.TagJSONAPIResponse": {
-                "type": "object",
                 "properties": {
                     "data": {
                         "$ref": "#/components/schemas/dto.TagData"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.TaskAttributes": {
-                "type": "object",
                 "properties": {
                     "created_at": {
                         "type": "string"
@@ -2651,10 +683,10 @@
                     "updated_at": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.TaskData": {
-                "type": "object",
                 "properties": {
                     "attributes": {
                         "$ref": "#/components/schemas/dto.TaskAttributes"
@@ -2665,16 +697,16 @@
                     "type": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.TaskListResponse": {
-                "type": "object",
                 "properties": {
                     "data": {
-                        "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/dto.TaskData"
-                        }
+                        },
+                        "type": "array"
                     },
                     "links": {
                         "$ref": "#/components/schemas/jsonapi.Links"
@@ -2682,18 +714,18 @@
                     "meta": {
                         "$ref": "#/components/schemas/jsonapi.Meta"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.TaskResponse": {
-                "type": "object",
                 "properties": {
                     "data": {
                         "$ref": "#/components/schemas/dto.TaskData"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.TaskStatusAttributes": {
-                "type": "object",
                 "properties": {
                     "created_at": {
                         "type": "string"
@@ -2722,10 +754,10 @@
                     "updated_at": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.TaskStatusData": {
-                "type": "object",
                 "properties": {
                     "attributes": {
                         "$ref": "#/components/schemas/dto.TaskStatusAttributes"
@@ -2736,16 +768,16 @@
                     "type": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.TaskStatusListResponse": {
-                "type": "object",
                 "properties": {
                     "data": {
-                        "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/dto.TaskStatusData"
-                        }
+                        },
+                        "type": "array"
                     },
                     "links": {
                         "$ref": "#/components/schemas/jsonapi.Links"
@@ -2753,10 +785,10 @@
                     "meta": {
                         "$ref": "#/components/schemas/jsonapi.Meta"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.TrackingConfigAttributes": {
-                "type": "object",
                 "properties": {
                     "mode": {
                         "$ref": "#/components/schemas/dto.TrackingMode"
@@ -2764,10 +796,10 @@
                     "value": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.TrackingConfigData": {
-                "type": "object",
                 "properties": {
                     "attributes": {
                         "$ref": "#/components/schemas/dto.TrackingConfigAttributes"
@@ -2775,18 +807,18 @@
                     "type": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.TrackingConfigResponse": {
-                "type": "object",
                 "properties": {
                     "data": {
                         "$ref": "#/components/schemas/dto.TrackingConfigData"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.TrackingConfigUpdateAttributes": {
-                "type": "object",
                 "properties": {
                     "mode": {
                         "$ref": "#/components/schemas/dto.TrackingMode"
@@ -2794,10 +826,10 @@
                     "value": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.TrackingConfigUpdateData": {
-                "type": "object",
                 "properties": {
                     "attributes": {
                         "$ref": "#/components/schemas/dto.TrackingConfigUpdateAttributes"
@@ -2805,29 +837,25 @@
                     "type": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.TrackingConfigUpdateRequest": {
-                "type": "object",
                 "properties": {
                     "data": {
                         "$ref": "#/components/schemas/dto.TrackingConfigUpdateData"
                     }
-                }
+                },
+                "type": "object"
             },
             "dto.TrackingMode": {
-                "type": "string",
                 "enum": [
                     "branch",
                     "tag"
                 ],
-                "x-enum-varnames": [
-                    "TrackingModeBranch",
-                    "TrackingModeTag"
-                ]
+                "type": "string"
             },
             "jsonapi.Links": {
-                "type": "object",
                 "properties": {
                     "first": {
                         "type": "string"
@@ -2844,14 +872,14 @@
                     "self": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "jsonapi.Meta": {
-                "type": "object",
-                "additionalProperties": {}
+                "additionalProperties": {},
+                "type": "object"
             },
             "middleware.JSONAPIError": {
-                "type": "object",
                 "properties": {
                     "detail": {
                         "type": "string"
@@ -2865,19 +893,2095 @@
                     "title": {
                         "type": "string"
                     }
-                }
+                },
+                "type": "object"
             },
             "middleware.JSONAPIErrorResponse": {
-                "type": "object",
                 "properties": {
                     "errors": {
-                        "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/middleware.JSONAPIError"
-                        }
+                        },
+                        "type": "array"
                     }
-                }
+                },
+                "type": "object"
+            }
+        },
+        "securitySchemes": {
+            "APIKeyAuth": {
+                "in": "header",
+                "name": "X-API-KEY",
+                "type": "apiKey"
             }
         }
-    }
+    },
+    "info": {
+        "contact": {},
+        "description": "Code understanding platform with hybrid search and LLM-powered enrichments",
+        "title": "Kodit API",
+        "version": "1.0"
+    },
+    "openapi": "3.0.3",
+    "paths": {
+        "/enrichments": {
+            "get": {
+                "description": "List enrichments with optional filters",
+                "parameters": [
+                    {
+                        "description": "Filter by enrichment type",
+                        "in": "query",
+                        "name": "enrichment_type",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by enrichment subtype",
+                        "in": "query",
+                        "name": "enrichment_subtype",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Page number (default: 1)",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Results per page (default: 20, max: 100)",
+                        "in": "query",
+                        "name": "page_size",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.EnrichmentJSONAPIListResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "List enrichments",
+                "tags": [
+                    "enrichments"
+                ]
+            }
+        },
+        "/enrichments/{id}": {
+            "delete": {
+                "description": "Delete an enrichment by ID",
+                "parameters": [
+                    {
+                        "description": "Enrichment ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Delete enrichment",
+                "tags": [
+                    "enrichments"
+                ]
+            },
+            "get": {
+                "description": "Get an enrichment by ID",
+                "parameters": [
+                    {
+                        "description": "Enrichment ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.EnrichmentJSONAPIResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Get enrichment",
+                "tags": [
+                    "enrichments"
+                ]
+            },
+            "patch": {
+                "description": "Update an enrichment's content",
+                "parameters": [
+                    {
+                        "description": "Enrichment ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/dto.EnrichmentUpdateRequest"
+                            }
+                        }
+                    },
+                    "description": "Update request",
+                    "required": true,
+                    "x-originalParamName": "body"
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.EnrichmentJSONAPIResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Update enrichment",
+                "tags": [
+                    "enrichments"
+                ]
+            }
+        },
+        "/queue": {
+            "get": {
+                "description": "List tasks in the queue",
+                "parameters": [
+                    {
+                        "description": "Page number (default: 1)",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Results per page (default: 20, max: 100)",
+                        "in": "query",
+                        "name": "page_size",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Filter by task type",
+                        "in": "query",
+                        "name": "task_type",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.TaskListResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "List tasks",
+                "tags": [
+                    "queue"
+                ]
+            }
+        },
+        "/queue/{task_id}": {
+            "get": {
+                "description": "Get a task by ID",
+                "parameters": [
+                    {
+                        "description": "Task ID",
+                        "in": "path",
+                        "name": "task_id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.TaskResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Get task",
+                "tags": [
+                    "queue"
+                ]
+            }
+        },
+        "/repositories": {
+            "get": {
+                "description": "Get all tracked Git repositories",
+                "parameters": [
+                    {
+                        "description": "Page number (default: 1)",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Results per page (default: 20, max: 100)",
+                        "in": "query",
+                        "name": "page_size",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.RepositoryListResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "List repositories",
+                "tags": [
+                    "repositories"
+                ]
+            },
+            "post": {
+                "description": "Add a new Git repository to track",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/dto.RepositoryCreateRequest"
+                            }
+                        }
+                    },
+                    "description": "Repository request",
+                    "required": true,
+                    "x-originalParamName": "body"
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.RepositoryResponse"
+                                }
+                            }
+                        },
+                        "description": "Repository already exists"
+                    },
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.RepositoryResponse"
+                                }
+                            }
+                        },
+                        "description": "Repository created"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Add repository",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
+        "/repositories/{id}": {
+            "delete": {
+                "description": "Delete a repository by ID",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Delete repository",
+                "tags": [
+                    "repositories"
+                ]
+            },
+            "get": {
+                "description": "Get a repository by ID",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.RepositoryDetailsResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Get repository",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
+        "/repositories/{id}/blob/{blob_name}/{path}": {
+            "get": {
+                "description": "Returns raw file content from a Git repository at a given blob reference (commit SHA, tag, or branch)",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Commit SHA, tag name, or branch name",
+                        "in": "path",
+                        "name": "blob_name",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "File path within the repository",
+                        "in": "path",
+                        "name": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Line ranges to extract (e.g. L17-L26,L45,L55-L90)",
+                        "in": "query",
+                        "name": "lines",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Prefix each line with its 1-based line number",
+                        "in": "query",
+                        "name": "line_numbers",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "summary": "Get raw file content",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
+        "/repositories/{id}/commits": {
+            "get": {
+                "description": "List commits for a repository",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Page number (default: 1)",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Results per page (default: 20, max: 100)",
+                        "in": "query",
+                        "name": "page_size",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.CommitJSONAPIListResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "List commits",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
+        "/repositories/{id}/commits/{commit_sha}": {
+            "get": {
+                "description": "Get a commit by SHA",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Commit SHA",
+                        "in": "path",
+                        "name": "commit_sha",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.CommitJSONAPIResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Get commit",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
+        "/repositories/{id}/commits/{commit_sha}/embeddings": {
+            "get": {
+                "deprecated": true,
+                "description": "This endpoint has been removed. Embeddings are an internal detail of snippets and enrichments.",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Commit SHA",
+                        "in": "path",
+                        "name": "commit_sha",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "410": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Gone"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "List commit embeddings (deprecated)",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
+        "/repositories/{id}/commits/{commit_sha}/enrichments": {
+            "delete": {
+                "description": "Delete all enrichments for a commit",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Commit SHA",
+                        "in": "path",
+                        "name": "commit_sha",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Delete commit enrichments",
+                "tags": [
+                    "repositories"
+                ]
+            },
+            "get": {
+                "description": "List enrichments for a commit",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Commit SHA",
+                        "in": "path",
+                        "name": "commit_sha",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by enrichment type",
+                        "in": "query",
+                        "name": "enrichment_type",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by enrichment subtype",
+                        "in": "query",
+                        "name": "enrichment_subtype",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Page number (default: 1)",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Results per page (default: 20, max: 100)",
+                        "in": "query",
+                        "name": "page_size",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.EnrichmentJSONAPIListResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "List commit enrichments",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
+        "/repositories/{id}/commits/{commit_sha}/enrichments/{enrichment_id}": {
+            "delete": {
+                "description": "Delete a specific enrichment from a commit",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Commit SHA",
+                        "in": "path",
+                        "name": "commit_sha",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Enrichment ID",
+                        "in": "path",
+                        "name": "enrichment_id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Delete commit enrichment",
+                "tags": [
+                    "repositories"
+                ]
+            },
+            "get": {
+                "description": "Get an enrichment by ID within commit context",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Commit SHA",
+                        "in": "path",
+                        "name": "commit_sha",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Enrichment ID",
+                        "in": "path",
+                        "name": "enrichment_id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.EnrichmentJSONAPIResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Get commit enrichment",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
+        "/repositories/{id}/commits/{commit_sha}/files": {
+            "get": {
+                "description": "List files for a commit",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Commit SHA",
+                        "in": "path",
+                        "name": "commit_sha",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Page number (default: 1)",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Results per page (default: 20, max: 100)",
+                        "in": "query",
+                        "name": "page_size",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.FileJSONAPIListResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "List commit files",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
+        "/repositories/{id}/commits/{commit_sha}/files/{blob_sha}": {
+            "get": {
+                "description": "Get a file by blob SHA",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Commit SHA",
+                        "in": "path",
+                        "name": "commit_sha",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Blob SHA",
+                        "in": "path",
+                        "name": "blob_sha",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.FileJSONAPIResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Get commit file",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
+        "/repositories/{id}/commits/{commit_sha}/rescan": {
+            "post": {
+                "description": "Trigger a rescan of a specific commit",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Commit SHA",
+                        "in": "path",
+                        "name": "commit_sha",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Rescan commit",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
+        "/repositories/{id}/commits/{commit_sha}/snippets": {
+            "get": {
+                "description": "List code snippets for a commit (backed by enrichments)",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Commit SHA",
+                        "in": "path",
+                        "name": "commit_sha",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Page number (default: 1)",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Results per page (default: 20, max: 100)",
+                        "in": "query",
+                        "name": "page_size",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.SnippetListResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "List commit snippets",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
+        "/repositories/{id}/enrichments": {
+            "get": {
+                "description": "List recent enrichments across commits for a repository",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Filter by enrichment type",
+                        "in": "query",
+                        "name": "enrichment_type",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Max commits to check (default: 100)",
+                        "in": "query",
+                        "name": "max_commits_to_check",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Page number (default: 1)",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Results per page (default: 20, max: 100)",
+                        "in": "query",
+                        "name": "page_size",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.EnrichmentJSONAPIListResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "List repository enrichments",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
+        "/repositories/{id}/status": {
+            "get": {
+                "description": "Get indexing task status for a repository",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.TaskStatusListResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Get repository status",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
+        "/repositories/{id}/status/summary": {
+            "get": {
+                "description": "Get aggregated indexing status summary for a repository",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.RepositoryStatusSummaryResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Get repository status summary",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
+        "/repositories/{id}/sync": {
+            "post": {
+                "description": "Trigger a sync (git fetch + branch scan + commit indexing) for a repository",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Sync repository",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
+        "/repositories/{id}/tags": {
+            "get": {
+                "description": "List tags for a repository",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Page number (default: 1)",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Results per page (default: 20, max: 100)",
+                        "in": "query",
+                        "name": "page_size",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.TagJSONAPIListResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "List tags",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
+        "/repositories/{id}/tags/{tag_name}": {
+            "get": {
+                "description": "Get a tag by name",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Tag name",
+                        "in": "path",
+                        "name": "tag_name",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.TagJSONAPIResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Get tag",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
+        "/repositories/{id}/tracking-config": {
+            "get": {
+                "description": "Get current tracking configuration for a repository",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.TrackingConfigResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Get tracking config",
+                "tags": [
+                    "repositories"
+                ]
+            },
+            "put": {
+                "description": "Update tracking configuration for a repository",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/dto.TrackingConfigUpdateRequest"
+                            }
+                        }
+                    },
+                    "description": "Tracking config",
+                    "required": true,
+                    "x-originalParamName": "body"
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.TrackingConfigResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Update tracking config",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
+        "/search": {
+            "post": {
+                "description": "Hybrid search across code snippets and enrichments",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/dto.SearchRequest"
+                            }
+                        }
+                    },
+                    "description": "Search request",
+                    "required": true,
+                    "x-originalParamName": "body"
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.SearchResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Search code",
+                "tags": [
+                    "search"
+                ]
+            }
+        }
+    },
+    "servers": [
+        {
+            "url": "/api/v1"
+        }
+    ]
 }

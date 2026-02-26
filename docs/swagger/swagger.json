@@ -517,6 +517,77 @@
                 }
             }
         },
+        "/repositories/{id}/blob/{blob_name}/{path}": {
+            "get": {
+                "description": "Returns raw file content from a Git repository at a given blob reference (commit SHA, tag, or branch)",
+                "produces": [
+                    "application/octet-stream",
+                    "text/plain"
+                ],
+                "tags": [
+                    "repositories"
+                ],
+                "summary": "Get raw file content",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Repository ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Commit SHA, tag name, or branch name",
+                        "name": "blob_name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "File path within the repository",
+                        "name": "path",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Line ranges to extract (e.g. L17-L26,L45,L55-L90)",
+                        "name": "lines",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Prefix each line with its 1-based line number",
+                        "name": "line_numbers",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/repositories/{id}/commits": {
             "get": {
                 "security": [

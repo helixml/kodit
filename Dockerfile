@@ -41,6 +41,7 @@ CMD ["air", "-c", ".air.toml"]
 # Uses debian-slim variant (not the default distroless) because the Python
 # ML dependencies (torch, onnxruntime) need system libraries and a shell.
 FROM ghcr.io/astral-sh/uv:debian-slim@sha256:b852203fd7831954c58bfa1fec1166295adcfcfa50f4de7fdd0e684c8bd784eb AS model
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 COPY cmd/download-model/convert-model.py ./convert-model.py
 RUN --mount=type=cache,target=/root/.cache/uv \
