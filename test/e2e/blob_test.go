@@ -173,6 +173,61 @@ func TestBlob_BranchNotFound_Returns500(t *testing.T) {
 	}
 }
 
+func TestBlob_ReadNestedFilePath(t *testing.T) {
+	ts := NewTestServer(t)
+	repoDir, commitSHA := initGitRepo(t)
+
+	repo := ts.CreateRepositoryWithRealWorkingCopy("https://github.com/test/blob-nested-repo.git", repoDir)
+	ts.CreateCommit(repo, commitSHA, "initial commit")
+	ts.CreateBranch(repo, "main", commitSHA, true)
+
+	// Request a file in a subdirectory — this mirrors the production bug where
+	// chi.URLParam(req, "*") returns URL-encoded paths (e.g. src%2Fmain.go).
+	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/blob/main/src/main.go", repo.ID()))
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body := ts.ReadBody(resp)
+		t.Fatalf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusOK, body)
+	}
+
+	body := ts.ReadBody(resp)
+	if !strings.Contains(body, "package main") {
+		t.Errorf("expected Go source, got: %s", body)
+	}
+}
+
+// TestBlob_ReadFileWithEncodedSlashes reproduces the production bug where a client
+// (or reverse proxy) sends percent-encoded forward slashes (%2F) in the file path.
+// chi.URLParam(req, "*") returns the raw (encoded) value, so the handler must decode it.
+func TestBlob_ReadFileWithEncodedSlashes(t *testing.T) {
+	ts := NewTestServer(t)
+	repoDir, commitSHA := initGitRepo(t)
+
+	repo := ts.CreateRepositoryWithRealWorkingCopy("https://github.com/test/blob-encoded-repo.git", repoDir)
+	ts.CreateCommit(repo, commitSHA, "initial commit")
+	ts.CreateBranch(repo, "main", commitSHA, true)
+
+	// Build a raw URL with %2F instead of / in the file path portion.
+	// This is what happens in production when clients URL-encode the path.
+	rawURL := fmt.Sprintf("%s/api/v1/repositories/%d/blob/main/src%%2Fmain.go", ts.URL(), repo.ID())
+	resp, err := http.Get(rawURL)
+	if err != nil {
+		t.Fatalf("GET %s: %v", rawURL, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body := ts.ReadBody(resp)
+		t.Fatalf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusOK, body)
+	}
+
+	body := ts.ReadBody(resp)
+	if !strings.Contains(body, "package main") {
+		t.Errorf("expected Go source, got: %s", body)
+	}
+}
+
 func TestBlob_WithLineFilter(t *testing.T) {
 	ts := NewTestServer(t)
 	repoDir, commitSHA := initGitRepo(t)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -1443,7 +1444,11 @@ func (r *RepositoriesRouter) GetBlob(w http.ResponseWriter, req *http.Request) {
 	}
 
 	blobName := chi.URLParam(req, "blob_name")
-	filePath := strings.TrimPrefix(chi.URLParam(req, "*"), "/")
+	rawPath := strings.TrimPrefix(chi.URLParam(req, "*"), "/")
+	filePath, err := url.PathUnescape(rawPath)
+	if err != nil {
+		filePath = rawPath
+	}
 
 	if blobName == "" || filePath == "" {
 		middleware.WriteError(w, req, fmt.Errorf("blob_name and file path are required: %w", middleware.ErrValidation), r.logger)
