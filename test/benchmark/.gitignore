@@ -4,3 +4,5 @@ output/
 .venv/
 logs/
 .http_cache/
+.db_cache/
+*.log

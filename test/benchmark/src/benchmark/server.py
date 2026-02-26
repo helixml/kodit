@@ -1,6 +1,7 @@
 """Server management for benchmark operations."""
 
 import contextlib
+import gzip
 import os
 import shutil
 import signal
@@ -64,6 +65,103 @@ class ComposeDatabase:
         """Stop and remove the compose-managed database."""
         self._log.info("Stopping vectorchord via docker compose")
         return self._compose("down", "-v")
+
+    def dump(self, path: Path) -> bool:
+        """Dump the database to a gzip-compressed PostgreSQL tar file."""
+        self._log.info("Dumping database", path=str(path))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        cmd = [
+            "docker", "compose",  # noqa: S607
+            "-f", str(_COMPOSE_DEV),
+            "-f", str(_COMPOSE_BENCHMARK),
+            "--profile", "vectorchord",
+            "exec", "-T", "vectorchord",
+            "pg_dump", "-U", "postgres", "kodit", "-F", "t",
+        ]
+        try:
+            result = subprocess.run(  # noqa: S603
+                cmd,
+                capture_output=True,
+                check=True,
+                cwd=str(_PROJECT_ROOT),
+            )
+        except subprocess.CalledProcessError as exc:
+            self._log.error(
+                "Database dump failed",
+                stderr=exc.stderr.decode(errors="replace") if exc.stderr else "",
+            )
+            return False
+
+        compressed = gzip.compress(result.stdout)
+        path.write_bytes(compressed)
+        self._log.info(
+            "Database dumped",
+            path=str(path),
+            raw_size=len(result.stdout),
+            compressed_size=len(compressed),
+        )
+        return True
+
+    def restore(self, path: Path) -> bool:
+        """Restore the database from a (possibly gzipped) PostgreSQL tar file."""
+        self._log.info("Restoring database", path=str(path))
+        raw = path.read_bytes()
+        # Transparently decompress gzip files (magic bytes 1f 8b)
+        if raw[:2] == b"\x1f\x8b":
+            data = gzip.decompress(raw)
+        else:
+            data = raw
+        cmd = [
+            "docker", "compose",  # noqa: S607
+            "-f", str(_COMPOSE_DEV),
+            "-f", str(_COMPOSE_BENCHMARK),
+            "--profile", "vectorchord",
+            "exec", "-T", "vectorchord",
+            "pg_restore", "-U", "postgres", "-d", "kodit",
+            "--clean", "--if-exists", "--no-owner",
+        ]
+        result = subprocess.run(  # noqa: S603
+            cmd,
+            input=data,
+            capture_output=True,
+            check=False,
+            cwd=str(_PROJECT_ROOT),
+        )
+        # pg_restore returns 0 on success, 1 on warnings (e.g. "relation does
+        # not exist" during --clean).  Only exit code >= 2 is a hard failure.
+        if result.returncode >= 2:
+            self._log.error(
+                "Database restore failed",
+                returncode=result.returncode,
+                stderr=result.stderr.decode(errors="replace") if result.stderr else "",
+            )
+            return False
+        self._log.info("Database restored", path=str(path))
+        return self._wait_for_ready()
+
+    def _wait_for_ready(self, timeout: int = 30) -> bool:
+        """Wait for postgres to accept connections after a restore."""
+        deadline = time.monotonic() + timeout
+        cmd = [
+            "docker", "compose",  # noqa: S607
+            "-f", str(_COMPOSE_DEV),
+            "-f", str(_COMPOSE_BENCHMARK),
+            "--profile", "vectorchord",
+            "exec", "-T", "vectorchord",
+            "pg_isready", "-U", "postgres", "-d", "kodit",
+        ]
+        while time.monotonic() < deadline:
+            result = subprocess.run(  # noqa: S603
+                cmd,
+                capture_output=True,
+                check=False,
+                cwd=str(_PROJECT_ROOT),
+            )
+            if result.returncode == 0:
+                return True
+            time.sleep(0.5)
+        self._log.error("Database not ready after restore", timeout=timeout)
+        return False
 
     def _compose(self, *args: str) -> bool:
         """Run a docker compose command targeting the vectorchord profile."""
@@ -135,8 +233,17 @@ class ServerProcess:
         """Return the base URL for the Kodit server."""
         return f"http://{self._host}:{self._port}"
 
-    def start(self) -> bool:
-        """Start the database and Kodit server."""
+    @property
+    def db(self) -> ComposeDatabase:
+        """Return the database manager."""
+        return self._db
+
+    def start(self, restore_dump: Path | None = None) -> bool:
+        """Start the database and Kodit server.
+
+        If *restore_dump* is provided the database is restored from that
+        PostgreSQL tar dump before the Kodit binary is launched.
+        """
         if self._is_running():
             self._log.info("Server already running", pid=self._read_pid())
             return True
@@ -145,6 +252,13 @@ class ServerProcess:
         if not self._db.start():
             self._log.error("Failed to start database")
             return False
+
+        # Restore a cached database dump when available
+        if restore_dump is not None:
+            if not self._db.restore(restore_dump):
+                self._log.error("Failed to restore database dump")
+                self._db.stop()
+                return False
 
         self._log.info("Starting Kodit server", host=self._host, port=self._port)
 
@@ -196,6 +310,10 @@ class ServerProcess:
         # Database configuration
         env["DB_URL"] = self._db.db_url
         env["DEFAULT_SEARCH_PROVIDER"] = "vectorchord"
+
+        # Disable periodic sync during benchmarks — the initial indexing is
+        # sufficient and re-syncs cause spurious embedding failures.
+        env["PERIODIC_SYNC_ENABLED"] = "false"
 
         # HTTP response caching for OpenRouter requests
         cache_dir = _PROJECT_ROOT / "test" / "benchmark" / ".http_cache"

@@ -252,3 +252,17 @@ release: ## Create a GitHub release (BUMP=patch|minor|major, RELEASE=1 for full 
 		echo "Creating pre-release $$TAG on branch $$BRANCH..."; \
 		gh release create "$$TAG" --title "$$TAG" --generate-notes --prerelease --target "$$BRANCH"; \
 	fi
+
+##@ Benchmark
+
+.PHONY: benchmark-kodit-25
+benchmark-kodit-25:
+	cd test/benchmark && uv run src/benchmark/cli.py mini-swe-agent run-kodit --dataset-file data/swebench-verified.json --limit 25 --stream > benchmark-kodit-25.log 2>&1
+
+.PHONY: benchmark-baseline-25
+benchmark-baseline-25:
+	cd test/benchmark && uv run src/benchmark/cli.py mini-swe-agent run-baseline --dataset-file data/swebench-verified.json --limit 25 --stream > benchmark-baseline-25.log 2>&1
+
+.PHONY: compare
+compare:
+	cd test/benchmark && uv run src/benchmark/cli.py mini-swe-agent compare
