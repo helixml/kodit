@@ -123,6 +123,9 @@ type ClientInterface interface {
 	// GetRepositoriesId request
 	GetRepositoriesId(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetRepositoriesIdBlobBlobNamePath request
+	GetRepositoriesIdBlobBlobNamePath(ctx context.Context, id int, blobName string, path string, params *GetRepositoriesIdBlobBlobNamePathParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetRepositoriesIdCommits request
 	GetRepositoriesIdCommits(ctx context.Context, id int, params *GetRepositoriesIdCommitsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -322,6 +325,18 @@ func (c *Client) DeleteRepositoriesId(ctx context.Context, id int, reqEditors ..
 
 func (c *Client) GetRepositoriesId(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetRepositoriesIdRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetRepositoriesIdBlobBlobNamePath(ctx context.Context, id int, blobName string, path string, params *GetRepositoriesIdBlobBlobNamePathParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdBlobBlobNamePathRequest(c.Server, id, blobName, path, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1086,6 +1101,76 @@ func NewGetRepositoriesIdRequest(server string, id int) (*http.Request, error) {
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetRepositoriesIdBlobBlobNamePathRequest generates requests for GetRepositoriesIdBlobBlobNamePath
+func NewGetRepositoriesIdBlobBlobNamePathRequest(server string, id int, blobName string, path string, params *GetRepositoriesIdBlobBlobNamePathParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "blob_name", runtime.ParamLocationPath, blobName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "path", runtime.ParamLocationPath, path)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/repositories/%s/blob/%s/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Lines != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "lines", runtime.ParamLocationQuery, *params.Lines); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -2262,6 +2347,9 @@ type ClientWithResponsesInterface interface {
 	// GetRepositoriesIdWithResponse request
 	GetRepositoriesIdWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdResponse, error)
 
+	// GetRepositoriesIdBlobBlobNamePathWithResponse request
+	GetRepositoriesIdBlobBlobNamePathWithResponse(ctx context.Context, id int, blobName string, path string, params *GetRepositoriesIdBlobBlobNamePathParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdBlobBlobNamePathResponse, error)
+
 	// GetRepositoriesIdCommitsWithResponse request
 	GetRepositoriesIdCommitsWithResponse(ctx context.Context, id int, params *GetRepositoriesIdCommitsParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdCommitsResponse, error)
 
@@ -2557,6 +2645,27 @@ func (r GetRepositoriesIdResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetRepositoriesIdResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetRepositoriesIdBlobBlobNamePathResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r GetRepositoriesIdBlobBlobNamePathResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetRepositoriesIdBlobBlobNamePathResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3144,6 +3253,15 @@ func (c *ClientWithResponses) GetRepositoriesIdWithResponse(ctx context.Context,
 	return ParseGetRepositoriesIdResponse(rsp)
 }
 
+// GetRepositoriesIdBlobBlobNamePathWithResponse request returning *GetRepositoriesIdBlobBlobNamePathResponse
+func (c *ClientWithResponses) GetRepositoriesIdBlobBlobNamePathWithResponse(ctx context.Context, id int, blobName string, path string, params *GetRepositoriesIdBlobBlobNamePathParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdBlobBlobNamePathResponse, error) {
+	rsp, err := c.GetRepositoriesIdBlobBlobNamePath(ctx, id, blobName, path, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetRepositoriesIdBlobBlobNamePathResponse(rsp)
+}
+
 // GetRepositoriesIdCommitsWithResponse request returning *GetRepositoriesIdCommitsResponse
 func (c *ClientWithResponses) GetRepositoriesIdCommitsWithResponse(ctx context.Context, id int, params *GetRepositoriesIdCommitsParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdCommitsResponse, error) {
 	rsp, err := c.GetRepositoriesIdCommits(ctx, id, params, reqEditors...)
@@ -3707,6 +3825,22 @@ func ParseGetRepositoriesIdResponse(rsp *http.Response) (*GetRepositoriesIdRespo
 		}
 		response.JSON500 = &dest
 
+	}
+
+	return response, nil
+}
+
+// ParseGetRepositoriesIdBlobBlobNamePathResponse parses an HTTP response from a GetRepositoriesIdBlobBlobNamePathWithResponse call
+func ParseGetRepositoriesIdBlobBlobNamePathResponse(rsp *http.Response) (*GetRepositoriesIdBlobBlobNamePathResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetRepositoriesIdBlobBlobNamePathResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
 	}
 
 	return response, nil

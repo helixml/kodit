@@ -169,6 +169,7 @@ tools: ## Install development tools
 	$(GOCMD) install golang.org/x/tools/cmd/goimports@latest
 	$(GOCMD) install github.com/swaggo/swag/cmd/swag@latest
 	$(GOCMD) install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.1
+	$(GOCMD) install github.com/dense-analysis/openapi-spec-converter/cmd/openapi-spec-converter@latest
 
 ##@ Documentation
 
@@ -194,14 +195,16 @@ swag-check: ## Check swagger docs are up to date (fails if stale)
 .PHONY: openapi
 openapi: swag ## Generate Swagger 2.0 and convert to OpenAPI 3.0
 	@echo "Converting Swagger 2.0 to OpenAPI 3.0..."
-	npx swagger2openapi $(SWAGGER_DIR)/swagger.json -o $(SWAGGER_DIR)/openapi.json --patch
+	openapi-spec-converter -t 3.0 -f json -o $(SWAGGER_DIR)/openapi.json $(SWAGGER_DIR)/swagger.json
+	sed -i 's|"url":"https://[^/]*/|"url":"/|' $(SWAGGER_DIR)/openapi.json
 	cp $(SWAGGER_DIR)/openapi.json $(OPENAPI_EMBED)
 	@echo "OpenAPI 3.0 spec generated at $(OPENAPI_EMBED)"
 
 .PHONY: openapi-convert
 openapi-convert: ## Convert existing swagger.json to OpenAPI 3.0 (skip swag generation)
 	@echo "Converting existing Swagger 2.0 to OpenAPI 3.0..."
-	npx swagger2openapi $(SWAGGER_DIR)/swagger.json -o $(OPENAPI_EMBED) --patch
+	openapi-spec-converter -t 3.0 -f json -o $(OPENAPI_EMBED) $(SWAGGER_DIR)/swagger.json
+	sed -i 's|"url":"https://[^/]*/|"url":"/|' $(OPENAPI_EMBED)
 	@echo "OpenAPI 3.0 spec generated at $(OPENAPI_EMBED)"
 
 generate-go-client: openapi

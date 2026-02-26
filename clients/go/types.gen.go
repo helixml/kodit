@@ -9,8 +9,8 @@ const (
 
 // Defines values for DtoTrackingMode.
 const (
-	TrackingModeBranch DtoTrackingMode = "branch"
-	TrackingModeTag    DtoTrackingMode = "tag"
+	Branch DtoTrackingMode = "branch"
+	Tag    DtoTrackingMode = "tag"
 )
 
 // DtoCommitAttributes defines model for dto.CommitAttributes.
@@ -469,6 +469,12 @@ type GetRepositoriesParams struct {
 
 	// PageSize Results per page (default: 20, max: 100)
 	PageSize *int `form:"page_size,omitempty" json:"page_size,omitempty"`
+}
+
+// GetRepositoriesIdBlobBlobNamePathParams defines parameters for GetRepositoriesIdBlobBlobNamePath.
+type GetRepositoriesIdBlobBlobNamePathParams struct {
+	// Lines Line ranges to extract (e.g. L17-L26,L45,L55-L90)
+	Lines *string `form:"lines,omitempty" json:"lines,omitempty"`
 }
 
 // GetRepositoriesIdCommitsParams defines parameters for GetRepositoriesIdCommits.

@@ -22,7 +22,7 @@ This document contains the complete configuration reference for Kodit. All confi
 | `EMBEDDING_ENDPOINT_BASE_URL` | string | _(empty)_ | The base URL for the endpoint. |
 | `EMBEDDING_ENDPOINT_MODEL` | string | _(empty)_ | The model identifier (e.g., openai/text-embedding-3-small). |
 | `EMBEDDING_ENDPOINT_API_KEY` | string | _(empty)_ | The API key for authentication. |
-| `EMBEDDING_ENDPOINT_NUM_PARALLEL_TASKS` | int | `10` | The number of parallel tasks. |
+| `EMBEDDING_ENDPOINT_NUM_PARALLEL_TASKS` | int | `1` | The number of parallel tasks. |
 | `EMBEDDING_ENDPOINT_SOCKET_PATH` | string | _(empty)_ | The Unix socket path for local communication. |
 | `EMBEDDING_ENDPOINT_TIMEOUT` | float | `60` | The request timeout in seconds. |
 | `EMBEDDING_ENDPOINT_MAX_RETRIES` | int | `5` | The maximum number of retries. |
@@ -30,10 +30,12 @@ This document contains the complete configuration reference for Kodit. All confi
 | `EMBEDDING_ENDPOINT_BACKOFF_FACTOR` | float | `2.0` | The retry backoff multiplier. |
 | `EMBEDDING_ENDPOINT_EXTRA_PARAMS` | string | _(empty)_ | A JSON-encoded map of extra parameters. |
 | `EMBEDDING_ENDPOINT_MAX_TOKENS` | int | `4000` | The maximum token limit. |
+| `EMBEDDING_ENDPOINT_MAX_BATCH_CHARS` | int | `16000` | The maximum total characters per embedding batch. |
+| `EMBEDDING_ENDPOINT_MAX_BATCH_SIZE` | int | `1` | The maximum number of requests per batch. |
 | `ENRICHMENT_ENDPOINT_BASE_URL` | string | _(empty)_ | The base URL for the endpoint. |
 | `ENRICHMENT_ENDPOINT_MODEL` | string | _(empty)_ | The model identifier (e.g., openai/text-embedding-3-small). |
 | `ENRICHMENT_ENDPOINT_API_KEY` | string | _(empty)_ | The API key for authentication. |
-| `ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS` | int | `10` | The number of parallel tasks. |
+| `ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS` | int | `1` | The number of parallel tasks. |
 | `ENRICHMENT_ENDPOINT_SOCKET_PATH` | string | _(empty)_ | The Unix socket path for local communication. |
 | `ENRICHMENT_ENDPOINT_TIMEOUT` | float | `60` | The request timeout in seconds. |
 | `ENRICHMENT_ENDPOINT_MAX_RETRIES` | int | `5` | The maximum number of retries. |
@@ -41,6 +43,8 @@ This document contains the complete configuration reference for Kodit. All confi
 | `ENRICHMENT_ENDPOINT_BACKOFF_FACTOR` | float | `2.0` | The retry backoff multiplier. |
 | `ENRICHMENT_ENDPOINT_EXTRA_PARAMS` | string | _(empty)_ | A JSON-encoded map of extra parameters. |
 | `ENRICHMENT_ENDPOINT_MAX_TOKENS` | int | `4000` | The maximum token limit. |
+| `ENRICHMENT_ENDPOINT_MAX_BATCH_CHARS` | int | `16000` | The maximum total characters per embedding batch. |
+| `ENRICHMENT_ENDPOINT_MAX_BATCH_SIZE` | int | `1` | The maximum number of requests per batch. |
 | `PERIODIC_SYNC_ENABLED` | bool | `true` | Whether periodic sync is enabled. |
 | `PERIODIC_SYNC_INTERVAL_SECONDS` | float | `1800` | The sync interval in seconds. |
 | `PERIODIC_SYNC_RETRY_ATTEMPTS` | int | `3` | The number of retry attempts. |
@@ -53,6 +57,11 @@ This document contains the complete configuration reference for Kodit. All confi
 | `LITELLM_CACHE_ENABLED` | bool | `true` | Whether caching is enabled. |
 | `WORKER_COUNT` | int | `1` | The number of background workers. |
 | `SEARCH_LIMIT` | int | `10` | The default search result limit. |
+| `HTTP_CACHE_DIR` | string | _(empty)_ | The directory for caching HTTP responses to disk. |
+| `SIMPLE_CHUNKING_ENABLED` | bool | `false` | SimpleChunking enables fixed-size text chunking instead of AST-based snippet extraction. |
+| `CHUNK_SIZE` | int | `1500` | The target size in characters for each text chunk. |
+| `CHUNK_OVERLAP` | int | `200` | The number of overlapping characters between adjacent chunks. |
+| `CHUNK_MIN_SIZE` | int | `50` | The minimum chunk size in characters; smaller chunks are dropped. |
 
 ## Applying Configuration
 

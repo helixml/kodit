@@ -15,7 +15,7 @@ Current version: 1.0.
 
 | URL | Description |
 |-----|-------------|
-| //localhost:8080/api/v1 |  |
+| https://localhost:8080/api/v1 |  |
 
 ## Authentication
 
@@ -54,6 +54,30 @@ List enrichments with optional filters
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+### DELETE /enrichments/{id}
+
+Delete an enrichment by ID
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Enrichment ID |
+
+
+#### Responses
+
+- 204: No Content
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 ### GET /enrichments/{id}
 
 Get an enrichment by ID
@@ -71,30 +95,6 @@ Get an enrichment by ID
 - 200: OK
 
 [dto.EnrichmentJSONAPIResponse](#dto.enrichmentjsonapiresponse)
-
-- 404: Not Found
-
-[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
-
-- 500: Internal Server Error
-
-[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
-
-### DELETE /enrichments/{id}
-
-Delete an enrichment by ID
-
-
-#### Parameters
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| id | integer | True | Enrichment ID |
-
-
-#### Responses
-
-- 204: No Content
 
 - 404: Not Found
 
@@ -236,6 +236,30 @@ Add a new Git repository to track
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+### DELETE /repositories/{id}
+
+Delete a repository by ID
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Repository ID |
+
+
+#### Responses
+
+- 204: No Content
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 ### GET /repositories/{id}
 
 Get a repository by ID
@@ -262,9 +286,9 @@ Get a repository by ID
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
-### DELETE /repositories/{id}
+### GET /repositories/{id}/blob/{blob_name}/{path}
 
-Delete a repository by ID
+Returns raw file content from a Git repository at a given blob reference (commit SHA, tag, or branch)
 
 
 #### Parameters
@@ -272,17 +296,30 @@ Delete a repository by ID
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | id | integer | True | Repository ID |
+| blob_name | string | True | Commit SHA, tag name, or branch name |
+| path | string | True | File path within the repository |
+| lines | string |  | Line ranges to extract (e.g. L17-L26,L45,L55-L90) |
 
 
 #### Responses
 
-- 204: No Content
+- 200: OK
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 404: Not Found
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 - 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
@@ -360,6 +397,31 @@ This endpoint has been removed. Embeddings are an internal detail of snippets an
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+### DELETE /repositories/{id}/commits/{commit_sha}/enrichments
+
+Delete all enrichments for a commit
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Repository ID |
+| commit_sha | string | True | Commit SHA |
+
+
+#### Responses
+
+- 204: No Content
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 ### GET /repositories/{id}/commits/{commit_sha}/enrichments
 
 List enrichments for a commit
@@ -391,9 +453,9 @@ List enrichments for a commit
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
-### DELETE /repositories/{id}/commits/{commit_sha}/enrichments
+### DELETE /repositories/{id}/commits/{commit_sha}/enrichments/{enrichment_id}
 
-Delete all enrichments for a commit
+Delete a specific enrichment from a commit
 
 
 #### Parameters
@@ -402,6 +464,7 @@ Delete all enrichments for a commit
 |------|------|----------|-------------|
 | id | integer | True | Repository ID |
 | commit_sha | string | True | Commit SHA |
+| enrichment_id | integer | True | Enrichment ID |
 
 
 #### Responses
@@ -435,32 +498,6 @@ Get an enrichment by ID within commit context
 - 200: OK
 
 [dto.EnrichmentJSONAPIResponse](#dto.enrichmentjsonapiresponse)
-
-- 404: Not Found
-
-[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
-
-- 500: Internal Server Error
-
-[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
-
-### DELETE /repositories/{id}/commits/{commit_sha}/enrichments/{enrichment_id}
-
-Delete a specific enrichment from a commit
-
-
-#### Parameters
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| id | integer | True | Repository ID |
-| commit_sha | string | True | Commit SHA |
-| enrichment_id | integer | True | Enrichment ID |
-
-
-#### Responses
-
-- 204: No Content
 
 - 404: Not Found
 
