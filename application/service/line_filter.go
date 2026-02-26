@@ -51,6 +51,7 @@ func NewLineFilter(param string) (LineFilter, error) {
 
 // Apply extracts matching lines from content.
 // If no ranges are set (pass-through), returns the original content.
+// Non-contiguous ranges are separated by an ellipsis line.
 func (f LineFilter) Apply(content []byte) []byte {
 	if len(f.ranges) == 0 {
 		return content
@@ -58,6 +59,7 @@ func (f LineFilter) Apply(content []byte) []byte {
 
 	lines := bytes.Split(content, []byte("\n"))
 	var result [][]byte
+	prevEnd := 0
 
 	for _, r := range f.ranges {
 		start := r.start - 1
@@ -73,7 +75,12 @@ func (f LineFilter) Apply(content []byte) []byte {
 			start = 0
 		}
 
+		if prevEnd > 0 && start > prevEnd {
+			result = append(result, []byte("..."))
+		}
+
 		result = append(result, lines[start:end]...)
+		prevEnd = end
 	}
 
 	return bytes.Join(result, []byte("\n"))
@@ -82,6 +89,7 @@ func (f LineFilter) Apply(content []byte) []byte {
 // ApplyWithLineNumbers extracts matching lines and prefixes each with its
 // original 1-based line number and a tab character.
 // If no ranges are set (pass-through), all lines are numbered.
+// Non-contiguous ranges are separated by an ellipsis line.
 func (f LineFilter) ApplyWithLineNumbers(content []byte) []byte {
 	lines := bytes.Split(content, []byte("\n"))
 	var result [][]byte
@@ -93,6 +101,8 @@ func (f LineFilter) ApplyWithLineNumbers(content []byte) []byte {
 		return bytes.Join(result, []byte("\n"))
 	}
 
+	prevEnd := 0
+
 	for _, r := range f.ranges {
 		start := r.start - 1
 		end := r.end
@@ -107,9 +117,14 @@ func (f LineFilter) ApplyWithLineNumbers(content []byte) []byte {
 			start = 0
 		}
 
+		if prevEnd > 0 && start > prevEnd {
+			result = append(result, []byte("..."))
+		}
+
 		for i := start; i < end; i++ {
 			result = append(result, []byte(fmt.Sprintf("%d\t%s", i+1, lines[i])))
 		}
+		prevEnd = end
 	}
 
 	return bytes.Join(result, []byte("\n"))

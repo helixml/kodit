@@ -51,7 +51,7 @@ func TestNewLineFilter_MultipleRanges(t *testing.T) {
 
 	content := []byte("a\nb\nc\nd\ne\nf\ng\nh")
 	result := string(f.Apply(content))
-	expected := "a\nb\nd\nf\ng"
+	expected := "a\nb\n...\nd\n...\nf\ng"
 	if result != expected {
 		t.Errorf("expected %q, got %q", expected, result)
 	}
@@ -124,7 +124,37 @@ func TestLineFilter_ApplyWithLineNumbers_MultipleRanges(t *testing.T) {
 	}
 
 	result := string(f.ApplyWithLineNumbers(content))
-	expected := "1\ta\n2\tb\n5\te"
+	expected := "1\ta\n2\tb\n...\n5\te"
+	if result != expected {
+		t.Errorf("expected %q, got %q", expected, result)
+	}
+}
+
+func TestLineFilter_Apply_ContiguousRanges_NoEllipsis(t *testing.T) {
+	f, err := NewLineFilter("L1-L3,L4-L5")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	content := []byte("a\nb\nc\nd\ne\nf")
+	result := string(f.Apply(content))
+	// Ranges are contiguous (L3 → L4), so no ellipsis between them.
+	expected := "a\nb\nc\nd\ne"
+	if result != expected {
+		t.Errorf("expected %q, got %q", expected, result)
+	}
+}
+
+func TestLineFilter_ApplyWithLineNumbers_ContiguousRanges_NoEllipsis(t *testing.T) {
+	f, err := NewLineFilter("L1-L2,L3")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	content := []byte("a\nb\nc\nd")
+	result := string(f.ApplyWithLineNumbers(content))
+	// L2 → L3 is contiguous, no ellipsis.
+	expected := "1\ta\n2\tb\n3\tc"
 	if result != expected {
 		t.Errorf("expected %q, got %q", expected, result)
 	}

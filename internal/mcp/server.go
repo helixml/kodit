@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -74,10 +75,10 @@ const instructions = "This server provides access to code knowledge through mult
 	"- get_cookbook() - Complete usage examples\n" +
 	"- search() - Find specific code snippets matching keywords\n\n" +
 	"**Reading file content:**\n" +
-	"Use the file resource template to read raw file content:\n" +
-	"  file://{id}/{blob_name}/{+path}\n" +
+	"Use the file resource template: file://{id}/{blob_name}/{+path}\n" +
 	"where id is the repository ID, blob_name is a commit SHA, tag, or branch name, " +
-	"and path is the file path within the repository.\n\n" +
+	"and path is the file path within the repository.\n" +
+	"Optional query parameters: ?lines=L17-L26,L45 and ?line_numbers=true\n\n" +
 	"Choose the most appropriate tool based on what information you need. " +
 	"Often starting with architecture or API docs provides better context than " +
 	"immediately searching for code snippets."
@@ -227,6 +228,7 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 			mcp.Description("The commit SHA to get docs for (defaults to latest)"),
 		),
 	), s.handleGetCookbook)
+
 }
 
 // handleSearch handles the search tool invocation.
@@ -475,17 +477,24 @@ func (s *Server) registerResources(mcpServer *server.MCPServer) {
 }
 
 // handleReadFile handles resource reads for file://{id}/{blob_name}/{+path}.
+// Supports optional query parameters:
+//   - lines: line ranges to extract (e.g. L17-L26,L45)
+//   - line_numbers: "true" to prefix each line with its 1-based number
 func (s *Server) handleReadFile(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	uri := request.Params.URI
 
-	// Parse: file://{id}/{blob_name}/{+path}
-	// URI looks like: file://1/main/src/foo.go
-	const prefix = "file://"
-	if !strings.HasPrefix(uri, prefix) {
+	// Parse: file://{id}/{blob_name}/{+path}[?lines=...&line_numbers=true]
+	// URI looks like: file://1/main/src/foo.go?lines=L1-L10&line_numbers=true
+	parsed, err := url.Parse(uri)
+	if err != nil {
+		return nil, fmt.Errorf("invalid file URI: %w", err)
+	}
+	if parsed.Scheme != "file" {
 		return nil, fmt.Errorf("invalid file URI: %s", uri)
 	}
 
-	rest := strings.TrimPrefix(uri, prefix)
+	// parsed.Host = "1", parsed.Path = "/main/src/foo.go"
+	rest := parsed.Host + parsed.Path
 	// rest = "1/main/src/foo.go"
 
 	// Split into at least 3 parts: id / blob_name / path...
@@ -506,11 +515,29 @@ func (s *Server) handleReadFile(ctx context.Context, request mcp.ReadResourceReq
 		return nil, fmt.Errorf("read file content: %w", err)
 	}
 
+	content := result.Content()
+	query := parsed.Query()
+	linesParam := query.Get("lines")
+	lineNumbers := query.Get("line_numbers") == "true"
+
+	if linesParam != "" || lineNumbers {
+		filter, filterErr := service.NewLineFilter(linesParam)
+		if filterErr != nil {
+			return nil, fmt.Errorf("invalid lines parameter: %w", filterErr)
+		}
+
+		if lineNumbers {
+			content = filter.ApplyWithLineNumbers(content)
+		} else {
+			content = filter.Apply(content)
+		}
+	}
+
 	return []mcp.ResourceContents{
 		mcp.TextResourceContents{
 			URI:      uri,
 			MIMEType: "text/plain",
-			Text:     string(result.Content()),
+			Text:     string(content),
 		},
 	}, nil
 }
