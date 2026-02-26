@@ -591,6 +591,108 @@
                 }
             }
         },
+        "/repositories/{id}/blob/{blob_name}/{path}": {
+            "get": {
+                "description": "Returns raw file content from a Git repository at a given blob reference (commit SHA, tag, or branch). Use the optional lines query parameter to extract specific line ranges.",
+                "tags": [
+                    "repositories"
+                ],
+                "summary": "Get raw file content",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Commit SHA, tag name, or branch name",
+                        "name": "blob_name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "File path within the repository",
+                        "name": "path",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Line ranges to extract (e.g. L17-L26,L45,L55-L90)",
+                        "name": "lines",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Raw file content",
+                        "headers": {
+                            "X-Commit-SHA": {
+                                "description": "The resolved commit SHA",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            },
+                            "text/plain": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/repositories/{id}/commits": {
             "get": {
                 "security": [
