@@ -917,6 +917,51 @@ paths:
       summary: Get repository
       tags:
       - repositories
+  /repositories/{id}/blob/{blob_name}/{path}:
+    get:
+      description: Returns raw file content from a Git repository at a given blob
+        reference (commit SHA, tag, or branch)
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Commit SHA, tag name, or branch name
+        in: path
+        name: blob_name
+        required: true
+        type: string
+      - description: File path within the repository
+        in: path
+        name: path
+        required: true
+        type: string
+      - description: Line ranges to extract (e.g. L17-L26,L45,L55-L90)
+        in: query
+        name: lines
+        type: string
+      produces:
+      - application/octet-stream
+      - text/plain
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      summary: Get raw file content
+      tags:
+      - repositories
   /repositories/{id}/commits:
     get:
       consumes:
