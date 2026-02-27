@@ -6,8 +6,12 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"sort"
 	"strconv"
+	"sync"
 	"sync/atomic"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
@@ -302,67 +306,86 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 		if len(textsToEmbed) > 0 {
 			embeddings, err := s.embedder.Embed(ctx, textsToEmbed)
 			if err != nil {
-				s.logger.Warn("embedding failed", "error", err)
-			} else {
-				if textIdx >= 0 && textIdx < len(embeddings) {
-					textEmbedding = embeddings[textIdx]
-				}
-				if codeIdx >= 0 && codeIdx < len(embeddings) {
-					codeEmbedding = embeddings[codeIdx]
-				} else if codeQuery == textQuery && textEmbedding != nil {
-					codeEmbedding = textEmbedding
-				}
+				return MultiSearchResult{}, fmt.Errorf("embedding failed: %w", err)
+			}
+			if textIdx >= 0 && textIdx < len(embeddings) {
+				textEmbedding = embeddings[textIdx]
+			}
+			if codeIdx >= 0 && codeIdx < len(embeddings) {
+				codeEmbedding = embeddings[codeIdx]
+			} else if codeQuery == textQuery && textEmbedding != nil {
+				codeEmbedding = textEmbedding
 			}
 		}
 	}
 
-	// Run text vector search if embedding available
+	// Run text vector, code vector, and BM25 searches concurrently
+	var mu sync.Mutex
+	g, gctx := errgroup.WithContext(ctx)
+
 	if len(textEmbedding) > 0 && s.textVectorStore != nil {
-		results, err := s.textVectorStore.Search(ctx,
-			filterOpt,
-			search.WithEmbedding(textEmbedding),
-			repository.WithLimit(topK*2),
-		)
-		if err != nil {
-			s.logger.Warn("text vector search failed", "error", err)
-		} else if len(results) > 0 {
-			fusionLists = append(fusionLists, toFusionRequests(results))
-		}
-	}
-
-	// Run code vector search if embedding available
-	if len(codeEmbedding) > 0 && s.codeVectorStore != nil {
-		results, err := s.codeVectorStore.Search(ctx,
-			filterOpt,
-			search.WithEmbedding(codeEmbedding),
-			repository.WithLimit(topK*2),
-		)
-		if err != nil {
-			s.logger.Warn("code vector search failed", "error", err)
-		} else if len(results) > 0 {
-			fusionLists = append(fusionLists, toFusionRequests(results))
-		}
-	}
-
-	// Run BM25 keyword search per-keyword if keywords provided and store is available
-	keywords := request.Keywords()
-	if len(keywords) > 0 && s.bm25Store != nil {
-		var bm25Fusion []search.FusionRequest
-		for _, keyword := range keywords {
-			results, err := s.bm25Store.Find(ctx,
+		g.Go(func() error {
+			results, err := s.textVectorStore.Search(gctx,
 				filterOpt,
-				search.WithQuery(keyword),
+				search.WithEmbedding(textEmbedding),
 				repository.WithLimit(topK*2),
 			)
 			if err != nil {
-				s.logger.Warn("bm25 keyword search failed", "keyword", keyword, "error", err)
-				continue
+				return fmt.Errorf("text vector search failed: %w", err)
 			}
-			bm25Fusion = append(bm25Fusion, toFusionRequests(results)...)
+			if len(results) > 0 {
+				mu.Lock()
+				fusionLists = append(fusionLists, toFusionRequests(results))
+				mu.Unlock()
+			}
+			return nil
+		})
+	}
+
+	if len(codeEmbedding) > 0 && s.codeVectorStore != nil {
+		g.Go(func() error {
+			results, err := s.codeVectorStore.Search(gctx,
+				filterOpt,
+				search.WithEmbedding(codeEmbedding),
+				repository.WithLimit(topK*2),
+			)
+			if err != nil {
+				return fmt.Errorf("code vector search failed: %w", err)
+			}
+			if len(results) > 0 {
+				mu.Lock()
+				fusionLists = append(fusionLists, toFusionRequests(results))
+				mu.Unlock()
+			}
+			return nil
+		})
+	}
+
+	// Each keyword becomes a separate fusion list for proper RRF scoring
+	keywords := request.Keywords()
+	if s.bm25Store != nil {
+		for _, keyword := range keywords {
+			g.Go(func() error {
+				results, err := s.bm25Store.Find(gctx,
+					filterOpt,
+					search.WithQuery(keyword),
+					repository.WithLimit(topK*2),
+				)
+				if err != nil {
+					return fmt.Errorf("bm25 keyword search failed: %w", err)
+				}
+				if len(results) > 0 {
+					mu.Lock()
+					fusionLists = append(fusionLists, toFusionRequests(results))
+					mu.Unlock()
+				}
+				return nil
+			})
 		}
-		if len(bm25Fusion) > 0 {
-			fusionLists = append(fusionLists, bm25Fusion)
-		}
+	}
+
+	if err := g.Wait(); err != nil {
+		return MultiSearchResult{}, err
 	}
 
 	if len(fusionLists) == 0 {
@@ -503,13 +526,9 @@ func orderByScore(enrichments []enrichment.Enrichment, scores map[string]float64
 	}
 
 	// Sort by score descending
-	for i := 0; i < len(scoredItems)-1; i++ {
-		for j := i + 1; j < len(scoredItems); j++ {
-			if scoredItems[j].score > scoredItems[i].score {
-				scoredItems[i], scoredItems[j] = scoredItems[j], scoredItems[i]
-			}
-		}
-	}
+	sort.Slice(scoredItems, func(i, j int) bool {
+		return scoredItems[i].score > scoredItems[j].score
+	})
 
 	result := make([]enrichment.Enrichment, len(scoredItems))
 	for i, s := range scoredItems {

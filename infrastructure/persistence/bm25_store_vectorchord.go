@@ -50,14 +50,15 @@ stemmer = "english_porter2"
 $$)`
 
 	bm25InsertQuery = `
-INSERT INTO vectorchord_bm25_documents (snippet_id, passage)
-VALUES (?, ?)
+INSERT INTO vectorchord_bm25_documents (snippet_id, passage, embedding)
+VALUES (?, ?, NULL)
 ON CONFLICT (snippet_id) DO UPDATE
-SET passage = EXCLUDED.passage`
+SET passage = EXCLUDED.passage, embedding = NULL`
 
 	bm25UpdateEmbeddingsQuery = `
 UPDATE vectorchord_bm25_documents
-SET embedding = tokenize(passage, 'bert')`
+SET embedding = tokenize(passage, 'bert')
+WHERE embedding IS NULL`
 
 	bm25DeleteQuery = `DELETE FROM vectorchord_bm25_documents WHERE snippet_id IN ?`
 

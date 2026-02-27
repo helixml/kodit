@@ -56,9 +56,12 @@ func (f Fusion) Fuse(lists ...[]FusionRequest) []FusionResult {
 		results = append(results, NewFusionResult(id, score, originals[id]))
 	}
 
-	// Sort by fused score descending
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Score() > results[j].Score()
+	// Sort by fused score descending, break ties by ID for determinism
+	sort.SliceStable(results, func(i, j int) bool {
+		if results[i].Score() != results[j].Score() {
+			return results[i].Score() > results[j].Score()
+		}
+		return results[i].ID() < results[j].ID()
 	})
 
 	return results
