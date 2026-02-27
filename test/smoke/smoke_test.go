@@ -575,6 +575,29 @@ func TestSmoke(t *testing.T) {
 		validateSearchResults(t, *resp.JSON200.Data, "mixed")
 	})
 
+	// MCP tool smoke tests — initialize a session once and reuse it.
+	mcpSessionID := initMCPSession(t)
+
+	t.Run("mcp_semantic_search", func(t *testing.T) {
+		results := callMCPTool(t, mcpSessionID, "semantic_search", 2, map[string]any{
+			"query": "HTTP server orders JSON",
+		})
+		if len(results) == 0 {
+			t.Fatal("expected at least one semantic search result")
+		}
+		validateMCPFileResults(t, results, "semantic_search")
+	})
+
+	t.Run("mcp_keyword_search", func(t *testing.T) {
+		results := callMCPTool(t, mcpSessionID, "keyword_search", 3, map[string]any{
+			"keywords": "orders GET json",
+		})
+		if len(results) == 0 {
+			t.Fatal("expected at least one keyword search result")
+		}
+		validateMCPFileResults(t, results, "keyword_search")
+	})
+
 	t.Run("queue", func(t *testing.T) {
 		resp, err := client.GetQueueWithResponse(ctx, nil)
 		if err != nil {
@@ -824,6 +847,134 @@ func waitForCondition(t *testing.T, timeout time.Duration, interval time.Duratio
 		time.Sleep(interval)
 	}
 	return false
+}
+
+// initMCPSession sends an initialize request to the MCP endpoint and returns
+// the session ID for subsequent tool calls.
+func initMCPSession(t *testing.T) string {
+	t.Helper()
+	body := mcpJSONRPC("initialize", 1, map[string]any{
+		"protocolVersion": "2025-06-18",
+		"capabilities":    map[string]any{},
+		"clientInfo":      map[string]any{"name": "smoke-test", "version": "0.0.1"},
+	})
+	httpClient := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest(http.MethodPost, rootURL+"/mcp", strings.NewReader(string(body)))
+	if err != nil {
+		t.Fatalf("create MCP request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		t.Fatalf("MCP initialize failed: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("MCP initialize: expected 200, got %d", resp.StatusCode)
+	}
+	sessionID := resp.Header.Get("Mcp-Session-Id")
+	if sessionID == "" {
+		t.Fatal("MCP initialize did not return a session ID")
+	}
+	t.Logf("MCP session initialized: %s", sessionID)
+	return sessionID
+}
+
+// mcpJSONRPC builds a JSON-RPC 2.0 request body.
+func mcpJSONRPC(method string, id int, params map[string]any) []byte {
+	msg := map[string]any{
+		"jsonrpc": "2.0",
+		"id":      id,
+		"method":  method,
+	}
+	if params != nil {
+		msg["params"] = params
+	}
+	b, _ := json.Marshal(msg)
+	return b
+}
+
+// mcpFileResult represents a single result from semantic_search or keyword_search.
+type mcpFileResult struct {
+	URI      string  `json:"uri"`
+	Path     string  `json:"path"`
+	Language string  `json:"language"`
+	Lines    string  `json:"lines"`
+	Score    float64 `json:"score"`
+	Preview  string  `json:"preview"`
+}
+
+// callMCPTool invokes an MCP tool and returns the parsed file results.
+func callMCPTool(t *testing.T, sessionID string, toolName string, id int, args map[string]any) []mcpFileResult {
+	t.Helper()
+	body := mcpJSONRPC("tools/call", id, map[string]any{
+		"name":      toolName,
+		"arguments": args,
+	})
+	httpClient := &http.Client{Timeout: 30 * time.Second}
+	req, err := http.NewRequest(http.MethodPost, rootURL+"/mcp", strings.NewReader(string(body)))
+	if err != nil {
+		t.Fatalf("create MCP request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Mcp-Session-Id", sessionID)
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		t.Fatalf("MCP %s failed: %v", toolName, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("MCP %s: expected 200, got %d", toolName, resp.StatusCode)
+	}
+
+	var rpcResp struct {
+		Result struct {
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+			IsError bool `json:"isError"`
+		} `json:"result"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&rpcResp); err != nil {
+		t.Fatalf("decode MCP response: %v", err)
+	}
+	if rpcResp.Result.IsError {
+		text := ""
+		if len(rpcResp.Result.Content) > 0 {
+			text = rpcResp.Result.Content[0].Text
+		}
+		t.Fatalf("MCP %s returned error: %s", toolName, text)
+	}
+	if len(rpcResp.Result.Content) == 0 {
+		t.Fatalf("MCP %s returned no content", toolName)
+	}
+
+	var results []mcpFileResult
+	if err := json.Unmarshal([]byte(rpcResp.Result.Content[0].Text), &results); err != nil {
+		t.Fatalf("unmarshal MCP %s results: %v", toolName, err)
+	}
+	return results
+}
+
+// validateMCPFileResults validates the structure of MCP search results.
+func validateMCPFileResults(t *testing.T, results []mcpFileResult, mode string) {
+	t.Helper()
+	for i, r := range results {
+		if r.URI == "" {
+			t.Fatalf("%s result %d: expected URI", mode, i)
+		}
+		if !strings.HasPrefix(r.URI, "file://") {
+			t.Fatalf("%s result %d: expected file:// URI, got %s", mode, i, r.URI)
+		}
+		if r.Path == "" {
+			t.Fatalf("%s result %d: expected path", mode, i)
+		}
+		if r.Score <= 0 {
+			t.Fatalf("%s result %d: expected positive score, got %f", mode, i, r.Score)
+		}
+		t.Logf("%s result %d: path=%s, language=%s, score=%.4f, lines=%s",
+			mode, i, r.Path, r.Language, r.Score, r.Lines)
+	}
 }
 
 // verifyHealth checks the /healthz endpoint.
