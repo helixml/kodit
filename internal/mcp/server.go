@@ -514,13 +514,32 @@ func (s *Server) handleSemanticSearch(ctx context.Context, request mcp.CallToolR
 	if err != nil {
 		return mcp.NewToolResultError("query is required"), nil
 	}
-
-	limit := int(request.GetFloat("limit", 10))
-	if limit <= 0 {
-		limit = 10
+	if strings.TrimSpace(query) == "" {
+		return mcp.NewToolResultError("query must not be empty"), nil
 	}
 
-	language := request.GetString("language", "")
+	limit := int(request.GetFloat("limit", 10))
+	if limit < 0 {
+		return mcp.NewToolResultError("limit must not be negative"), nil
+	}
+	if limit == 0 {
+		return mcp.NewToolResultText("[]"), nil
+	}
+
+	language := normalizeExtension(request.GetString("language", ""))
+
+	// Resolve source_repo URL to a repository ID for post-filtering.
+	var sourceRepoID int64
+	if repoURL := request.GetString("source_repo", ""); repoURL != "" {
+		repos, repoErr := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
+		if repoErr != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("resolve source_repo: %v", repoErr)), nil
+		}
+		if len(repos) == 0 {
+			return mcp.NewToolResultText("[]"), nil
+		}
+		sourceRepoID = repos[0].ID()
+	}
 
 	enrichments, scores, err := s.semanticSearch.SearchCodeWithScores(ctx, query, limit)
 	if err != nil {
@@ -532,11 +551,16 @@ func (s *Server) handleSemanticSearch(ctx context.Context, request mcp.CallToolR
 	if language != "" {
 		filtered := make([]enrichment.Enrichment, 0, len(enrichments))
 		for _, e := range enrichments {
-			if e.Language() == language {
+			if normalizeExtension(e.Language()) == language {
 				filtered = append(filtered, e)
 			}
 		}
 		enrichments = filtered
+	}
+
+	// Cap results to the requested limit.
+	if len(enrichments) > limit {
+		enrichments = enrichments[:limit]
 	}
 
 	if len(enrichments) == 0 {
@@ -563,6 +587,21 @@ func (s *Server) handleSemanticSearch(ctx context.Context, request mcp.CallToolR
 	repoIDs, err := s.enrichmentResolver.RepositoryIDs(ctx, ids)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("resolve repository IDs: %v", err)), nil
+	}
+
+	// Post-filter by source repository if specified.
+	if sourceRepoID > 0 {
+		filtered := enrichments[:0]
+		for _, e := range enrichments {
+			idStr := strconv.FormatInt(e.ID(), 10)
+			if repoIDs[idStr] == sourceRepoID {
+				filtered = append(filtered, e)
+			}
+		}
+		enrichments = filtered
+		if len(enrichments) == 0 {
+			return mcp.NewToolResultText("[]"), nil
+		}
 	}
 
 	// Collect all file IDs and fetch files.
@@ -740,6 +779,11 @@ func repoRelativePath(filePath string) string {
 	}
 
 	return filePath
+}
+
+// normalizeExtension strips a leading dot so that ".py" and "py" compare equal.
+func normalizeExtension(ext string) string {
+	return strings.TrimPrefix(ext, ".")
 }
 
 // MCPServer returns the underlying MCP server for stdio serving.

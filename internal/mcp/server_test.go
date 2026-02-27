@@ -816,6 +816,243 @@ func TestServer_SemanticSearch_AbsolutePathNormalized(t *testing.T) {
 	}
 }
 
+func TestServer_SemanticSearch_LanguageFilterDotPrefix(t *testing.T) {
+	// The language parameter description says "Filter by file extension (e.g. .go, .py)"
+	// so both ".py" and "py" must match enrichments stored with either format.
+	// Enrichments may store language with or without the dot prefix depending on
+	// the indexing pipeline version, and users may provide either form.
+	e := enrichment.ReconstructEnrichment(
+		55,
+		enrichment.TypeDevelopment,
+		enrichment.SubtypeChunk,
+		enrichment.EntityTypeCommit,
+		"from google.cloud import bigquery\nclient = bigquery.Client()",
+		"py", // stored WITHOUT dot
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	)
+	testFile := repository.ReconstructFile(
+		30, "fff000aaa111", "bigquery/main.py", "", "", ".py", ".py", 128,
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	)
+	srv := NewServer(
+		&fakeSearch{},
+		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{},
+		&fakeFileContentReader{content: []byte("placeholder"), commitSHA: "fff000aaa111"},
+		&fakeSemanticSearcher{
+			enrichments: []enrichment.Enrichment{e},
+			scores:      map[string]float64{"55": 0.90},
+		},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{"55": {30}},
+			lineRanges:    map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{"55": 1},
+		},
+		&fakeFileFinder{files: []repository.File{testFile}},
+		"1.0.0-test",
+		nil,
+	)
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	// User passes ".py" (with dot) but enrichment stores "py" (without dot).
+	// The filter should normalize and match.
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "semantic_search",
+		"arguments": map[string]any{
+			"query":    "bigquery client",
+			"language": ".py",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+
+	var items []struct {
+		URI string `json:"uri"`
+	}
+	if err := json.Unmarshal([]byte(text), &items); err != nil {
+		t.Fatalf("unmarshal results: %v", err)
+	}
+	if len(items) != 1 {
+		t.Errorf("language filter '.py' returned %d results, want 1 (enrichment stores 'py')", len(items))
+	}
+}
+
+func TestServer_SemanticSearch_SourceRepoFilterApplied(t *testing.T) {
+	// source_repo with a non-existent repo URL should return empty results (or an
+	// error), not silently ignore the filter and return results from other repos.
+	srv := semanticSearchServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "semantic_search",
+		"arguments": map[string]any{
+			"query":       "handle HTTP requests",
+			"source_repo": "https://github.com/nonexistent/fake-repo-12345",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		return // an error response is also acceptable
+	}
+
+	text := textFromContent(t, result)
+	var items []json.RawMessage
+	if err := json.Unmarshal([]byte(text), &items); err != nil {
+		t.Fatalf("unmarshal results: %v", err)
+	}
+	if len(items) != 0 {
+		t.Errorf("source_repo filter for non-existent repo returned %d results, want 0", len(items))
+	}
+}
+
+func TestServer_SemanticSearch_LimitZeroReturnsEmpty(t *testing.T) {
+	// limit: 0 logically means "give me zero results" and should return [].
+	srv := semanticSearchServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "semantic_search",
+		"arguments": map[string]any{
+			"query": "handle HTTP requests",
+			"limit": 0,
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+	if text != "[]" {
+		t.Errorf("limit 0 returned results, want empty array: %s", text)
+	}
+}
+
+func TestServer_SemanticSearch_NegativeLimitReturnsError(t *testing.T) {
+	// A negative limit is invalid and should return an error, not silently
+	// fall back to the default.
+	srv := semanticSearchServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "semantic_search",
+		"arguments": map[string]any{
+			"query": "handle HTTP requests",
+			"limit": -1,
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if !result.IsError {
+		t.Error("expected error for negative limit, got success")
+	}
+}
+
+func TestServer_SemanticSearch_LimitCapsResults(t *testing.T) {
+	// When the underlying search returns more results than the requested limit,
+	// the handler must cap the response to exactly limit items.
+	e1 := enrichment.ReconstructEnrichment(
+		61, enrichment.TypeDevelopment, enrichment.SubtypeChunk, enrichment.EntityTypeCommit,
+		"func one() {}", ".go",
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	)
+	e2 := enrichment.ReconstructEnrichment(
+		62, enrichment.TypeDevelopment, enrichment.SubtypeChunk, enrichment.EntityTypeCommit,
+		"func two() {}", ".go",
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	)
+	e3 := enrichment.ReconstructEnrichment(
+		63, enrichment.TypeDevelopment, enrichment.SubtypeChunk, enrichment.EntityTypeCommit,
+		"func three() {}", ".go",
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	)
+	f1 := repository.ReconstructFile(101, "aaa", "a.go", "", "", ".go", ".go", 64, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC))
+	f2 := repository.ReconstructFile(102, "bbb", "b.go", "", "", ".go", ".go", 64, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC))
+	f3 := repository.ReconstructFile(103, "ccc", "c.go", "", "", ".go", ".go", 64, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	srv := NewServer(
+		&fakeSearch{},
+		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{},
+		&fakeFileContentReader{content: []byte("placeholder"), commitSHA: "aaa"},
+		&fakeSemanticSearcher{
+			enrichments: []enrichment.Enrichment{e1, e2, e3},
+			scores:      map[string]float64{"61": 0.9, "62": 0.8, "63": 0.7},
+		},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{"61": {101}, "62": {102}, "63": {103}},
+			lineRanges:    map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{"61": 1, "62": 1, "63": 1},
+		},
+		&fakeFileFinder{files: []repository.File{f1, f2, f3}},
+		"1.0.0-test",
+		nil,
+	)
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "semantic_search",
+		"arguments": map[string]any{
+			"query": "functions",
+			"limit": 2,
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+	var items []json.RawMessage
+	if err := json.Unmarshal([]byte(text), &items); err != nil {
+		t.Fatalf("unmarshal results: %v", err)
+	}
+	if len(items) != 2 {
+		t.Errorf("limit 2 returned %d results, want 2", len(items))
+	}
+}
+
+func TestServer_SemanticSearch_EmptyQueryReturnsError(t *testing.T) {
+	// An empty query string should return an error, not silently search for everything.
+	srv := semanticSearchServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "semantic_search",
+		"arguments": map[string]any{
+			"query": "",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if !result.IsError {
+		t.Error("expected error for empty query, got success")
+	}
+}
+
 func TestServer_SemanticSearchNoResults(t *testing.T) {
 	srv := NewServer(
 		&fakeSearch{},
