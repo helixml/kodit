@@ -147,7 +147,6 @@ func TestMCPEndpoint_ListTools(t *testing.T) {
 	}
 
 	expected := []string{
-		"search",
 		"get_version",
 		"list_repositories",
 		"get_architecture_docs",
@@ -163,8 +162,8 @@ func TestMCPEndpoint_ListTools(t *testing.T) {
 			t.Errorf("missing %s tool", name)
 		}
 	}
-	if len(resp.Result.Tools) != 10 {
-		t.Errorf("expected 10 tools, got %d", len(resp.Result.Tools))
+	if len(resp.Result.Tools) != 9 {
+		t.Errorf("expected 9 tools, got %d", len(resp.Result.Tools))
 	}
 }
 
