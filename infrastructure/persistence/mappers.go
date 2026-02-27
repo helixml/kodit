@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/helixml/kodit/domain/chunk"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/snippet"
@@ -387,6 +388,24 @@ func (m EnrichmentMapper) ToModel(e enrichment.Enrichment) EnrichmentModel {
 		Language:  e.Language(),
 		CreatedAt: e.CreatedAt(),
 		UpdatedAt: e.UpdatedAt(),
+	}
+}
+
+// ChunkLineRangeMapper maps between domain LineRange and persistence ChunkLineRangeModel.
+type ChunkLineRangeMapper struct{}
+
+// ToDomain converts a ChunkLineRangeModel to a domain LineRange.
+func (m ChunkLineRangeMapper) ToDomain(e ChunkLineRangeModel) chunk.LineRange {
+	return chunk.ReconstructLineRange(e.ID, e.EnrichmentID, e.StartLine, e.EndLine)
+}
+
+// ToModel converts a domain LineRange to a ChunkLineRangeModel.
+func (m ChunkLineRangeMapper) ToModel(r chunk.LineRange) ChunkLineRangeModel {
+	return ChunkLineRangeModel{
+		ID:           r.ID(),
+		EnrichmentID: r.EnrichmentID(),
+		StartLine:    r.StartLine(),
+		EndLine:      r.EndLine(),
 	}
 }
 

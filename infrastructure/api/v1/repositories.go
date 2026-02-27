@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit/domain/chunk"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
@@ -668,23 +669,18 @@ func (r *RepositoriesRouter) ListCommitEnrichments(w http.ResponseWriter, req *h
 		return
 	}
 
-	data := make([]dto.EnrichmentData, 0, len(enrichments))
-	for _, e := range enrichments {
-		data = append(data, dto.EnrichmentData{
-			Type: "enrichment",
-			ID:   fmt.Sprintf("%d", e.ID()),
-			Attributes: dto.EnrichmentAttributes{
-				Type:      string(e.Type()),
-				Subtype:   string(e.Subtype()),
-				Content:   e.Content(),
-				CreatedAt: e.CreatedAt(),
-				UpdatedAt: e.UpdatedAt(),
-			},
-		})
+	ids := make([]int64, len(enrichments))
+	for i, e := range enrichments {
+		ids[i] = e.ID()
+	}
+	lineRanges, err := r.client.Enrichments.LineRanges(ctx, ids)
+	if err != nil {
+		r.logger.Warn("failed to fetch line ranges", "error", err)
+		lineRanges = map[string]chunk.LineRange{}
 	}
 
 	middleware.WriteJSON(w, http.StatusOK, dto.EnrichmentJSONAPIListResponse{
-		Data:  data,
+		Data:  enrichmentsToJSONAPIDTO(enrichments, lineRanges),
 		Meta:  PaginationMeta(pagination, total),
 		Links: PaginationLinks(req, pagination, total),
 	})
@@ -735,18 +731,14 @@ func (r *RepositoriesRouter) GetCommitEnrichment(w http.ResponseWriter, req *htt
 		return
 	}
 
+	lineRanges, err := r.client.Enrichments.LineRanges(ctx, []int64{enrichmentID})
+	if err != nil {
+		r.logger.Warn("failed to fetch line ranges", "error", err)
+		lineRanges = map[string]chunk.LineRange{}
+	}
+
 	middleware.WriteJSON(w, http.StatusOK, dto.EnrichmentJSONAPIResponse{
-		Data: dto.EnrichmentData{
-			Type: "enrichment",
-			ID:   fmt.Sprintf("%d", e.ID()),
-			Attributes: dto.EnrichmentAttributes{
-				Type:      string(e.Type()),
-				Subtype:   string(e.Subtype()),
-				Content:   e.Content(),
-				CreatedAt: e.CreatedAt(),
-				UpdatedAt: e.UpdatedAt(),
-			},
-		},
+		Data: enrichmentToJSONAPIDTO(e, lineRanges),
 	})
 }
 
@@ -1138,24 +1130,19 @@ func (r *RepositoriesRouter) ListRepositoryEnrichments(w http.ResponseWriter, re
 		return
 	}
 
-	// Build response
-	data := make([]dto.EnrichmentData, 0, len(enrichments))
-	for _, e := range enrichments {
-		data = append(data, dto.EnrichmentData{
-			Type: "enrichment",
-			ID:   fmt.Sprintf("%d", e.ID()),
-			Attributes: dto.EnrichmentAttributes{
-				Type:      string(e.Type()),
-				Subtype:   string(e.Subtype()),
-				Content:   e.Content(),
-				CreatedAt: e.CreatedAt(),
-				UpdatedAt: e.UpdatedAt(),
-			},
-		})
+	// Batch-fetch line ranges for the enrichments on this page.
+	ids := make([]int64, len(enrichments))
+	for i, e := range enrichments {
+		ids[i] = e.ID()
+	}
+	lineRanges, err := r.client.Enrichments.LineRanges(ctx, ids)
+	if err != nil {
+		r.logger.Warn("failed to fetch line ranges", "error", err)
+		lineRanges = map[string]chunk.LineRange{}
 	}
 
 	middleware.WriteJSON(w, http.StatusOK, dto.EnrichmentJSONAPIListResponse{
-		Data:  data,
+		Data:  enrichmentsToJSONAPIDTO(enrichments, lineRanges),
 		Meta:  PaginationMeta(pagination, total),
 		Links: PaginationLinks(req, pagination, total),
 	})

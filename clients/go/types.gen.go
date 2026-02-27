@@ -45,6 +45,8 @@ type DtoCommitJSONAPIResponse struct {
 type DtoEnrichmentAttributes struct {
 	Content   *string `json:"content,omitempty"`
 	CreatedAt *string `json:"created_at,omitempty"`
+	EndLine   *int    `json:"end_line,omitempty"`
+	StartLine *int    `json:"start_line,omitempty"`
 	Subtype   *string `json:"subtype,omitempty"`
 	Type      *string `json:"type,omitempty"`
 	UpdatedAt *string `json:"updated_at,omitempty"`
@@ -266,8 +268,10 @@ type DtoSnippetAttributes struct {
 
 // DtoSnippetContentSchema defines model for dto.SnippetContentSchema.
 type DtoSnippetContentSchema struct {
-	Language *string `json:"language,omitempty"`
-	Value    *string `json:"value,omitempty"`
+	EndLine   *int    `json:"end_line,omitempty"`
+	Language  *string `json:"language,omitempty"`
+	StartLine *int    `json:"start_line,omitempty"`
+	Value     *string `json:"value,omitempty"`
 }
 
 // DtoSnippetData defines model for dto.SnippetData.

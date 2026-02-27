@@ -1823,6 +1823,12 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
+                "end_line": {
+                    "type": "integer"
+                },
+                "start_line": {
+                    "type": "integer"
+                },
                 "subtype": {
                     "type": "string"
                 },
@@ -2313,8 +2319,14 @@ const docTemplate = `{
         "dto.SnippetContentSchema": {
             "type": "object",
             "properties": {
+                "end_line": {
+                    "type": "integer"
+                },
                 "language": {
                     "type": "string"
+                },
+                "start_line": {
+                    "type": "integer"
                 },
                 "value": {
                     "type": "string"

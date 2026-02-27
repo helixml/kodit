@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/helixml/kodit/application/handler"
+	"github.com/helixml/kodit/domain/chunk"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
@@ -29,6 +30,7 @@ type ChunkFiles struct {
 	repoStore        repository.RepositoryStore
 	enrichmentStore  enrichment.EnrichmentStore
 	associationStore enrichment.AssociationStore
+	lineRangeStore   chunk.LineRangeStore
 	fileStore        repository.FileStore
 	fileContent      FileContentSource
 	params           chunking.ChunkParams
@@ -41,6 +43,7 @@ func NewChunkFiles(
 	repoStore repository.RepositoryStore,
 	enrichmentStore enrichment.EnrichmentStore,
 	associationStore enrichment.AssociationStore,
+	lineRangeStore chunk.LineRangeStore,
 	fileStore repository.FileStore,
 	fileContent FileContentSource,
 	params chunking.ChunkParams,
@@ -51,6 +54,7 @@ func NewChunkFiles(
 		repoStore:        repoStore,
 		enrichmentStore:  enrichmentStore,
 		associationStore: associationStore,
+		lineRangeStore:   lineRangeStore,
 		fileStore:        fileStore,
 		fileContent:      fileContent,
 		params:           params,
@@ -147,11 +151,16 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 			continue
 		}
 
-		for _, chunk := range textChunks.All() {
-			e := enrichment.NewChunkEnrichmentWithLanguage(chunk.Content(), f.Extension())
+		for _, ch := range textChunks.All() {
+			e := enrichment.NewChunkEnrichmentWithLanguage(ch.Content(), f.Extension())
 			saved, saveErr := h.enrichmentStore.Save(ctx, e)
 			if saveErr != nil {
 				return fmt.Errorf("save chunk enrichment: %w", saveErr)
+			}
+
+			lr := chunk.NewLineRange(saved.ID(), ch.StartLine(), ch.EndLine())
+			if _, err := h.lineRangeStore.Save(ctx, lr); err != nil {
+				return fmt.Errorf("save chunk line range: %w", err)
 			}
 
 			if _, err := h.associationStore.Save(ctx, enrichment.CommitAssociation(saved.ID(), cp.CommitSHA())); err != nil {

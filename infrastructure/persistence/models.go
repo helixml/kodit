@@ -148,6 +148,18 @@ func (EnrichmentAssociationModel) TableName() string {
 	return "enrichment_associations"
 }
 
+// ChunkLineRangeModel records the source-file line range of a chunk enrichment.
+type ChunkLineRangeModel struct {
+	ID           int64           `gorm:"column:id;primaryKey;autoIncrement"`
+	EnrichmentID int64           `gorm:"column:enrichment_id;not null;uniqueIndex"`
+	Enrichment   EnrichmentModel `gorm:"foreignKey:EnrichmentID;references:ID;constraint:OnDelete:CASCADE"`
+	StartLine    int             `gorm:"column:start_line;not null"`
+	EndLine      int             `gorm:"column:end_line;not null"`
+}
+
+// TableName returns the table name.
+func (ChunkLineRangeModel) TableName() string { return "chunk_line_ranges" }
+
 // EmbeddingModel represents a vector embedding in the database.
 type EmbeddingModel struct {
 	ID        int64     `gorm:"column:id;primaryKey;autoIncrement"`
