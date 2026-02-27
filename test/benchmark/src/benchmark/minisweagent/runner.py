@@ -171,6 +171,7 @@ class MiniSweAgentRunner:
         instances: list[SWEBenchInstance],
         server_factory: Callable[[], ServerProcess],
         port: int,
+        condition: str = "kodit",
     ) -> RunResult:
         """Run mini-swe-agent with live MCP access to Kodit.
 
@@ -194,7 +195,7 @@ class MiniSweAgentRunner:
             instance_count=len(instances),
         )
 
-        output_dir = config.output_dir / "kodit"
+        output_dir = config.output_dir / condition
         output_dir.mkdir(parents=True, exist_ok=True)
 
         merged_predictions: dict = {}
@@ -239,7 +240,7 @@ class MiniSweAgentRunner:
             trajectories_dir=output_dir,
             total_instances=total,
             completed_instances=len(merged_predictions),
-            condition="kodit",
+            condition=condition,
             instance_stats=all_stats,
         )
 
@@ -653,7 +654,7 @@ class MiniSweAgentRunner:
                 pass
 
         # Find all trajectory files
-        for traj_path in output_dir.glob("*/*.traj.json"):
+        for traj_path in output_dir.glob("**/*.traj.json"):
             try:
                 with traj_path.open() as f:
                     traj = json.load(f)
@@ -705,12 +706,10 @@ class MiniSweAgentRunner:
             all_instances = set(baseline_eval.keys()) | set(kodit_eval.keys())
 
             for instance_id in all_instances:
-                baseline_success = baseline_eval.get(
-                    instance_id, {}
-                ).get("resolved", False)
-                kodit_success = kodit_eval.get(
-                    instance_id, {}
-                ).get("resolved", False)
+                baseline_success = baseline_eval.get(instance_id, {}).get(
+                    "resolved", False
+                )
+                kodit_success = kodit_eval.get(instance_id, {}).get("resolved", False)
 
                 if baseline_success and kodit_success:
                     both_resolved.append(instance_id)

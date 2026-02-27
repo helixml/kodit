@@ -34,12 +34,15 @@ def _kodit_binary() -> str:
     )
     raise FileNotFoundError(msg)
 
+
 _COMPOSE_DB_URL = "postgresql://postgres:mysecretpassword@127.0.0.1:5432/kodit"  # noqa: S105
 
 # Project root and compose file paths
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
 _COMPOSE_DEV = _PROJECT_ROOT / "docker-compose.dev.yaml"
-_COMPOSE_BENCHMARK = _PROJECT_ROOT / "test" / "benchmark" / "docker-compose.benchmark.yaml"
+_COMPOSE_BENCHMARK = (
+    _PROJECT_ROOT / "test" / "benchmark" / "docker-compose.benchmark.yaml"
+)
 
 
 class ComposeDatabase:
@@ -71,12 +74,23 @@ class ComposeDatabase:
         self._log.info("Dumping database", path=str(path))
         path.parent.mkdir(parents=True, exist_ok=True)
         cmd = [
-            "docker", "compose",  # noqa: S607
-            "-f", str(_COMPOSE_DEV),
-            "-f", str(_COMPOSE_BENCHMARK),
-            "--profile", "vectorchord",
-            "exec", "-T", "vectorchord",
-            "pg_dump", "-U", "postgres", "kodit", "-F", "t",
+            "docker",
+            "compose",  # noqa: S607
+            "-f",
+            str(_COMPOSE_DEV),
+            "-f",
+            str(_COMPOSE_BENCHMARK),
+            "--profile",
+            "vectorchord",
+            "exec",
+            "-T",
+            "vectorchord",
+            "pg_dump",
+            "-U",
+            "postgres",
+            "kodit",
+            "-F",
+            "t",
         ]
         try:
             result = subprocess.run(  # noqa: S603
@@ -112,13 +126,25 @@ class ComposeDatabase:
         else:
             data = raw
         cmd = [
-            "docker", "compose",  # noqa: S607
-            "-f", str(_COMPOSE_DEV),
-            "-f", str(_COMPOSE_BENCHMARK),
-            "--profile", "vectorchord",
-            "exec", "-T", "vectorchord",
-            "pg_restore", "-U", "postgres", "-d", "kodit",
-            "--clean", "--if-exists", "--no-owner",
+            "docker",
+            "compose",  # noqa: S607
+            "-f",
+            str(_COMPOSE_DEV),
+            "-f",
+            str(_COMPOSE_BENCHMARK),
+            "--profile",
+            "vectorchord",
+            "exec",
+            "-T",
+            "vectorchord",
+            "pg_restore",
+            "-U",
+            "postgres",
+            "-d",
+            "kodit",
+            "--clean",
+            "--if-exists",
+            "--no-owner",
         ]
         result = subprocess.run(  # noqa: S603
             cmd,
@@ -143,12 +169,22 @@ class ComposeDatabase:
         """Wait for postgres to accept connections after a restore."""
         deadline = time.monotonic() + timeout
         cmd = [
-            "docker", "compose",  # noqa: S607
-            "-f", str(_COMPOSE_DEV),
-            "-f", str(_COMPOSE_BENCHMARK),
-            "--profile", "vectorchord",
-            "exec", "-T", "vectorchord",
-            "pg_isready", "-U", "postgres", "-d", "kodit",
+            "docker",
+            "compose",  # noqa: S607
+            "-f",
+            str(_COMPOSE_DEV),
+            "-f",
+            str(_COMPOSE_BENCHMARK),
+            "--profile",
+            "vectorchord",
+            "exec",
+            "-T",
+            "vectorchord",
+            "pg_isready",
+            "-U",
+            "postgres",
+            "-d",
+            "kodit",
         ]
         while time.monotonic() < deadline:
             result = subprocess.run(  # noqa: S603
@@ -166,10 +202,14 @@ class ComposeDatabase:
     def _compose(self, *args: str) -> bool:
         """Run a docker compose command targeting the vectorchord profile."""
         cmd = [
-            "docker", "compose",  # noqa: S607
-            "-f", str(_COMPOSE_DEV),
-            "-f", str(_COMPOSE_BENCHMARK),
-            "--profile", "vectorchord",
+            "docker",
+            "compose",  # noqa: S607
+            "-f",
+            str(_COMPOSE_DEV),
+            "-f",
+            str(_COMPOSE_BENCHMARK),
+            "--profile",
+            "vectorchord",
             *args,
         ]
         self._log.debug("Running compose command", cmd=" ".join(cmd))
@@ -209,6 +249,7 @@ class ServerProcess:
         embedding_timeout: int,
         pid_file: Path = DEFAULT_PID_FILE,
         startup_timeout: int = DEFAULT_STARTUP_TIMEOUT,
+        extra_env: dict[str, str] | None = None,
     ) -> None:
         """Initialize server process manager."""
         self._host = host
@@ -226,6 +267,7 @@ class ServerProcess:
         self._embedding_api_key = embedding_api_key
         self._embedding_parallel_tasks = embedding_parallel_tasks
         self._embedding_timeout = embedding_timeout
+        self._extra_env = extra_env or {}
         self._log = structlog.get_logger(__name__)
 
     @property
@@ -341,6 +383,8 @@ class ServerProcess:
         for key, value in overrides.items():
             if value:
                 env[key] = value
+
+        env.update(self._extra_env)
 
         return env
 

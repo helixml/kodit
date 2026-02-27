@@ -259,6 +259,10 @@ release: ## Create a GitHub release (BUMP=patch|minor|major, RELEASE=1 for full 
 benchmark-kodit-25:
 	cd test/benchmark && uv run src/benchmark/cli.py mini-swe-agent run-kodit --dataset-file data/swebench-verified.json --limit 25 --stream > benchmark-kodit-25.log 2>&1
 
+.PHONY: benchmark-kodit-simple-25
+benchmark-kodit-simple-25:
+	cd test/benchmark && uv run src/benchmark/cli.py mini-swe-agent run-kodit --simple-chunking --dataset-file data/swebench-verified.json --limit 25 --stream > benchmark-kodit-simple-25.log 2>&1
+
 .PHONY: benchmark-baseline-25
 benchmark-baseline-25:
 	cd test/benchmark && uv run src/benchmark/cli.py mini-swe-agent run-baseline --dataset-file data/swebench-verified.json --limit 25 --stream > benchmark-baseline-25.log 2>&1
