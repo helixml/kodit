@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -607,7 +608,8 @@ func (s *Server) handleSemanticSearch(ctx context.Context, request mcp.CallToolR
 		}
 
 		repoID := repoIDs[idStr]
-		uri := NewFileURI(repoID, file.CommitSHA(), file.Path())
+		filePath := repoRelativePath(file.Path())
+		uri := NewFileURI(repoID, file.CommitSHA(), filePath)
 
 		var lines string
 		if lr, found := lineRanges[idStr]; found && lr.StartLine() > 0 {
@@ -622,7 +624,7 @@ func (s *Server) handleSemanticSearch(ctx context.Context, request mcp.CallToolR
 
 		results = append(results, semanticResult{
 			URI:      uri.String(),
-			Path:     file.Path(),
+			Path:     filePath,
 			Language: e.Language(),
 			Lines:    lines,
 			Score:    scores[idStr],
@@ -715,6 +717,29 @@ func (s *Server) handleReadFile(ctx context.Context, request mcp.ReadResourceReq
 			Text:     string(content),
 		},
 	}, nil
+}
+
+// repoRelativePath normalizes a file path to be repository-relative.
+// File records from legacy database migrations may contain absolute clone paths
+// (e.g., /root/.kodit/clones/repo-name/src/main.go). This strips the prefix
+// so URIs and paths are directly usable by resource readers.
+func repoRelativePath(filePath string) string {
+	if !filepath.IsAbs(filePath) {
+		return filePath
+	}
+
+	parts := strings.Split(filepath.Clean(filePath), string(filepath.Separator))
+	lastIdx := -1
+	for i, part := range parts {
+		if part == "clones" || part == "repos" {
+			lastIdx = i
+		}
+	}
+	if lastIdx >= 0 && lastIdx+2 < len(parts) {
+		return filepath.Join(parts[lastIdx+2:]...)
+	}
+
+	return filePath
 }
 
 // MCPServer returns the underlying MCP server for stdio serving.

@@ -737,6 +737,85 @@ func TestServer_SemanticSearchMissingQuery(t *testing.T) {
 	}
 }
 
+func TestServer_SemanticSearch_AbsolutePathNormalized(t *testing.T) {
+	// File paths stored in the database may contain absolute clone paths
+	// (e.g., /root/.kodit/clones/repo-name/bigquery/main.py) from legacy
+	// migrations. The semantic_search URI and path fields must use
+	// repo-relative paths so that ReadResource works without stripping prefixes.
+	e := enrichment.ReconstructEnrichment(
+		77,
+		enrichment.TypeDevelopment,
+		enrichment.SubtypeChunk,
+		enrichment.EntityTypeCommit,
+		"from google.cloud import bigquery\nclient = bigquery.Client()",
+		".py",
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	)
+	// File record has an absolute clone path — this is the bug trigger.
+	absolutePath := "/root/.kodit/clones/my-repo/bigquery/main.py"
+	testFile := repository.ReconstructFile(
+		20, "def456abc789", absolutePath, "", "", ".py", ".py", 256,
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	)
+	srv := NewServer(
+		&fakeSearch{},
+		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{},
+		&fakeFileContentReader{content: []byte("placeholder"), commitSHA: "def456abc789"},
+		&fakeSemanticSearcher{
+			enrichments: []enrichment.Enrichment{e},
+			scores:      map[string]float64{"77": 0.91},
+		},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{"77": {20}},
+			lineRanges:    map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{"77": 1},
+		},
+		&fakeFileFinder{files: []repository.File{testFile}},
+		"1.0.0-test",
+		nil,
+	)
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "semantic_search",
+		"arguments": map[string]any{
+			"query": "bigquery client",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+
+	var items []struct {
+		URI  string `json:"uri"`
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal([]byte(text), &items); err != nil {
+		t.Fatalf("unmarshal results: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(items))
+	}
+
+	// URI and path must use the repo-relative path, not the absolute clone path.
+	if items[0].Path != "bigquery/main.py" {
+		t.Errorf("path = %s, want bigquery/main.py (repo-relative)", items[0].Path)
+	}
+	expectedURI := "file://1/def456abc789/bigquery/main.py"
+	if items[0].URI != expectedURI {
+		t.Errorf("uri = %s, want %s", items[0].URI, expectedURI)
+	}
+}
+
 func TestServer_SemanticSearchNoResults(t *testing.T) {
 	srv := NewServer(
 		&fakeSearch{},
