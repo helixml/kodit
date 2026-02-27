@@ -28,7 +28,7 @@ jobs:
         run: make download-model
 
       - name: Upload model
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: embedding-model
           path: infrastructure/provider/models/flax-sentence-embeddings_st-codesearch-distilroberta-base
@@ -89,7 +89,7 @@ jobs:
           tar czf "${STAGE}.tar.gz" "${STAGE}"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: kodit-${{ matrix.goos }}-${{ matrix.goarch }}
           path: kodit-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz

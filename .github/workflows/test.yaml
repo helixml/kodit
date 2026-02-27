@@ -108,7 +108,7 @@ jobs:
 
       - name: Upload binary
         if: matrix.name == 'linux-amd64'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: kodit-binary
           path: build/kodit
