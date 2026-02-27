@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"strings"
 	"sync"
 
@@ -177,14 +178,27 @@ $$)`, tableName, tableName, lists)
 	return nil
 }
 
+// probeCount returns the number of IVF probes for a given row count.
+// The index is built with lists = max(count/10, 1), so probes scales
+// as sqrt(lists) with a floor of 10.
+func probeCount(rows int64) int {
+	lists := max(rows/10, 1)
+	return max(int(math.Sqrt(float64(lists))), 10)
+}
+
 // Search performs vector similarity search within a transaction so that
 // the vchordrq.probes session variable is visible to the query.
 func (s *VectorChordEmbeddingStore) Search(ctx context.Context, options ...repository.Option) ([]search.Result, error) {
+	var count int64
 	db := s.DB(ctx)
+	if err := db.Table(s.Table()).Count(&count).Error; err != nil {
+		return nil, fmt.Errorf("count for probes: %w", err)
+	}
+	probes := probeCount(count)
 
 	var results []search.Result
 	err := db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Exec("SET LOCAL vchordrq.probes = 10").Error; err != nil {
+		if err := tx.Exec(fmt.Sprintf("SET LOCAL vchordrq.probes = %d", probes)).Error; err != nil {
 			return fmt.Errorf("set vchordrq.probes: %w", err)
 		}
 		var searchErr error

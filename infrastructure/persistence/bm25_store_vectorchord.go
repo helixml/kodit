@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
@@ -49,15 +50,10 @@ stopwords = "nltk_english"
 stemmer = "english_porter2"
 $$)`
 
-	bm25InsertQuery = `
-INSERT INTO vectorchord_bm25_documents (snippet_id, passage)
-VALUES (?, ?)
-ON CONFLICT (snippet_id) DO UPDATE
-SET passage = EXCLUDED.passage`
-
 	bm25UpdateEmbeddingsQuery = `
 UPDATE vectorchord_bm25_documents
-SET embedding = tokenize(passage, 'bert')`
+SET embedding = tokenize(passage, 'bert')
+WHERE embedding IS NULL`
 
 	bm25DeleteQuery = `DELETE FROM vectorchord_bm25_documents WHERE snippet_id IN ?`
 
@@ -165,6 +161,32 @@ func (s *VectorChordBM25Store) existingIDs(ctx context.Context, ids []string) (m
 	return result, nil
 }
 
+const bm25BatchSize = 100
+
+func (s *VectorChordBM25Store) batchInsert(tx *gorm.DB, documents []search.Document) error {
+	for start := 0; start < len(documents); start += bm25BatchSize {
+		end := min(start+bm25BatchSize, len(documents))
+		batch := documents[start:end]
+
+		var b strings.Builder
+		b.WriteString("INSERT INTO vectorchord_bm25_documents (snippet_id, passage, embedding) VALUES ")
+		args := make([]interface{}, 0, len(batch)*2)
+		for i, doc := range batch {
+			if i > 0 {
+				b.WriteString(", ")
+			}
+			b.WriteString("(?, ?, NULL)")
+			args = append(args, doc.SnippetID(), doc.Text())
+		}
+		b.WriteString(" ON CONFLICT (snippet_id) DO UPDATE SET passage = EXCLUDED.passage, embedding = NULL")
+
+		if err := tx.Exec(b.String(), args...).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Index adds documents to the BM25 index.
 func (s *VectorChordBM25Store) Index(ctx context.Context, request search.IndexRequest) error {
 	documents := request.Documents()
@@ -207,10 +229,8 @@ func (s *VectorChordBM25Store) Index(ctx context.Context, request search.IndexRe
 
 	// Execute inserts in a transaction
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		for _, doc := range toIndex {
-			if err := tx.Exec(bm25InsertQuery, doc.SnippetID(), doc.Text()).Error; err != nil {
-				return err
-			}
+		if err := s.batchInsert(tx, toIndex); err != nil {
+			return err
 		}
 
 		// Tokenize the new documents

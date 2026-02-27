@@ -135,3 +135,72 @@ func TestFusion_InvalidK(t *testing.T) {
 		t.Errorf("expected default K=60 for invalid input, got %f", fusion.K())
 	}
 }
+
+func TestFusion_Fuse_TieBreaking(t *testing.T) {
+	fusion := NewFusion()
+
+	// All items at same rank in their respective single-item lists
+	// produce identical RRF scores. Tie-breaking should sort by ID.
+	list1 := []FusionRequest{NewFusionRequest("c", 0.5)}
+	list2 := []FusionRequest{NewFusionRequest("a", 0.5)}
+	list3 := []FusionRequest{NewFusionRequest("b", 0.5)}
+
+	results := fusion.Fuse(list1, list2, list3)
+
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
+	}
+
+	// All have same RRF score (1/(60+0)), so should be sorted by ID ascending
+	expectedOrder := []string{"a", "b", "c"}
+	for i, r := range results {
+		if r.ID() != expectedOrder[i] {
+			t.Errorf("result[%d]: expected ID %q, got %q", i, expectedOrder[i], r.ID())
+		}
+	}
+
+	// Verify determinism: run again and expect same order
+	results2 := fusion.Fuse(list1, list2, list3)
+	for i, r := range results2 {
+		if r.ID() != results[i].ID() {
+			t.Errorf("non-deterministic: run2[%d]=%q != run1[%d]=%q", i, r.ID(), i, results[i].ID())
+		}
+	}
+}
+
+func TestFusion_Fuse_AsymmetricLists(t *testing.T) {
+	fusion := NewFusion()
+
+	// One list has many results, another has none overlapping
+	list1 := []FusionRequest{
+		NewFusionRequest("a", 0.9),
+		NewFusionRequest("b", 0.8),
+		NewFusionRequest("c", 0.7),
+	}
+	list2 := []FusionRequest{
+		NewFusionRequest("d", 0.6),
+	}
+
+	results := fusion.Fuse(list1, list2)
+
+	if len(results) != 4 {
+		t.Fatalf("expected 4 results, got %d", len(results))
+	}
+
+	// "a" is rank 0 in list1: 1/60
+	// "d" is rank 0 in list2: 1/60
+	// Both should have same score, tie-broken by ID
+	scores := make(map[string]float64)
+	for _, r := range results {
+		scores[r.ID()] = r.Score()
+	}
+
+	if math.Abs(scores["a"]-scores["d"]) > 1e-10 {
+		t.Errorf("a and d should have equal scores: a=%f, d=%f", scores["a"], scores["d"])
+	}
+
+	// "a" < "d" alphabetically, so "a" should come first in tie
+	if results[0].ID() != "a" {
+		t.Errorf("expected first result 'a' (tie-break by ID), got %q", results[0].ID())
+	}
+}
