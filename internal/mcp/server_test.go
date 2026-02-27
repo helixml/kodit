@@ -1053,6 +1053,257 @@ func TestServer_SemanticSearch_EmptyQueryReturnsError(t *testing.T) {
 	}
 }
 
+// recordingFileContentReader records the arguments passed to Content so tests
+// can verify the resource reader receives the correct (normalized) paths.
+type recordingFileContentReader struct {
+	calls []fileContentCall
+	body  map[string][]byte // keyed by filePath
+}
+
+type fileContentCall struct {
+	repoID   int64
+	blobName string
+	filePath string
+}
+
+func (r *recordingFileContentReader) Content(_ context.Context, repoID int64, blobName, filePath string) (service.BlobContent, error) {
+	r.calls = append(r.calls, fileContentCall{repoID, blobName, filePath})
+	if b, ok := r.body[filePath]; ok {
+		return service.NewBlobContent(b, blobName), nil
+	}
+	return service.NewBlobContent([]byte("default"), blobName), nil
+}
+
+func TestServer_SemanticSearchThenReadFile(t *testing.T) {
+	// The typical agent workflow: semantic_search returns URIs, agent reads them.
+	// Verify the full round-trip works — the URI from search must resolve
+	// through the file resource reader without manual path manipulation.
+	fileContent := []byte("package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"hello\")\n}\n")
+	reader := &recordingFileContentReader{
+		body: map[string][]byte{"src/handler.go": fileContent},
+	}
+	srv := NewServer(
+		&fakeSearch{},
+		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{},
+		reader,
+		&fakeSemanticSearcher{
+			enrichments: []enrichment.Enrichment{testEnrichment()},
+			scores:      map[string]float64{"42": 0.95},
+		},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{"42": {10}},
+			lineRanges:    map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{"42": 1},
+		},
+		&fakeFileFinder{files: []repository.File{
+			repository.ReconstructFile(10, "abc123def456", "src/handler.go", "", "", ".go", ".go", 512,
+				time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
+		}},
+		"1.0.0-test",
+		nil,
+	)
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	// Step 1: semantic_search
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "semantic_search",
+		"arguments": map[string]any{
+			"query": "handler",
+		},
+	})
+	var searchResult mcp.CallToolResult
+	resultJSON(t, resp, &searchResult)
+	if searchResult.IsError {
+		t.Fatalf("search failed: %s", textFromContent(t, searchResult))
+	}
+
+	var items []struct {
+		URI  string `json:"uri"`
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal([]byte(textFromContent(t, searchResult)), &items); err != nil {
+		t.Fatalf("unmarshal search results: %v", err)
+	}
+	if len(items) == 0 {
+		t.Fatal("search returned no results")
+	}
+
+	// Step 2: read the URI returned by search
+	uri := items[0].URI
+	text := readResourceText(t, srv, uri)
+
+	if text != string(fileContent) {
+		t.Errorf("resource content = %q, want %q", text, string(fileContent))
+	}
+
+	// Verify the resource reader received the repo-relative path, not an absolute one.
+	if len(reader.calls) != 1 {
+		t.Fatalf("expected 1 Content call, got %d", len(reader.calls))
+	}
+	call := reader.calls[0]
+	if call.repoID != 1 {
+		t.Errorf("repoID = %d, want 1", call.repoID)
+	}
+	if call.filePath != "src/handler.go" {
+		t.Errorf("filePath = %s, want src/handler.go", call.filePath)
+	}
+}
+
+func TestServer_SemanticSearchThenReadFile_AbsolutePath(t *testing.T) {
+	// Same round-trip but with a legacy absolute clone path in the database.
+	// The URI from search must normalize the path so the resource reader gets
+	// the repo-relative path.
+	fileContent := []byte("from google.cloud import bigquery\nclient = bigquery.Client()\n")
+	reader := &recordingFileContentReader{
+		body: map[string][]byte{"bigquery/main.py": fileContent},
+	}
+	e := enrichment.ReconstructEnrichment(
+		77, enrichment.TypeDevelopment, enrichment.SubtypeChunk, enrichment.EntityTypeCommit,
+		"from google.cloud import bigquery", ".py",
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	)
+	srv := NewServer(
+		&fakeSearch{},
+		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{},
+		reader,
+		&fakeSemanticSearcher{
+			enrichments: []enrichment.Enrichment{e},
+			scores:      map[string]float64{"77": 0.91},
+		},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{"77": {20}},
+			lineRanges:    map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{"77": 1},
+		},
+		&fakeFileFinder{files: []repository.File{
+			// Legacy absolute clone path in the database.
+			repository.ReconstructFile(20, "def456abc789", "/root/.kodit/clones/my-repo/bigquery/main.py",
+				"", "", ".py", ".py", 256, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
+		}},
+		"1.0.0-test",
+		nil,
+	)
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	// Step 1: semantic_search
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "semantic_search",
+		"arguments": map[string]any{
+			"query": "bigquery client",
+		},
+	})
+	var searchResult mcp.CallToolResult
+	resultJSON(t, resp, &searchResult)
+	if searchResult.IsError {
+		t.Fatalf("search failed: %s", textFromContent(t, searchResult))
+	}
+
+	var items []struct {
+		URI  string `json:"uri"`
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal([]byte(textFromContent(t, searchResult)), &items); err != nil {
+		t.Fatalf("unmarshal search results: %v", err)
+	}
+	if len(items) == 0 {
+		t.Fatal("search returned no results")
+	}
+
+	// Step 2: read the URI — this must work without stripping any prefix.
+	uri := items[0].URI
+	text := readResourceText(t, srv, uri)
+
+	if text != string(fileContent) {
+		t.Errorf("resource content = %q, want %q", text, string(fileContent))
+	}
+
+	// Verify the reader got the normalized repo-relative path.
+	if len(reader.calls) != 1 {
+		t.Fatalf("expected 1 Content call, got %d", len(reader.calls))
+	}
+	if reader.calls[0].filePath != "bigquery/main.py" {
+		t.Errorf("filePath = %s, want bigquery/main.py", reader.calls[0].filePath)
+	}
+}
+
+func TestServer_SemanticSearchThenReadFile_WithLineRange(t *testing.T) {
+	// When search results include line ranges, the URI contains ?lines=... parameters.
+	// Verify the resource reader applies the line filter correctly.
+	fileContent := []byte("line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\nline10\n")
+	reader := &recordingFileContentReader{
+		body: map[string][]byte{"pkg/core.go": fileContent},
+	}
+	e := enrichment.ReconstructEnrichment(
+		88, enrichment.TypeDevelopment, enrichment.SubtypeChunk, enrichment.EntityTypeCommit,
+		"line3\nline4\nline5", ".go",
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	)
+	srv := NewServer(
+		&fakeSearch{},
+		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{},
+		reader,
+		&fakeSemanticSearcher{
+			enrichments: []enrichment.Enrichment{e},
+			scores:      map[string]float64{"88": 0.80},
+		},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{"88": {15}},
+			lineRanges:    map[string]chunk.LineRange{"88": chunk.ReconstructLineRange(1, 88, 3, 5)},
+			repositoryIDs: map[string]int64{"88": 1},
+		},
+		&fakeFileFinder{files: []repository.File{
+			repository.ReconstructFile(15, "aaa111bbb222", "pkg/core.go", "", "", ".go", ".go", 100,
+				time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
+		}},
+		"1.0.0-test",
+		nil,
+	)
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	// Step 1: semantic_search
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "semantic_search",
+		"arguments": map[string]any{
+			"query": "core logic",
+		},
+	})
+	var searchResult mcp.CallToolResult
+	resultJSON(t, resp, &searchResult)
+	if searchResult.IsError {
+		t.Fatalf("search failed: %s", textFromContent(t, searchResult))
+	}
+
+	var items []struct {
+		URI   string `json:"uri"`
+		Lines string `json:"lines"`
+	}
+	if err := json.Unmarshal([]byte(textFromContent(t, searchResult)), &items); err != nil {
+		t.Fatalf("unmarshal results: %v", err)
+	}
+	if len(items) == 0 {
+		t.Fatal("search returned no results")
+	}
+	if items[0].Lines != "L3-L5" {
+		t.Errorf("lines = %s, want L3-L5", items[0].Lines)
+	}
+
+	// Step 2: read the URI with line range parameters
+	uri := items[0].URI
+	text := readResourceText(t, srv, uri)
+
+	// The URI includes ?lines=L3-L5&line_numbers=true, so expect numbered output.
+	expected := "3\tline3\n4\tline4\n5\tline5"
+	if text != expected {
+		t.Errorf("resource content = %q, want %q", text, expected)
+	}
+}
+
 func TestServer_SemanticSearchNoResults(t *testing.T) {
 	srv := NewServer(
 		&fakeSearch{},
