@@ -87,7 +87,7 @@ func (a *APIServer) mountRoutes(router chi.Router) {
 	// MCP uses streaming responses and manages its own session state via
 	// response headers, which is incompatible with chi's Timeout middleware
 	// that wraps the ResponseWriter.
-	mcpSrv := mcpinternal.NewServer(c.Search, c.Repositories, c.Commits, c.Enrichments, c.Blobs, c.Search, c.Enrichments, c.Files, "1.0.0", a.logger)
+	mcpSrv := mcpinternal.NewServer(c.Search, c.Repositories, c.Commits, c.Enrichments, c.Blobs, c.Search, c.Search, c.Enrichments, c.Files, "1.0.0", a.logger)
 	httpHandler := server.NewStreamableHTTPServer(mcpSrv.MCPServer())
 	router.Mount("/mcp", httpHandler)
 }

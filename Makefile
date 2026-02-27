@@ -71,6 +71,7 @@ dev: docker-dev ## Start Docker development environment (idempotent, non-destruc
 
 .PHONY: docker-dev
 docker-dev: download-model download-ort 
+	docker compose -f docker-compose.dev.yaml build kodit
 	docker compose -f docker-compose.dev.yaml $(PROFILES) up -d --wait
 
 .PHONY: docker-clean
