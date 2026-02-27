@@ -164,11 +164,14 @@ func TestIntegration_IndexRepository_QueuesCloneTask(t *testing.T) {
 	// Create a local test repository
 	repoPath := createTestGitRepo(t)
 
+	// Use a very long poll period so the worker does not dequeue the task
+	// before we assert it exists. This test only checks that Add enqueues
+	// a clone task — it does not need the worker to process it.
 	client, err := kodit.New(
 		kodit.WithSQLite(dbPath),
 		kodit.WithDataDir(dataDir),
 		kodit.WithSkipProviderValidation(),
-		kodit.WithWorkerPollPeriod(testPollPeriod),
+		kodit.WithWorkerPollPeriod(time.Hour),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()

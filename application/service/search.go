@@ -548,6 +548,55 @@ func (s Search) SearchCodeWithScores(ctx context.Context, query string, topK int
 	return enrichments, scores, nil
 }
 
+// SearchKeywordsWithScores performs BM25 keyword search and returns enrichments
+// together with their BM25 scores (keyed by enrichment ID string).
+func (s Search) SearchKeywordsWithScores(ctx context.Context, query string, limit int, filters search.Filters) ([]enrichment.Enrichment, map[string]float64, error) {
+	if s.bm25Store == nil {
+		return nil, nil, nil
+	}
+
+	if limit <= 0 {
+		limit = 10
+	}
+
+	results, err := s.bm25Store.Find(ctx,
+		search.WithQuery(query),
+		search.WithFilters(filters),
+		repository.WithLimit(limit),
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("bm25 keyword search failed: %w", err)
+	}
+
+	if len(results) == 0 {
+		return nil, nil, nil
+	}
+
+	scores := make(map[string]float64, len(results))
+	ids := make([]int64, 0, len(results))
+	for _, r := range results {
+		id, parseErr := strconv.ParseInt(r.SnippetID(), 10, 64)
+		if parseErr != nil {
+			continue
+		}
+		ids = append(ids, id)
+		scores[r.SnippetID()] = r.Score()
+	}
+
+	if len(ids) == 0 {
+		return nil, nil, nil
+	}
+
+	enrichments, err := s.enrichmentStore.Find(ctx, repository.WithIDIn(ids))
+	if err != nil {
+		return nil, nil, fmt.Errorf("fetch enrichments: %w", err)
+	}
+
+	ordered := orderByScore(enrichments, scores)
+
+	return ordered, scores, nil
+}
+
 // toFusionRequests converts search results to fusion requests.
 func toFusionRequests(results []search.Result) []search.FusionRequest {
 	requests := make([]search.FusionRequest, len(results))

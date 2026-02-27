@@ -90,6 +90,16 @@ func (f *fakeSemanticSearcher) SearchCodeWithScores(_ context.Context, _ string,
 	return f.enrichments, f.scores, nil
 }
 
+// fakeKeywordSearcher implements KeywordSearcher with canned results.
+type fakeKeywordSearcher struct {
+	enrichments []enrichment.Enrichment
+	scores      map[string]float64
+}
+
+func (f *fakeKeywordSearcher) SearchKeywordsWithScores(_ context.Context, _ string, _ int, _ search.Filters) ([]enrichment.Enrichment, map[string]float64, error) {
+	return f.enrichments, f.scores, nil
+}
+
 // fakeEnrichmentResolver implements EnrichmentResolver with canned data.
 type fakeEnrichmentResolver struct {
 	sourceFiles   map[string][]int64
@@ -225,6 +235,7 @@ func testServer() *Server {
 		&fakeEnrichmentQuery{enrichments: []enrichment.Enrichment{testArchEnrichment()}},
 		&fakeFileContentReader{content: []byte("alpha\nbeta\ngamma\ndelta\nepsilon\nzeta\neta"), commitSHA: "abc1234567890"},
 		&fakeSemanticSearcher{},
+		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
 			lineRanges:    map[string]chunk.LineRange{},
@@ -278,8 +289,8 @@ func TestServer_ListTools(t *testing.T) {
 	var result mcp.ListToolsResult
 	resultJSON(t, resp, &result)
 
-	if len(result.Tools) != 9 {
-		t.Fatalf("expected 9 tools, got %d", len(result.Tools))
+	if len(result.Tools) != 10 {
+		t.Fatalf("expected 10 tools, got %d", len(result.Tools))
 	}
 
 	tools := map[string]mcp.Tool{}
@@ -297,6 +308,7 @@ func TestServer_ListTools(t *testing.T) {
 		"get_database_schema",
 		"get_cookbook",
 		"semantic_search",
+		"keyword_search",
 	}
 	for _, name := range expected {
 		if _, ok := tools[name]; !ok {
@@ -650,6 +662,7 @@ func semanticSearchServer() *Server {
 			enrichments: []enrichment.Enrichment{e},
 			scores:      map[string]float64{"99": 0.87},
 		},
+		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"99": {10}},
 			lineRanges:    map[string]chunk.LineRange{"99": chunk.ReconstructLineRange(1, 99, 10, 25)},
@@ -768,6 +781,7 @@ func TestServer_SemanticSearch_AbsolutePathNormalized(t *testing.T) {
 			enrichments: []enrichment.Enrichment{e},
 			scores:      map[string]float64{"77": 0.91},
 		},
+		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"77": {20}},
 			lineRanges:    map[string]chunk.LineRange{},
@@ -845,6 +859,7 @@ func TestServer_SemanticSearch_LanguageFilterDotPrefix(t *testing.T) {
 			enrichments: []enrichment.Enrichment{e},
 			scores:      map[string]float64{"55": 0.90},
 		},
+		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"55": {30}},
 			lineRanges:    map[string]chunk.LineRange{},
@@ -997,6 +1012,7 @@ func TestServer_SemanticSearch_LimitCapsResults(t *testing.T) {
 			enrichments: []enrichment.Enrichment{e1, e2, e3},
 			scores:      map[string]float64{"61": 0.9, "62": 0.8, "63": 0.7},
 		},
+		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"61": {101}, "62": {102}, "63": {103}},
 			lineRanges:    map[string]chunk.LineRange{},
@@ -1092,6 +1108,7 @@ func TestServer_SemanticSearchThenReadFile(t *testing.T) {
 			enrichments: []enrichment.Enrichment{testEnrichment()},
 			scores:      map[string]float64{"42": 0.95},
 		},
+		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"42": {10}},
 			lineRanges:    map[string]chunk.LineRange{},
@@ -1174,6 +1191,7 @@ func TestServer_SemanticSearchThenReadFile_AbsolutePath(t *testing.T) {
 			enrichments: []enrichment.Enrichment{e},
 			scores:      map[string]float64{"77": 0.91},
 		},
+		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"77": {20}},
 			lineRanges:    map[string]chunk.LineRange{},
@@ -1252,6 +1270,7 @@ func TestServer_SemanticSearchThenReadFile_WithLineRange(t *testing.T) {
 			enrichments: []enrichment.Enrichment{e},
 			scores:      map[string]float64{"88": 0.80},
 		},
+		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"88": {15}},
 			lineRanges:    map[string]chunk.LineRange{"88": chunk.ReconstructLineRange(1, 88, 3, 5)},
@@ -1312,6 +1331,7 @@ func TestServer_SemanticSearchNoResults(t *testing.T) {
 		&fakeEnrichmentQuery{},
 		&fakeFileContentReader{},
 		&fakeSemanticSearcher{},
+		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
 			lineRanges:    map[string]chunk.LineRange{},
@@ -1340,6 +1360,365 @@ func TestServer_SemanticSearchNoResults(t *testing.T) {
 	text := textFromContent(t, result)
 	if text != "[]" {
 		t.Errorf("expected empty array, got: %s", text)
+	}
+}
+
+func keywordSearchServer() *Server {
+	e := enrichment.ReconstructEnrichment(
+		99,
+		enrichment.TypeDevelopment,
+		enrichment.SubtypeChunk,
+		enrichment.EntityTypeCommit,
+		"func handleRequest(ctx context.Context, w http.ResponseWriter, r *http.Request) {\n\tw.WriteHeader(200)\n}",
+		".go",
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	)
+	testFile := repository.ReconstructFile(
+		10, "abc123def456", "src/handler.go", "", "", ".go", ".go", 512,
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	)
+	return NewServer(
+		&fakeSearch{},
+		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{},
+		&fakeFileContentReader{content: []byte("placeholder"), commitSHA: "abc123def456"},
+		&fakeSemanticSearcher{},
+		&fakeKeywordSearcher{
+			enrichments: []enrichment.Enrichment{e},
+			scores:      map[string]float64{"99": 0.87},
+		},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{"99": {10}},
+			lineRanges:    map[string]chunk.LineRange{"99": chunk.ReconstructLineRange(1, 99, 10, 25)},
+			repositoryIDs: map[string]int64{"99": 1},
+		},
+		&fakeFileFinder{files: []repository.File{testFile}},
+		"1.0.0-test",
+		nil,
+	)
+}
+
+func TestServer_KeywordSearch(t *testing.T) {
+	srv := keywordSearchServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "keyword_search",
+		"arguments": map[string]any{
+			"keywords": "handleRequest http",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+
+	var items []struct {
+		URI      string  `json:"uri"`
+		Path     string  `json:"path"`
+		Language string  `json:"language"`
+		Lines    string  `json:"lines"`
+		Score    float64 `json:"score"`
+		Preview  string  `json:"preview"`
+	}
+	if err := json.Unmarshal([]byte(text), &items); err != nil {
+		t.Fatalf("unmarshal keyword search results: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(items))
+	}
+	item := items[0]
+	if item.URI != "file://1/abc123def456/src/handler.go?lines=L10-L25&line_numbers=true" {
+		t.Errorf("expected URI with line range, got %s", item.URI)
+	}
+	if item.Path != "src/handler.go" {
+		t.Errorf("expected path src/handler.go, got %s", item.Path)
+	}
+	if item.Language != ".go" {
+		t.Errorf("expected language .go, got %s", item.Language)
+	}
+	if item.Lines != "L10-L25" {
+		t.Errorf("expected lines L10-L25, got %s", item.Lines)
+	}
+	if item.Score != 0.87 {
+		t.Errorf("expected score 0.87, got %f", item.Score)
+	}
+	if item.Preview == "" {
+		t.Error("expected non-empty preview")
+	}
+}
+
+func TestServer_KeywordSearch_MissingKeywords(t *testing.T) {
+	srv := keywordSearchServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name":      "keyword_search",
+		"arguments": map[string]any{},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if !result.IsError {
+		t.Fatal("expected error response")
+	}
+	text := textFromContent(t, result)
+	if !containsStr(text, "keywords is required") {
+		t.Errorf("expected 'keywords is required' error, got: %s", text)
+	}
+}
+
+func TestServer_KeywordSearch_WhitespaceOnlyKeywords(t *testing.T) {
+	srv := keywordSearchServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "keyword_search",
+		"arguments": map[string]any{
+			"keywords": "   ",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if !result.IsError {
+		t.Fatal("expected error for whitespace-only keywords")
+	}
+	text := textFromContent(t, result)
+	if !containsStr(text, "keywords must not be empty") {
+		t.Errorf("expected 'keywords must not be empty' error, got: %s", text)
+	}
+}
+
+func TestServer_KeywordSearch_EmptyKeywords(t *testing.T) {
+	srv := keywordSearchServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "keyword_search",
+		"arguments": map[string]any{
+			"keywords": "",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if !result.IsError {
+		t.Fatal("expected error response")
+	}
+	text := textFromContent(t, result)
+	if !containsStr(text, "keywords must not be empty") {
+		t.Errorf("expected 'keywords must not be empty' error, got: %s", text)
+	}
+}
+
+func TestServer_KeywordSearch_NegativeLimit(t *testing.T) {
+	srv := keywordSearchServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "keyword_search",
+		"arguments": map[string]any{
+			"keywords": "test",
+			"limit":    -1,
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if !result.IsError {
+		t.Error("expected error for negative limit, got success")
+	}
+}
+
+func TestServer_KeywordSearch_ZeroLimit(t *testing.T) {
+	srv := keywordSearchServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "keyword_search",
+		"arguments": map[string]any{
+			"keywords": "test",
+			"limit":    0,
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+	if text != "[]" {
+		t.Errorf("limit 0 returned results, want empty array: %s", text)
+	}
+}
+
+func TestServer_KeywordSearch_SourceRepoFilter(t *testing.T) {
+	srv := keywordSearchServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "keyword_search",
+		"arguments": map[string]any{
+			"keywords":    "handleRequest",
+			"source_repo": "https://github.com/nonexistent/fake-repo-12345",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		return // an error response is also acceptable
+	}
+
+	text := textFromContent(t, result)
+	var items []json.RawMessage
+	if err := json.Unmarshal([]byte(text), &items); err != nil {
+		t.Fatalf("unmarshal results: %v", err)
+	}
+	if len(items) != 0 {
+		t.Errorf("source_repo filter for non-existent repo returned %d results, want 0", len(items))
+	}
+}
+
+func TestServer_KeywordSearch_NoResults(t *testing.T) {
+	srv := NewServer(
+		&fakeSearch{},
+		&fakeRepositoryLister{},
+		&fakeCommitFinder{},
+		&fakeEnrichmentQuery{},
+		&fakeFileContentReader{},
+		&fakeSemanticSearcher{},
+		&fakeKeywordSearcher{},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{},
+			lineRanges:    map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{},
+		},
+		&fakeFileFinder{},
+		"1.0.0-test",
+		nil,
+	)
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "keyword_search",
+		"arguments": map[string]any{
+			"keywords": "nonexistent",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+	if text != "[]" {
+		t.Errorf("expected empty array, got: %s", text)
+	}
+}
+
+func TestServer_KeywordSearchThenReadFile(t *testing.T) {
+	fileContent := []byte("package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"hello\")\n}\n")
+	reader := &recordingFileContentReader{
+		body: map[string][]byte{"src/handler.go": fileContent},
+	}
+	e := enrichment.ReconstructEnrichment(
+		99,
+		enrichment.TypeDevelopment,
+		enrichment.SubtypeChunk,
+		enrichment.EntityTypeCommit,
+		"func handleRequest(ctx context.Context) {}",
+		".go",
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	)
+	testFile := repository.ReconstructFile(
+		10, "abc123def456", "src/handler.go", "", "", ".go", ".go", 512,
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	)
+	srv := NewServer(
+		&fakeSearch{},
+		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{},
+		reader,
+		&fakeSemanticSearcher{},
+		&fakeKeywordSearcher{
+			enrichments: []enrichment.Enrichment{e},
+			scores:      map[string]float64{"99": 0.95},
+		},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{"99": {10}},
+			lineRanges:    map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{"99": 1},
+		},
+		&fakeFileFinder{files: []repository.File{testFile}},
+		"1.0.0-test",
+		nil,
+	)
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	// Step 1: keyword_search
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "keyword_search",
+		"arguments": map[string]any{
+			"keywords": "handleRequest",
+		},
+	})
+	var searchResult mcp.CallToolResult
+	resultJSON(t, resp, &searchResult)
+	if searchResult.IsError {
+		t.Fatalf("search failed: %s", textFromContent(t, searchResult))
+	}
+
+	var items []struct {
+		URI  string `json:"uri"`
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal([]byte(textFromContent(t, searchResult)), &items); err != nil {
+		t.Fatalf("unmarshal search results: %v", err)
+	}
+	if len(items) == 0 {
+		t.Fatal("search returned no results")
+	}
+
+	// Step 2: read the URI returned by search
+	uri := items[0].URI
+	text := readResourceText(t, srv, uri)
+
+	if text != string(fileContent) {
+		t.Errorf("resource content = %q, want %q", text, string(fileContent))
+	}
+
+	// Verify the resource reader received the repo-relative path.
+	if len(reader.calls) != 1 {
+		t.Fatalf("expected 1 Content call, got %d", len(reader.calls))
+	}
+	call := reader.calls[0]
+	if call.repoID != 1 {
+		t.Errorf("repoID = %d, want 1", call.repoID)
+	}
+	if call.filePath != "src/handler.go" {
+		t.Errorf("filePath = %s, want src/handler.go", call.filePath)
 	}
 }
 
@@ -1379,6 +1758,7 @@ var (
 	_ EnrichmentQuery    = (*fakeEnrichmentQuery)(nil)
 	_ FileContentReader  = (*fakeFileContentReader)(nil)
 	_ SemanticSearcher   = (*fakeSemanticSearcher)(nil)
+	_ KeywordSearcher    = (*fakeKeywordSearcher)(nil)
 	_ EnrichmentResolver = (*fakeEnrichmentResolver)(nil)
 	_ FileFinder         = (*fakeFileFinder)(nil)
 )

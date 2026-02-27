@@ -56,6 +56,11 @@ type SemanticSearcher interface {
 	SearchCodeWithScores(ctx context.Context, query string, topK int) ([]enrichment.Enrichment, map[string]float64, error)
 }
 
+// KeywordSearcher provides BM25 keyword search with scores.
+type KeywordSearcher interface {
+	SearchKeywordsWithScores(ctx context.Context, query string, limit int, filters search.Filters) ([]enrichment.Enrichment, map[string]float64, error)
+}
+
 // EnrichmentResolver provides enrichment-to-entity resolution.
 type EnrichmentResolver interface {
 	SourceFiles(ctx context.Context, enrichmentIDs []int64) (map[string][]int64, error)
@@ -77,6 +82,7 @@ type Server struct {
 	enrichmentQuery    EnrichmentQuery
 	fileContent        FileContentReader
 	semanticSearch     SemanticSearcher
+	keywordSearch      KeywordSearcher
 	enrichmentResolver EnrichmentResolver
 	files              FileFinder
 	version            string
@@ -96,7 +102,8 @@ const instructions = "This server provides access to code knowledge through mult
 	"- get_database_schema() - Data models\n" +
 	"- get_cookbook() - Complete usage examples\n" +
 	"- search() - Find specific code snippets matching keywords\n" +
-	"- semantic_search() - Find files matching a natural language query (returns resource URIs)\n\n" +
+	"- semantic_search() - Find files matching a natural language query (returns resource URIs)\n" +
+	"- keyword_search() - Find files matching keywords using BM25 search (returns resource URIs)\n\n" +
 	"**Reading file content:**\n" +
 	"Use the file resource template: file://{id}/{blob_name}/{+path}\n" +
 	"where id is the repository ID, blob_name is a commit SHA, tag, or branch name, " +
@@ -114,6 +121,7 @@ func NewServer(
 	enrichmentQuery EnrichmentQuery,
 	fileContent FileContentReader,
 	semanticSearch SemanticSearcher,
+	keywordSearch KeywordSearcher,
 	enrichmentResolver EnrichmentResolver,
 	files FileFinder,
 	version string,
@@ -130,6 +138,7 @@ func NewServer(
 		enrichmentQuery:    enrichmentQuery,
 		fileContent:        fileContent,
 		semanticSearch:     semanticSearch,
+		keywordSearch:      keywordSearch,
 		enrichmentResolver: enrichmentResolver,
 		files:              files,
 		version:            version,
@@ -274,6 +283,23 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 			mcp.Description("Maximum number of results (default 10)"),
 		),
 	), s.handleSemanticSearch)
+
+	mcpServer.AddTool(mcp.NewTool("keyword_search",
+		mcp.WithDescription("Search indexed files using keyword-based BM25 search and return file resource URIs"),
+		mcp.WithString("keywords",
+			mcp.Required(),
+			mcp.Description("Keywords to search for"),
+		),
+		mcp.WithString("source_repo",
+			mcp.Description("Filter by source repository URL"),
+		),
+		mcp.WithString("language",
+			mcp.Description("Filter by programming language"),
+		),
+		mcp.WithNumber("limit",
+			mcp.Description("Maximum number of results (default 10)"),
+		),
+	), s.handleKeywordSearch)
 }
 
 // handleSearch handles the search tool invocation.
@@ -508,6 +534,122 @@ func (s *Server) handleEnrichmentDocs(
 	return mcp.NewToolResultText(strings.Join(parts, "\n\n")), nil
 }
 
+// fileResult holds the resolved file information for a search result.
+type fileResult struct {
+	URI      string  `json:"uri"`
+	Path     string  `json:"path"`
+	Language string  `json:"language"`
+	Lines    string  `json:"lines"`
+	Score    float64 `json:"score"`
+	Preview  string  `json:"preview"`
+}
+
+// resolveFileResults converts enrichments and scores into file-based results
+// with resource URIs. It resolves source files, line ranges, and repository IDs
+// for each enrichment, then builds the file result list. If sourceRepoID > 0,
+// results are post-filtered to only include files from that repository.
+func (s *Server) resolveFileResults(
+	ctx context.Context,
+	enrichments []enrichment.Enrichment,
+	scores map[string]float64,
+	sourceRepoID int64,
+) ([]fileResult, error) {
+	if len(enrichments) == 0 {
+		return nil, nil
+	}
+
+	ids := make([]int64, len(enrichments))
+	for i, e := range enrichments {
+		ids[i] = e.ID()
+	}
+
+	sourceFiles, err := s.enrichmentResolver.SourceFiles(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("resolve source files: %w", err)
+	}
+
+	lineRanges, err := s.enrichmentResolver.LineRanges(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("resolve line ranges: %w", err)
+	}
+
+	repoIDs, err := s.enrichmentResolver.RepositoryIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("resolve repository IDs: %w", err)
+	}
+
+	if sourceRepoID > 0 {
+		filtered := enrichments[:0]
+		for _, e := range enrichments {
+			idStr := strconv.FormatInt(e.ID(), 10)
+			if repoIDs[idStr] == sourceRepoID {
+				filtered = append(filtered, e)
+			}
+		}
+		enrichments = filtered
+		if len(enrichments) == 0 {
+			return nil, nil
+		}
+	}
+
+	var allFileIDs []int64
+	for _, fileIDs := range sourceFiles {
+		allFileIDs = append(allFileIDs, fileIDs...)
+	}
+
+	filesByID := make(map[int64]repository.File)
+	if len(allFileIDs) > 0 {
+		files, fileErr := s.files.Find(ctx, repository.WithIDIn(allFileIDs))
+		if fileErr != nil {
+			return nil, fmt.Errorf("fetch files: %w", fileErr)
+		}
+		for _, f := range files {
+			filesByID[f.ID()] = f
+		}
+	}
+
+	results := make([]fileResult, 0, len(enrichments))
+	for _, e := range enrichments {
+		idStr := strconv.FormatInt(e.ID(), 10)
+
+		fileIDs := sourceFiles[idStr]
+		if len(fileIDs) == 0 {
+			continue
+		}
+
+		file, ok := filesByID[fileIDs[0]]
+		if !ok {
+			continue
+		}
+
+		repoID := repoIDs[idStr]
+		filePath := repoRelativePath(file.Path())
+		uri := NewFileURI(repoID, file.CommitSHA(), filePath)
+
+		var lines string
+		if lr, found := lineRanges[idStr]; found && lr.StartLine() > 0 {
+			uri = uri.WithLineRange(lr.StartLine(), lr.EndLine())
+			lines = fmt.Sprintf("L%d-L%d", lr.StartLine(), lr.EndLine())
+		}
+
+		preview := e.Content()
+		if len(preview) > 200 {
+			preview = preview[:200]
+		}
+
+		results = append(results, fileResult{
+			URI:      uri.String(),
+			Path:     filePath,
+			Language: e.Language(),
+			Lines:    lines,
+			Score:    scores[idStr],
+			Preview:  preview,
+		})
+	}
+
+	return results, nil
+}
+
 // handleSemanticSearch handles the semantic_search tool invocation.
 func (s *Server) handleSemanticSearch(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	query, err := request.RequireString("query")
@@ -567,108 +709,94 @@ func (s *Server) handleSemanticSearch(ctx context.Context, request mcp.CallToolR
 		return mcp.NewToolResultText("[]"), nil
 	}
 
-	// Collect enrichment IDs.
-	ids := make([]int64, len(enrichments))
-	for i, e := range enrichments {
-		ids[i] = e.ID()
-	}
-
-	// Resolve associations in parallel data.
-	sourceFiles, err := s.enrichmentResolver.SourceFiles(ctx, ids)
+	results, err := s.resolveFileResults(ctx, enrichments, scores, sourceRepoID)
 	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("resolve source files: %v", err)), nil
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	lineRanges, err := s.enrichmentResolver.LineRanges(ctx, ids)
+	if len(results) == 0 {
+		return mcp.NewToolResultText("[]"), nil
+	}
+
+	jsonBytes, err := json.Marshal(results)
 	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("resolve line ranges: %v", err)), nil
+		return mcp.NewToolResultError(fmt.Sprintf("marshal results: %v", err)), nil
 	}
 
-	repoIDs, err := s.enrichmentResolver.RepositoryIDs(ctx, ids)
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+// handleKeywordSearch handles the keyword_search tool invocation.
+func (s *Server) handleKeywordSearch(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	keywords, err := request.RequireString("keywords")
 	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("resolve repository IDs: %v", err)), nil
+		return mcp.NewToolResultError("keywords is required"), nil
+	}
+	if strings.TrimSpace(keywords) == "" {
+		return mcp.NewToolResultError("keywords must not be empty"), nil
 	}
 
-	// Post-filter by source repository if specified.
-	if sourceRepoID > 0 {
-		filtered := enrichments[:0]
+	limit := int(request.GetFloat("limit", 10))
+	if limit < 0 {
+		return mcp.NewToolResultError("limit must not be negative"), nil
+	}
+	if limit == 0 {
+		return mcp.NewToolResultText("[]"), nil
+	}
+
+	language := normalizeExtension(request.GetString("language", ""))
+
+	// Resolve source_repo URL to a repository ID for post-filtering.
+	var sourceRepoID int64
+	if repoURL := request.GetString("source_repo", ""); repoURL != "" {
+		repos, repoErr := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
+		if repoErr != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("resolve source_repo: %v", repoErr)), nil
+		}
+		if len(repos) == 0 {
+			return mcp.NewToolResultText("[]"), nil
+		}
+		sourceRepoID = repos[0].ID()
+	}
+
+	var opts []search.FiltersOption
+	if language != "" {
+		opts = append(opts, search.WithLanguages([]string{language}))
+	}
+	filters := search.NewFilters(opts...)
+
+	enrichments, scores, err := s.keywordSearch.SearchKeywordsWithScores(ctx, keywords, limit, filters)
+	if err != nil {
+		s.logger.Error("keyword search failed", slog.Any("error", err))
+		return mcp.NewToolResultError(fmt.Sprintf("keyword search failed: %v", err)), nil
+	}
+
+	// Post-filter by language if specified (enrichment language may differ from filter).
+	if language != "" {
+		filtered := make([]enrichment.Enrichment, 0, len(enrichments))
 		for _, e := range enrichments {
-			idStr := strconv.FormatInt(e.ID(), 10)
-			if repoIDs[idStr] == sourceRepoID {
+			if normalizeExtension(e.Language()) == language {
 				filtered = append(filtered, e)
 			}
 		}
 		enrichments = filtered
-		if len(enrichments) == 0 {
-			return mcp.NewToolResultText("[]"), nil
-		}
 	}
 
-	// Collect all file IDs and fetch files.
-	var allFileIDs []int64
-	for _, fileIDs := range sourceFiles {
-		allFileIDs = append(allFileIDs, fileIDs...)
+	if len(enrichments) > limit {
+		enrichments = enrichments[:limit]
 	}
 
-	filesByID := make(map[int64]repository.File)
-	if len(allFileIDs) > 0 {
-		files, fileErr := s.files.Find(ctx, repository.WithIDIn(allFileIDs))
-		if fileErr != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("fetch files: %v", fileErr)), nil
-		}
-		for _, f := range files {
-			filesByID[f.ID()] = f
-		}
+	if len(enrichments) == 0 {
+		return mcp.NewToolResultText("[]"), nil
 	}
 
-	// Build response.
-	type semanticResult struct {
-		URI      string  `json:"uri"`
-		Path     string  `json:"path"`
-		Language string  `json:"language"`
-		Lines    string  `json:"lines"`
-		Score    float64 `json:"score"`
-		Preview  string  `json:"preview"`
+	results, err := s.resolveFileResults(ctx, enrichments, scores, sourceRepoID)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	results := make([]semanticResult, 0, len(enrichments))
-	for _, e := range enrichments {
-		idStr := strconv.FormatInt(e.ID(), 10)
-
-		// Find the first source file for this enrichment.
-		fileIDs := sourceFiles[idStr]
-		if len(fileIDs) == 0 {
-			continue
-		}
-
-		file, ok := filesByID[fileIDs[0]]
-		if !ok {
-			continue
-		}
-
-		repoID := repoIDs[idStr]
-		filePath := repoRelativePath(file.Path())
-		uri := NewFileURI(repoID, file.CommitSHA(), filePath)
-
-		var lines string
-		if lr, found := lineRanges[idStr]; found && lr.StartLine() > 0 {
-			uri = uri.WithLineRange(lr.StartLine(), lr.EndLine())
-			lines = fmt.Sprintf("L%d-L%d", lr.StartLine(), lr.EndLine())
-		}
-
-		preview := e.Content()
-		if len(preview) > 200 {
-			preview = preview[:200]
-		}
-
-		results = append(results, semanticResult{
-			URI:      uri.String(),
-			Path:     filePath,
-			Language: e.Language(),
-			Lines:    lines,
-			Score:    scores[idStr],
-			Preview:  preview,
-		})
+	if len(results) == 0 {
+		return mcp.NewToolResultText("[]"), nil
 	}
 
 	jsonBytes, err := json.Marshal(results)
