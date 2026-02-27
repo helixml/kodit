@@ -37,9 +37,6 @@ WHERE c.relname = '%s_idx'`
 // ErrVectorInitializationFailed indicates VectorChord vector initialization failed.
 var ErrVectorInitializationFailed = errors.New("failed to initialize VectorChord vector repository")
 
-// ErrDimensionMismatch indicates embedding dimension doesn't match database.
-var ErrDimensionMismatch = errors.New("embedding dimension mismatch")
-
 // VectorChordEmbeddingStore implements search.EmbeddingStore using VectorChord PostgreSQL extension.
 type VectorChordEmbeddingStore struct {
 	database.Repository[search.Embedding, PgEmbeddingModel]
@@ -49,7 +46,9 @@ type VectorChordEmbeddingStore struct {
 
 // NewVectorChordEmbeddingStore creates a new VectorChordEmbeddingStore, eagerly
 // initializing the extension, table, index, and verifying the dimension.
-func NewVectorChordEmbeddingStore(ctx context.Context, db database.Database, taskName TaskName, dimension int, logger *slog.Logger) (*VectorChordEmbeddingStore, error) {
+// The returned bool is true when the table was dropped and recreated due to a
+// dimension mismatch (e.g. the user switched embedding providers).
+func NewVectorChordEmbeddingStore(ctx context.Context, db database.Database, taskName TaskName, dimension int, logger *slog.Logger) (*VectorChordEmbeddingStore, bool, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -65,32 +64,48 @@ func NewVectorChordEmbeddingStore(ctx context.Context, db database.Database, tas
 
 	// Create extension
 	if err := rawDB.Exec(vcCreateVChordExtension).Error; err != nil {
-		return nil, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("create extension: %w", err))
+		return nil, false, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("create extension: %w", err))
 	}
 
-	// Create table (dynamic dimension requires raw SQL)
 	createTableSQL := fmt.Sprintf(`
 CREATE TABLE IF NOT EXISTS %s (
     id SERIAL PRIMARY KEY,
     snippet_id VARCHAR(255) NOT NULL UNIQUE,
     embedding VECTOR(%d) NOT NULL
 )`, tableName, dimension)
+
+	// Create table (dynamic dimension requires raw SQL)
 	if err := rawDB.Exec(createTableSQL).Error; err != nil {
-		return nil, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("create table: %w", err))
+		return nil, false, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("create table: %w", err))
 	}
 
-	// Verify dimension matches
+	// Check whether the existing table dimension matches the provider.
 	var dbDimension int
 	checkDimensionSQL := fmt.Sprintf(vcCheckDimensionTemplate, tableName)
 	result := rawDB.Raw(checkDimensionSQL).Scan(&dbDimension)
 	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return nil, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("check dimension: %w", result.Error))
-	}
-	if result.RowsAffected > 0 && dbDimension != dimension {
-		return nil, fmt.Errorf("%w: database has %d dimensions, provider has %d — if you switched embedding providers, drop the embedding tables and re-index", ErrDimensionMismatch, dbDimension, dimension)
+		return nil, false, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("check dimension: %w", result.Error))
 	}
 
-	return s, nil
+	rebuilt := false
+	if result.RowsAffected > 0 && dbDimension != dimension {
+		logger.Warn("embedding dimension changed, dropping old table for re-indexing",
+			slog.String("table", tableName),
+			slog.Int("old_dimension", dbDimension),
+			slog.Int("new_dimension", dimension),
+		)
+
+		dropSQL := fmt.Sprintf("DROP TABLE %s CASCADE", tableName)
+		if err := rawDB.Exec(dropSQL).Error; err != nil {
+			return nil, false, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("drop table: %w", err))
+		}
+		if err := rawDB.Exec(createTableSQL).Error; err != nil {
+			return nil, false, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("recreate table: %w", err))
+		}
+		rebuilt = true
+	}
+
+	return s, rebuilt, nil
 }
 
 // SaveAll persists pre-computed embeddings using batched upsert, then ensures

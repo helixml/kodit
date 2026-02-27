@@ -245,7 +245,7 @@ func New(opts ...Option) (*Client, error) {
 	}
 
 	// Create search stores based on storage type
-	textEmbeddingStore, codeEmbeddingStore, bm25Store, err := buildSearchStores(ctx, cfg, db, dimension, logger)
+	textEmbeddingStore, codeEmbeddingStore, bm25Store, embeddingsRebuilt, err := buildSearchStores(ctx, cfg, db, dimension, logger)
 	if err != nil {
 		errClose := db.Close()
 		return nil, errors.Join(fmt.Errorf("search stores: %w", err), errClose)
@@ -417,6 +417,27 @@ func New(opts ...Option) (*Client, error) {
 	worker.Start(ctx)
 	periodicSync.Start(ctx)
 
+	// If embedding tables were rebuilt (dimension change), enqueue a sync for
+	// every repository so enrichments get re-embedded with the new model.
+	if embeddingsRebuilt {
+		repos, repoErr := repoStore.Find(ctx)
+		if repoErr != nil {
+			_ = db.Close()
+			return nil, fmt.Errorf("find repositories for re-index: %w", repoErr)
+		}
+		operations := prescribedOps.SyncRepository()
+		for _, repo := range repos {
+			payload := map[string]any{"repository_id": repo.ID()}
+			if enqErr := queue.EnqueueOperations(ctx, operations, task.PriorityNormal, payload); enqErr != nil {
+				_ = db.Close()
+				return nil, fmt.Errorf("enqueue re-index for repository %d: %w", repo.ID(), enqErr)
+			}
+		}
+		logger.Info("embedding dimension changed, enqueued sync for re-indexing",
+			slog.Int("repositories", len(repos)),
+		)
+	}
+
 	return client, nil
 }
 
@@ -480,39 +501,43 @@ func (a *embeddingAdapter) Embed(ctx context.Context, texts []string) ([][]float
 }
 
 // buildSearchStores creates the search stores based on config.
-func buildSearchStores(ctx context.Context, cfg *clientConfig, db database.Database, dimension int, logger *slog.Logger) (textEmbeddingStore, codeEmbeddingStore search.EmbeddingStore, bm25Store search.BM25Store, err error) {
+// The returned rebuilt bool is true when any VectorChord embedding table was
+// dropped and recreated due to a dimension change (requiring a full re-index).
+func buildSearchStores(ctx context.Context, cfg *clientConfig, db database.Database, dimension int, logger *slog.Logger) (textEmbeddingStore, codeEmbeddingStore search.EmbeddingStore, bm25Store search.BM25Store, rebuilt bool, err error) {
 	switch cfg.database {
 	case databaseSQLite:
 		bm25Store, err = persistence.NewSQLiteBM25Store(db, logger)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("bm25 store: %w", err)
+			return nil, nil, nil, false, fmt.Errorf("bm25 store: %w", err)
 		}
 		if cfg.embeddingProvider != nil {
 			textStore, textErr := persistence.NewSQLiteEmbeddingStore(db, persistence.TaskNameText, logger)
 			if textErr != nil {
-				return nil, nil, nil, fmt.Errorf("text embedding store: %w", textErr)
+				return nil, nil, nil, false, fmt.Errorf("text embedding store: %w", textErr)
 			}
 			textEmbeddingStore = textStore
 			codeStore, codeErr := persistence.NewSQLiteEmbeddingStore(db, persistence.TaskNameCode, logger)
 			if codeErr != nil {
-				return nil, nil, nil, fmt.Errorf("code embedding store: %w", codeErr)
+				return nil, nil, nil, false, fmt.Errorf("code embedding store: %w", codeErr)
 			}
 			codeEmbeddingStore = codeStore
 		}
 	case databasePostgresVectorchord:
 		bm25Store, err = persistence.NewVectorChordBM25Store(db, logger)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("bm25 store: %w", err)
+			return nil, nil, nil, false, fmt.Errorf("bm25 store: %w", err)
 		}
 		if cfg.embeddingProvider != nil {
-			textEmbeddingStore, err = persistence.NewVectorChordEmbeddingStore(ctx, db, persistence.TaskNameText, dimension, logger)
+			var textRebuilt, codeRebuilt bool
+			textEmbeddingStore, textRebuilt, err = persistence.NewVectorChordEmbeddingStore(ctx, db, persistence.TaskNameText, dimension, logger)
 			if err != nil {
-				return nil, nil, nil, fmt.Errorf("text embedding store: %w", err)
+				return nil, nil, nil, false, fmt.Errorf("text embedding store: %w", err)
 			}
-			codeEmbeddingStore, err = persistence.NewVectorChordEmbeddingStore(ctx, db, persistence.TaskNameCode, dimension, logger)
+			codeEmbeddingStore, codeRebuilt, err = persistence.NewVectorChordEmbeddingStore(ctx, db, persistence.TaskNameCode, dimension, logger)
 			if err != nil {
-				return nil, nil, nil, fmt.Errorf("code embedding store: %w", err)
+				return nil, nil, nil, false, fmt.Errorf("code embedding store: %w", err)
 			}
+			rebuilt = textRebuilt || codeRebuilt
 		}
 	}
 	return
