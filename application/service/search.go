@@ -502,6 +502,52 @@ func (s Search) SearchCode(ctx context.Context, query string, topK int) ([]enric
 	return s.enrichmentStore.Find(ctx, repository.WithIDIn(ids))
 }
 
+// SearchCodeWithScores performs code vector search and returns enrichments
+// together with their similarity scores (keyed by enrichment ID string).
+func (s Search) SearchCodeWithScores(ctx context.Context, query string, topK int) ([]enrichment.Enrichment, map[string]float64, error) {
+	if s.codeVectorStore == nil || s.embedder == nil {
+		return nil, nil, nil
+	}
+
+	if topK <= 0 {
+		topK = 10
+	}
+
+	embeddings, err := s.embedder.Embed(ctx, []string{query})
+	if err != nil {
+		return nil, nil, fmt.Errorf("embed query: %w", err)
+	}
+	if len(embeddings) == 0 || len(embeddings[0]) == 0 {
+		return nil, nil, nil
+	}
+
+	results, err := s.codeVectorStore.Search(ctx,
+		search.WithEmbedding(embeddings[0]),
+		repository.WithLimit(topK),
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	scores := make(map[string]float64, len(results))
+	ids := make([]int64, 0, len(results))
+	for _, r := range results {
+		id, err := strconv.ParseInt(r.SnippetID(), 10, 64)
+		if err != nil {
+			continue
+		}
+		ids = append(ids, id)
+		scores[r.SnippetID()] = r.Score()
+	}
+
+	enrichments, err := s.enrichmentStore.Find(ctx, repository.WithIDIn(ids))
+	if err != nil {
+		return nil, nil, fmt.Errorf("fetch enrichments: %w", err)
+	}
+
+	return enrichments, scores, nil
+}
+
 // toFusionRequests converts search results to fusion requests.
 func toFusionRequests(results []search.Result) []search.FusionRequest {
 	requests := make([]search.FusionRequest, len(results))

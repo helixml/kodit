@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit/domain/chunk"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
@@ -77,6 +78,44 @@ type fakeFileContentReader struct {
 
 func (f *fakeFileContentReader) Content(_ context.Context, _ int64, _, _ string) (service.BlobContent, error) {
 	return service.NewBlobContent(f.content, f.commitSHA), nil
+}
+
+// fakeSemanticSearcher implements SemanticSearcher with canned results.
+type fakeSemanticSearcher struct {
+	enrichments []enrichment.Enrichment
+	scores      map[string]float64
+}
+
+func (f *fakeSemanticSearcher) SearchCodeWithScores(_ context.Context, _ string, _ int) ([]enrichment.Enrichment, map[string]float64, error) {
+	return f.enrichments, f.scores, nil
+}
+
+// fakeEnrichmentResolver implements EnrichmentResolver with canned data.
+type fakeEnrichmentResolver struct {
+	sourceFiles   map[string][]int64
+	lineRanges    map[string]chunk.LineRange
+	repositoryIDs map[string]int64
+}
+
+func (f *fakeEnrichmentResolver) SourceFiles(_ context.Context, _ []int64) (map[string][]int64, error) {
+	return f.sourceFiles, nil
+}
+
+func (f *fakeEnrichmentResolver) LineRanges(_ context.Context, _ []int64) (map[string]chunk.LineRange, error) {
+	return f.lineRanges, nil
+}
+
+func (f *fakeEnrichmentResolver) RepositoryIDs(_ context.Context, _ []int64) (map[string]int64, error) {
+	return f.repositoryIDs, nil
+}
+
+// fakeFileFinder implements FileFinder with canned files.
+type fakeFileFinder struct {
+	files []repository.File
+}
+
+func (f *fakeFileFinder) Find(_ context.Context, _ ...repository.Option) ([]repository.File, error) {
+	return f.files, nil
 }
 
 // sendMessage marshals a JSON-RPC request, sends it through HandleMessage,
@@ -185,6 +224,13 @@ func testServer() *Server {
 		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
 		&fakeEnrichmentQuery{enrichments: []enrichment.Enrichment{testArchEnrichment()}},
 		&fakeFileContentReader{content: []byte("alpha\nbeta\ngamma\ndelta\nepsilon\nzeta\neta"), commitSHA: "abc1234567890"},
+		&fakeSemanticSearcher{},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{},
+			lineRanges:    map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{},
+		},
+		&fakeFileFinder{},
 		"1.0.0-test",
 		nil,
 	)
@@ -217,6 +263,9 @@ func TestServer_Initialize(t *testing.T) {
 	if result.Capabilities.Tools == nil {
 		t.Error("expected tools capability to be present")
 	}
+	if !containsStr(result.Instructions, "semantic_search") {
+		t.Error("expected instructions to mention semantic_search")
+	}
 }
 
 func TestServer_ListTools(t *testing.T) {
@@ -229,8 +278,8 @@ func TestServer_ListTools(t *testing.T) {
 	var result mcp.ListToolsResult
 	resultJSON(t, resp, &result)
 
-	if len(result.Tools) != 8 {
-		t.Fatalf("expected 8 tools, got %d", len(result.Tools))
+	if len(result.Tools) != 9 {
+		t.Fatalf("expected 9 tools, got %d", len(result.Tools))
 	}
 
 	tools := map[string]mcp.Tool{}
@@ -247,6 +296,7 @@ func TestServer_ListTools(t *testing.T) {
 		"get_commit_description",
 		"get_database_schema",
 		"get_cookbook",
+		"semantic_search",
 	}
 	for _, name := range expected {
 		if _, ok := tools[name]; !ok {
@@ -575,6 +625,157 @@ func TestServer_ReadFileResource_WithContiguousRanges(t *testing.T) {
 	}
 }
 
+func semanticSearchServer() *Server {
+	e := enrichment.ReconstructEnrichment(
+		99,
+		enrichment.TypeDevelopment,
+		enrichment.SubtypeChunk,
+		enrichment.EntityTypeCommit,
+		"func handleRequest(ctx context.Context, w http.ResponseWriter, r *http.Request) {\n\tw.WriteHeader(200)\n}",
+		".go",
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	)
+	testFile := repository.ReconstructFile(
+		10, "abc123def456", "src/handler.go", "", "", ".go", ".go", 512,
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	)
+	return NewServer(
+		&fakeSearch{},
+		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{},
+		&fakeFileContentReader{content: []byte("placeholder"), commitSHA: "abc123def456"},
+		&fakeSemanticSearcher{
+			enrichments: []enrichment.Enrichment{e},
+			scores:      map[string]float64{"99": 0.87},
+		},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{"99": {10}},
+			lineRanges:    map[string]chunk.LineRange{"99": chunk.ReconstructLineRange(1, 99, 10, 25)},
+			repositoryIDs: map[string]int64{"99": 1},
+		},
+		&fakeFileFinder{files: []repository.File{testFile}},
+		"1.0.0-test",
+		nil,
+	)
+}
+
+func TestServer_SemanticSearch(t *testing.T) {
+	srv := semanticSearchServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "semantic_search",
+		"arguments": map[string]any{
+			"query": "handle HTTP requests",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+
+	var items []struct {
+		URI      string  `json:"uri"`
+		Path     string  `json:"path"`
+		Language string  `json:"language"`
+		Lines    string  `json:"lines"`
+		Score    float64 `json:"score"`
+		Preview  string  `json:"preview"`
+	}
+	if err := json.Unmarshal([]byte(text), &items); err != nil {
+		t.Fatalf("unmarshal semantic search results: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(items))
+	}
+	item := items[0]
+	if item.URI != "file://1/abc123def456/src/handler.go?lines=L10-L25&line_numbers=true" {
+		t.Errorf("expected URI with line range, got %s", item.URI)
+	}
+	if item.Path != "src/handler.go" {
+		t.Errorf("expected path src/handler.go, got %s", item.Path)
+	}
+	if item.Language != ".go" {
+		t.Errorf("expected language .go, got %s", item.Language)
+	}
+	if item.Lines != "L10-L25" {
+		t.Errorf("expected lines L10-L25, got %s", item.Lines)
+	}
+	if item.Score != 0.87 {
+		t.Errorf("expected score 0.87, got %f", item.Score)
+	}
+	if item.Preview == "" {
+		t.Error("expected non-empty preview")
+	}
+}
+
+func TestServer_SemanticSearchMissingQuery(t *testing.T) {
+	srv := semanticSearchServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name":      "semantic_search",
+		"arguments": map[string]any{},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if !result.IsError {
+		t.Fatal("expected error response")
+	}
+	text := textFromContent(t, result)
+	if !containsStr(text, "query is required") {
+		t.Errorf("expected 'query is required' error, got: %s", text)
+	}
+}
+
+func TestServer_SemanticSearchNoResults(t *testing.T) {
+	srv := NewServer(
+		&fakeSearch{},
+		&fakeRepositoryLister{},
+		&fakeCommitFinder{},
+		&fakeEnrichmentQuery{},
+		&fakeFileContentReader{},
+		&fakeSemanticSearcher{},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{},
+			lineRanges:    map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{},
+		},
+		&fakeFileFinder{},
+		"1.0.0-test",
+		nil,
+	)
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "semantic_search",
+		"arguments": map[string]any{
+			"query": "nonexistent code",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+	if text != "[]" {
+		t.Errorf("expected empty array, got: %s", text)
+	}
+}
+
 // readResourceText is a helper that reads an MCP resource and returns the text content.
 func readResourceText(t *testing.T, srv *Server, uri string) string {
 	t.Helper()
@@ -605,9 +806,12 @@ func readResourceText(t *testing.T, srv *Server, uri string) string {
 
 // Ensure fakes satisfy interfaces at compile time.
 var (
-	_ Searcher          = (*fakeSearch)(nil)
-	_ RepositoryLister  = (*fakeRepositoryLister)(nil)
-	_ CommitFinder      = (*fakeCommitFinder)(nil)
-	_ EnrichmentQuery   = (*fakeEnrichmentQuery)(nil)
-	_ FileContentReader = (*fakeFileContentReader)(nil)
+	_ Searcher           = (*fakeSearch)(nil)
+	_ RepositoryLister   = (*fakeRepositoryLister)(nil)
+	_ CommitFinder       = (*fakeCommitFinder)(nil)
+	_ EnrichmentQuery    = (*fakeEnrichmentQuery)(nil)
+	_ FileContentReader  = (*fakeFileContentReader)(nil)
+	_ SemanticSearcher   = (*fakeSemanticSearcher)(nil)
+	_ EnrichmentResolver = (*fakeEnrichmentResolver)(nil)
+	_ FileFinder         = (*fakeFileFinder)(nil)
 )
