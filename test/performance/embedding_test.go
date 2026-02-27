@@ -122,7 +122,7 @@ func TestEmbeddingPipeline(t *testing.T) {
 	embedder := testEmbedder(t)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
-	store, err := persistence.NewVectorChordEmbeddingStore(
+	store, _, err := persistence.NewVectorChordEmbeddingStore(
 		ctx, db, "perf", embeddingDimension, logger,
 	)
 	require.NoError(t, err)
@@ -297,7 +297,7 @@ func TestEmbeddingPipelineCPUProfile(t *testing.T) {
 	embedder := testEmbedder(t)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
-	store, err := persistence.NewVectorChordEmbeddingStore(
+	store, _, err := persistence.NewVectorChordEmbeddingStore(
 		ctx, db, "perf", embeddingDimension, logger,
 	)
 	require.NoError(t, err)
@@ -353,7 +353,7 @@ func TestEmbeddingPipelineMemProfile(t *testing.T) {
 	embedder := testEmbedder(t)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
-	store, err := persistence.NewVectorChordEmbeddingStore(
+	store, _, err := persistence.NewVectorChordEmbeddingStore(
 		ctx, db, "perf", embeddingDimension, logger,
 	)
 	require.NoError(t, err)
@@ -448,7 +448,7 @@ func TestConcurrentSaveAll(t *testing.T) {
 		raw := db.Session(ctx)
 		raw.Exec(fmt.Sprintf("DROP INDEX IF EXISTS %s_idx", tableName))
 
-		store, err := persistence.NewVectorChordEmbeddingStore(
+		store, _, err := persistence.NewVectorChordEmbeddingStore(
 			ctx, db, "perf", embeddingDimension, logger,
 		)
 		require.NoError(t, err)
@@ -494,7 +494,7 @@ func TestSaveAllBatching(t *testing.T) {
 	db := testDB(t)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
-	store, err := persistence.NewVectorChordEmbeddingStore(
+	store, _, err := persistence.NewVectorChordEmbeddingStore(
 		ctx, db, "perf", embeddingDimension, logger,
 	)
 	require.NoError(t, err)
@@ -520,4 +520,60 @@ func TestSaveAllBatching(t *testing.T) {
 				count, elapsed, perItem, float64(count)/elapsed.Seconds())
 		})
 	}
+}
+
+// TestDimensionMismatch_RebuildTable verifies that creating a
+// VectorChordEmbeddingStore with a different dimension than the existing
+// table drops the old table, recreates it with the new dimension, and
+// returns rebuilt=true.
+func TestDimensionMismatch_RebuildTable(t *testing.T) {
+	ctx := context.Background()
+	db := testDB(t)
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
+	// Create store with dimension 4 and insert data.
+	store, rebuilt, err := persistence.NewVectorChordEmbeddingStore(ctx, db, "perf", 4, logger)
+	require.NoError(t, err)
+	require.False(t, rebuilt, "fresh table should not be rebuilt")
+
+	err = store.SaveAll(ctx, []search.Embedding{
+		search.NewEmbedding("s1", []float64{1, 2, 3, 4}),
+		search.NewEmbedding("s2", []float64{5, 6, 7, 8}),
+	})
+	require.NoError(t, err)
+
+	count, err := store.Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), count, "two rows should exist before rebuild")
+
+	// Re-create with a different dimension.
+	store2, rebuilt2, err := persistence.NewVectorChordEmbeddingStore(ctx, db, "perf", 8, logger)
+	require.NoError(t, err)
+	require.True(t, rebuilt2, "dimension change should trigger rebuild")
+
+	// Old data is gone.
+	count, err = store2.Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), count, "table should be empty after rebuild")
+
+	// Column dimension matches the new value.
+	var dim int
+	db.Session(ctx).Raw(`
+		SELECT a.atttypmod AS dimension
+		FROM pg_attribute a
+		JOIN pg_class c ON a.attrelid = c.oid
+		WHERE c.relname = 'vectorchord_perf_embeddings'
+		AND a.attname = 'embedding'`,
+	).Scan(&dim)
+	require.Equal(t, 8, dim, "pg_attribute dimension should match new value")
+
+	// New data can be inserted with the new dimension.
+	err = store2.SaveAll(ctx, []search.Embedding{
+		search.NewEmbedding("s3", []float64{1, 2, 3, 4, 5, 6, 7, 8}),
+	})
+	require.NoError(t, err)
+
+	count, err = store2.Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), count, "should accept data with new dimension")
 }
