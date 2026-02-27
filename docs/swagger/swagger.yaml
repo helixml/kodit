@@ -44,6 +44,10 @@ definitions:
         type: string
       created_at:
         type: string
+      end_line:
+        type: integer
+      start_line:
+        type: integer
       subtype:
         type: string
       type:
@@ -360,8 +364,12 @@ definitions:
     type: object
   dto.SnippetContentSchema:
     properties:
+      end_line:
+        type: integer
       language:
         type: string
+      start_line:
+        type: integer
       value:
         type: string
     type: object

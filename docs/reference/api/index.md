@@ -921,6 +921,8 @@ Hybrid search across code snippets and enrichments
 |-------|------|-------------|
 | content | string |  |
 | created_at | string |  |
+| end_line | integer |  |
+| start_line | integer |  |
 | subtype | string |  |
 | type | string |  |
 | updated_at | string |  |
@@ -1270,7 +1272,9 @@ Hybrid search across code snippets and enrichments
 
 | Field | Type | Description |
 |-------|------|-------------|
+| end_line | integer |  |
 | language | string |  |
+| start_line | integer |  |
 | value | string |  |
 
 
