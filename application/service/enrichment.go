@@ -255,3 +255,31 @@ func (s *Enrichment) LineRanges(ctx context.Context, enrichmentIDs []int64) (map
 
 	return result, nil
 }
+
+// RepositoryIDs returns repository IDs keyed by enrichment ID string.
+// It queries associations where enrichment_id IN (ids) and entity_type = "git_repos".
+func (s *Enrichment) RepositoryIDs(ctx context.Context, enrichmentIDs []int64) (map[string]int64, error) {
+	if len(enrichmentIDs) == 0 {
+		return map[string]int64{}, nil
+	}
+
+	associations, err := s.associationStore.Find(ctx,
+		enrichment.WithEnrichmentIDIn(enrichmentIDs),
+		enrichment.WithEntityType(enrichment.EntityTypeRepository),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("find repository associations: %w", err)
+	}
+
+	result := make(map[string]int64)
+	for _, a := range associations {
+		key := strconv.FormatInt(a.EnrichmentID(), 10)
+		repoID, err := strconv.ParseInt(a.EntityID(), 10, 64)
+		if err != nil {
+			continue
+		}
+		result[key] = repoID
+	}
+
+	return result, nil
+}

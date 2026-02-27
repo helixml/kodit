@@ -103,6 +103,10 @@ test-cover: download-model download-ort ## Run tests with coverage (excludes smo
 test-e2e: download-model download-ort ## Run end-to-end tests only
 	$(GOENV) $(GOCMD) test -tags "$(EMBED_TAGS)" -v ./test/e2e/...
 
+.PHONY: mcp-inspector
+mcp-inspector: ## Open the MCP Inspector UI against localhost:8080
+	npx @modelcontextprotocol/inspector --url http://localhost:8080/mcp
+
 .PHONY: test-smoke
 test-smoke: ## Run smoke tests (resets database for idempotency)
 	$(GOTEST) -v -count=1 ./test/smoke/...

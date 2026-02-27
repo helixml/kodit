@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit/domain/chunk"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
@@ -49,16 +51,36 @@ type FileContentReader interface {
 	Content(ctx context.Context, repoID int64, blobName, filePath string) (service.BlobContent, error)
 }
 
+// SemanticSearcher provides code vector search with scores.
+type SemanticSearcher interface {
+	SearchCodeWithScores(ctx context.Context, query string, topK int) ([]enrichment.Enrichment, map[string]float64, error)
+}
+
+// EnrichmentResolver provides enrichment-to-entity resolution.
+type EnrichmentResolver interface {
+	SourceFiles(ctx context.Context, enrichmentIDs []int64) (map[string][]int64, error)
+	LineRanges(ctx context.Context, enrichmentIDs []int64) (map[string]chunk.LineRange, error)
+	RepositoryIDs(ctx context.Context, enrichmentIDs []int64) (map[string]int64, error)
+}
+
+// FileFinder provides file lookups by options.
+type FileFinder interface {
+	Find(ctx context.Context, options ...repository.Option) ([]repository.File, error)
+}
+
 // Server wraps the MCP server with kodit-specific tools.
 type Server struct {
-	mcpServer       *server.MCPServer
-	searchService   Searcher
-	repositories    RepositoryLister
-	commits         CommitFinder
-	enrichmentQuery EnrichmentQuery
-	fileContent     FileContentReader
-	version         string
-	logger          *slog.Logger
+	mcpServer          *server.MCPServer
+	searchService      Searcher
+	repositories       RepositoryLister
+	commits            CommitFinder
+	enrichmentQuery    EnrichmentQuery
+	fileContent        FileContentReader
+	semanticSearch     SemanticSearcher
+	enrichmentResolver EnrichmentResolver
+	files              FileFinder
+	version            string
+	logger             *slog.Logger
 }
 
 const instructions = "This server provides access to code knowledge through multiple " +
@@ -73,7 +95,8 @@ const instructions = "This server provides access to code knowledge through mult
 	"- get_commit_description() - Recent changes and context\n" +
 	"- get_database_schema() - Data models\n" +
 	"- get_cookbook() - Complete usage examples\n" +
-	"- search() - Find specific code snippets matching keywords\n\n" +
+	"- search() - Find specific code snippets matching keywords\n" +
+	"- semantic_search() - Find files matching a natural language query (returns resource URIs)\n\n" +
 	"**Reading file content:**\n" +
 	"Use the file resource template: file://{id}/{blob_name}/{+path}\n" +
 	"where id is the repository ID, blob_name is a commit SHA, tag, or branch name, " +
@@ -90,6 +113,9 @@ func NewServer(
 	commits CommitFinder,
 	enrichmentQuery EnrichmentQuery,
 	fileContent FileContentReader,
+	semanticSearch SemanticSearcher,
+	enrichmentResolver EnrichmentResolver,
+	files FileFinder,
 	version string,
 	logger *slog.Logger,
 ) *Server {
@@ -98,13 +124,16 @@ func NewServer(
 	}
 
 	s := &Server{
-		searchService:   searchService,
-		repositories:    repositories,
-		commits:         commits,
-		enrichmentQuery: enrichmentQuery,
-		fileContent:     fileContent,
-		version:         version,
-		logger:          logger,
+		searchService:      searchService,
+		repositories:       repositories,
+		commits:            commits,
+		enrichmentQuery:    enrichmentQuery,
+		fileContent:        fileContent,
+		semanticSearch:     semanticSearch,
+		enrichmentResolver: enrichmentResolver,
+		files:              files,
+		version:            version,
+		logger:             logger,
 	}
 
 	mcpServer := server.NewMCPServer(
@@ -229,6 +258,22 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 		),
 	), s.handleGetCookbook)
 
+	mcpServer.AddTool(mcp.NewTool("semantic_search",
+		mcp.WithDescription("Search indexed files using semantic similarity and return file resource URIs"),
+		mcp.WithString("query",
+			mcp.Required(),
+			mcp.Description("Natural language description of what you are looking for"),
+		),
+		mcp.WithString("language",
+			mcp.Description("Filter by file extension (e.g. .go, .py)"),
+		),
+		mcp.WithString("source_repo",
+			mcp.Description("Filter by source repository URL"),
+		),
+		mcp.WithNumber("limit",
+			mcp.Description("Maximum number of results (default 10)"),
+		),
+	), s.handleSemanticSearch)
 }
 
 // handleSearch handles the search tool invocation.
@@ -463,6 +508,177 @@ func (s *Server) handleEnrichmentDocs(
 	return mcp.NewToolResultText(strings.Join(parts, "\n\n")), nil
 }
 
+// handleSemanticSearch handles the semantic_search tool invocation.
+func (s *Server) handleSemanticSearch(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	query, err := request.RequireString("query")
+	if err != nil {
+		return mcp.NewToolResultError("query is required"), nil
+	}
+	if strings.TrimSpace(query) == "" {
+		return mcp.NewToolResultError("query must not be empty"), nil
+	}
+
+	limit := int(request.GetFloat("limit", 10))
+	if limit < 0 {
+		return mcp.NewToolResultError("limit must not be negative"), nil
+	}
+	if limit == 0 {
+		return mcp.NewToolResultText("[]"), nil
+	}
+
+	language := normalizeExtension(request.GetString("language", ""))
+
+	// Resolve source_repo URL to a repository ID for post-filtering.
+	var sourceRepoID int64
+	if repoURL := request.GetString("source_repo", ""); repoURL != "" {
+		repos, repoErr := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
+		if repoErr != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("resolve source_repo: %v", repoErr)), nil
+		}
+		if len(repos) == 0 {
+			return mcp.NewToolResultText("[]"), nil
+		}
+		sourceRepoID = repos[0].ID()
+	}
+
+	enrichments, scores, err := s.semanticSearch.SearchCodeWithScores(ctx, query, limit)
+	if err != nil {
+		s.logger.Error("semantic search failed", slog.Any("error", err))
+		return mcp.NewToolResultError(fmt.Sprintf("semantic search failed: %v", err)), nil
+	}
+
+	// Post-filter by language if specified.
+	if language != "" {
+		filtered := make([]enrichment.Enrichment, 0, len(enrichments))
+		for _, e := range enrichments {
+			if normalizeExtension(e.Language()) == language {
+				filtered = append(filtered, e)
+			}
+		}
+		enrichments = filtered
+	}
+
+	// Cap results to the requested limit.
+	if len(enrichments) > limit {
+		enrichments = enrichments[:limit]
+	}
+
+	if len(enrichments) == 0 {
+		return mcp.NewToolResultText("[]"), nil
+	}
+
+	// Collect enrichment IDs.
+	ids := make([]int64, len(enrichments))
+	for i, e := range enrichments {
+		ids[i] = e.ID()
+	}
+
+	// Resolve associations in parallel data.
+	sourceFiles, err := s.enrichmentResolver.SourceFiles(ctx, ids)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("resolve source files: %v", err)), nil
+	}
+
+	lineRanges, err := s.enrichmentResolver.LineRanges(ctx, ids)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("resolve line ranges: %v", err)), nil
+	}
+
+	repoIDs, err := s.enrichmentResolver.RepositoryIDs(ctx, ids)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("resolve repository IDs: %v", err)), nil
+	}
+
+	// Post-filter by source repository if specified.
+	if sourceRepoID > 0 {
+		filtered := enrichments[:0]
+		for _, e := range enrichments {
+			idStr := strconv.FormatInt(e.ID(), 10)
+			if repoIDs[idStr] == sourceRepoID {
+				filtered = append(filtered, e)
+			}
+		}
+		enrichments = filtered
+		if len(enrichments) == 0 {
+			return mcp.NewToolResultText("[]"), nil
+		}
+	}
+
+	// Collect all file IDs and fetch files.
+	var allFileIDs []int64
+	for _, fileIDs := range sourceFiles {
+		allFileIDs = append(allFileIDs, fileIDs...)
+	}
+
+	filesByID := make(map[int64]repository.File)
+	if len(allFileIDs) > 0 {
+		files, fileErr := s.files.Find(ctx, repository.WithIDIn(allFileIDs))
+		if fileErr != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("fetch files: %v", fileErr)), nil
+		}
+		for _, f := range files {
+			filesByID[f.ID()] = f
+		}
+	}
+
+	// Build response.
+	type semanticResult struct {
+		URI      string  `json:"uri"`
+		Path     string  `json:"path"`
+		Language string  `json:"language"`
+		Lines    string  `json:"lines"`
+		Score    float64 `json:"score"`
+		Preview  string  `json:"preview"`
+	}
+
+	results := make([]semanticResult, 0, len(enrichments))
+	for _, e := range enrichments {
+		idStr := strconv.FormatInt(e.ID(), 10)
+
+		// Find the first source file for this enrichment.
+		fileIDs := sourceFiles[idStr]
+		if len(fileIDs) == 0 {
+			continue
+		}
+
+		file, ok := filesByID[fileIDs[0]]
+		if !ok {
+			continue
+		}
+
+		repoID := repoIDs[idStr]
+		filePath := repoRelativePath(file.Path())
+		uri := NewFileURI(repoID, file.CommitSHA(), filePath)
+
+		var lines string
+		if lr, found := lineRanges[idStr]; found && lr.StartLine() > 0 {
+			uri = uri.WithLineRange(lr.StartLine(), lr.EndLine())
+			lines = fmt.Sprintf("L%d-L%d", lr.StartLine(), lr.EndLine())
+		}
+
+		preview := e.Content()
+		if len(preview) > 200 {
+			preview = preview[:200]
+		}
+
+		results = append(results, semanticResult{
+			URI:      uri.String(),
+			Path:     filePath,
+			Language: e.Language(),
+			Lines:    lines,
+			Score:    scores[idStr],
+			Preview:  preview,
+		})
+	}
+
+	jsonBytes, err := json.Marshal(results)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("marshal results: %v", err)), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
 // registerResources registers MCP resource templates with the server.
 func (s *Server) registerResources(mcpServer *server.MCPServer) {
 	mcpServer.AddResourceTemplate(
@@ -540,6 +756,34 @@ func (s *Server) handleReadFile(ctx context.Context, request mcp.ReadResourceReq
 			Text:     string(content),
 		},
 	}, nil
+}
+
+// repoRelativePath normalizes a file path to be repository-relative.
+// File records from legacy database migrations may contain absolute clone paths
+// (e.g., /root/.kodit/clones/repo-name/src/main.go). This strips the prefix
+// so URIs and paths are directly usable by resource readers.
+func repoRelativePath(filePath string) string {
+	if !filepath.IsAbs(filePath) {
+		return filePath
+	}
+
+	parts := strings.Split(filepath.Clean(filePath), string(filepath.Separator))
+	lastIdx := -1
+	for i, part := range parts {
+		if part == "clones" || part == "repos" {
+			lastIdx = i
+		}
+	}
+	if lastIdx >= 0 && lastIdx+2 < len(parts) {
+		return filepath.Join(parts[lastIdx+2:]...)
+	}
+
+	return filePath
+}
+
+// normalizeExtension strips a leading dot so that ".py" and "py" compare equal.
+func normalizeExtension(ext string) string {
+	return strings.TrimPrefix(ext, ".")
 }
 
 // MCPServer returns the underlying MCP server for stdio serving.
