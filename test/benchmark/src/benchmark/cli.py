@@ -23,12 +23,10 @@ DEFAULT_OUTPUT_DIR = Path("data")
 
 
 def _extract_run_stats(output_dir: Path) -> dict:
-    """Extract cost and token statistics from trajectory files."""
+    """Extract cost and API-call statistics from trajectory files."""
     stats: dict = {
         "total_cost": 0.0,
         "total_api_calls": 0,
-        "total_tokens_sent": 0,
-        "total_tokens_received": 0,
         "instance_count": 0,
         "instances_with_patch": 0,
         "instance_stats": {},
@@ -41,8 +39,8 @@ def _extract_run_stats(output_dir: Path) -> dict:
         with predictions_path.open() as f:
             predictions = json.load(f)
 
-    # Extract stats from trajectory files
-    for trajectory_path in output_dir.glob("*/*.traj.json"):
+    # Extract stats from trajectory files (may be nested 1 or 2 levels deep)
+    for trajectory_path in output_dir.glob("**/*.traj.json"):
         try:
             with trajectory_path.open() as f:
                 trajectory = json.load(f)
@@ -54,13 +52,9 @@ def _extract_run_stats(output_dir: Path) -> dict:
 
             cost = model_stats.get("instance_cost", 0.0)
             api_calls = model_stats.get("api_calls", 0)
-            tokens_sent = model_stats.get("tokens_sent", 0)
-            tokens_received = model_stats.get("tokens_received", 0)
 
             stats["total_cost"] += cost
             stats["total_api_calls"] += api_calls
-            stats["total_tokens_sent"] += tokens_sent
-            stats["total_tokens_received"] += tokens_received
             stats["instance_count"] += 1
 
             has_patch = bool(
@@ -72,8 +66,6 @@ def _extract_run_stats(output_dir: Path) -> dict:
             stats["instance_stats"][instance_id] = {
                 "cost": cost,
                 "api_calls": api_calls,
-                "tokens_sent": tokens_sent,
-                "tokens_received": tokens_received,
                 "has_patch": has_patch,
                 "exit_status": info.get("exit_status", "Unknown"),
             }
@@ -125,8 +117,15 @@ def _load_evaluation_results(
             results["unresolved_ids"] = set(data.get("unresolved_ids", []))
             results["error_ids"] = set(data.get("error_ids", []))
             results["empty_patch_ids"] = set(data.get("empty_patch_ids", []))
-            results["total"] = data.get("total_instances", 0)
-            results["resolved"] = data.get("resolved_instances", 0)
+            # Use the actual number of evaluated instances (union of all
+            # ID sets), not total_instances which is the full dataset size.
+            results["total"] = len(
+                results["resolved_ids"]
+                | results["unresolved_ids"]
+                | results["error_ids"]
+                | results["empty_patch_ids"]
+            )
+            results["resolved"] = len(results["resolved_ids"])
     else:
         log.warning("No evaluation results found", run_id=run_id)
 
@@ -140,141 +139,107 @@ def _print_section(title: str, divider: str = "-") -> None:
     click.echo(divider * 70)
 
 
-def _print_metric_row(label: str, baseline_val: str, kodit_val: str) -> None:
-    """Print a single metric comparison row."""
-    click.echo(f"{label:<30} {baseline_val:>15} {kodit_val:>15}")
+def _print_metric_row(label: str, *values: str) -> None:
+    """Print a metric comparison row with variable number of columns."""
+    cols = "".join(f"{v:>15}" for v in values)
+    click.echo(f"{label:<30}{cols}")
 
 
 def _display_comparison_report(
-    baseline_stats: dict,
-    kodit_stats: dict,
-    baseline_results: dict,
-    kodit_results: dict,
+    runs: list[tuple[str, dict, dict]],
     output: Path,
 ) -> None:
-    """Display formatted comparison report to terminal."""
-    # Compute instance sets
-    b_resolved_ids = baseline_results["resolved_ids"]
-    k_resolved_ids = kodit_results["resolved_ids"]
-    both = b_resolved_ids & k_resolved_ids
-    baseline_only = b_resolved_ids - k_resolved_ids
-    kodit_only = k_resolved_ids - b_resolved_ids
+    """Display formatted comparison report to terminal.
 
-    all_ids = (
-        baseline_results["resolved_ids"]
-        | baseline_results["unresolved_ids"]
-        | baseline_results["error_ids"]
-        | baseline_results["empty_patch_ids"]
-        | kodit_results["resolved_ids"]
-        | kodit_results["unresolved_ids"]
-        | kodit_results["error_ids"]
-        | kodit_results["empty_patch_ids"]
-    )
-    neither = all_ids - b_resolved_ids - k_resolved_ids
+    Each entry in *runs* is (label, stats_dict, eval_results_dict).
+    Supports two-way or three-way comparison.
+    """
+    labels = [r[0] for r in runs]
+    all_stats = [r[1] for r in runs]
+    all_results = [r[2] for r in runs]
+    resolved_sets = [r["resolved_ids"] for r in all_results]
 
     # Header
-    _print_section("BENCHMARK COMPARISON: BASELINE vs KODIT", "=")
+    title = " vs ".join(label.upper() for label in labels)
+    _print_section(f"BENCHMARK COMPARISON: {title}", "=")
 
     # Performance section
     _print_section("PERFORMANCE (Pass/Fail)")
-    _print_metric_row("Metric", "Baseline", "Kodit")
+    _print_metric_row("Metric", *labels)
     click.echo("-" * 70)
 
-    b_total = baseline_results["total"]
-    k_total = kodit_results["total"]
-    b_res = baseline_results["resolved"]
-    k_res = kodit_results["resolved"]
-    b_rate = b_res / b_total if b_total > 0 else 0.0
-    k_rate = k_res / k_total if k_total > 0 else 0.0
+    totals = [r["total"] for r in all_results]
+    resolveds = [r["resolved"] for r in all_results]
+    rates = [
+        res / tot if tot > 0 else 0.0
+        for res, tot in zip(resolveds, totals, strict=True)
+    ]
 
-    _print_metric_row("Instances evaluated", str(b_total), str(k_total))
-    _print_metric_row("Resolved (passed)", str(b_res), str(k_res))
-    _print_metric_row("Resolve rate", f"{b_rate:.1%}", f"{k_rate:.1%}")
+    _print_metric_row("Instances evaluated", *[str(t) for t in totals])
+    _print_metric_row("Resolved (passed)", *[str(r) for r in resolveds])
+    _print_metric_row("Resolve rate", *[f"{r:.1%}" for r in rates])
 
     # Instance breakdown
     _print_section("INSTANCE BREAKDOWN")
-    click.echo(f"Both resolved:           {len(both):>5}")
-    click.echo(f"Baseline only resolved:  {len(baseline_only):>5}")
-    click.echo(f"Kodit only resolved:     {len(kodit_only):>5}")
-    click.echo(f"Neither resolved:        {len(neither):>5}")
+    _print_instance_breakdown(labels, resolved_sets)
 
     # Cost section
-    _print_section("COST & TOKEN USAGE")
-    _print_metric_row("Metric", "Baseline", "Kodit")
+    _print_section("COST & API USAGE")
+    _print_metric_row("Metric", *labels)
     click.echo("-" * 70)
 
-    b_cost = baseline_stats["total_cost"]
-    k_cost = kodit_stats["total_cost"]
-    _print_metric_row("Total cost", f"${b_cost:.4f}", f"${k_cost:.4f}")
+    _print_metric_row("Total cost", *[f"${s['total_cost']:.4f}" for s in all_stats])
     _print_metric_row(
-        "Total API calls",
-        f"{baseline_stats['total_api_calls']:,}",
-        f"{kodit_stats['total_api_calls']:,}",
+        "Total API calls", *[f"{s['total_api_calls']:,}" for s in all_stats]
     )
-    _print_metric_row(
-        "Tokens sent",
-        f"{baseline_stats['total_tokens_sent']:,}",
-        f"{kodit_stats['total_tokens_sent']:,}",
-    )
-    _print_metric_row(
-        "Tokens received",
-        f"{baseline_stats['total_tokens_received']:,}",
-        f"{kodit_stats['total_tokens_received']:,}",
-    )
-    b_sent = baseline_stats["total_tokens_sent"]
-    b_recv = baseline_stats["total_tokens_received"]
-    k_sent = kodit_stats["total_tokens_sent"]
-    k_recv = kodit_stats["total_tokens_received"]
-    b_tokens = b_sent + b_recv
-    k_tokens = k_sent + k_recv
-    _print_metric_row("Total tokens", f"{b_tokens:,}", f"{k_tokens:,}")
 
     # Summary
     _print_section("SUMMARY", "=")
-    _print_summary(baseline_only, kodit_only, b_res, k_res)
+    _print_pairwise_summary(labels, resolveds)
     click.echo(f"\nDetailed results saved to: {output}")
     click.echo("=" * 70)
 
-    # Resolution differences
-    _print_resolution_differences(baseline_only, kodit_only)
+
+def _print_instance_breakdown(labels: list[str], resolved_sets: list[set]) -> None:
+    """Print the instance breakdown for N runs using set combinations."""
+    n = len(labels)
+    # Compute all 2^n subsets
+    all_ids: set = set()
+    for s in resolved_sets:
+        all_ids |= s
+
+    for mask in range(2**n - 1, -1, -1):
+        # Which runs resolved?
+        included = [i for i in range(n) if mask & (1 << i)]
+        excluded = [i for i in range(n) if not (mask & (1 << i))]
+
+        ids = all_ids.copy()
+        for i in included:
+            ids &= resolved_sets[i]
+        for i in excluded:
+            ids -= resolved_sets[i]
+
+        if mask == 2**n - 1:
+            description = "All resolved"
+        elif mask == 0:
+            description = "None resolved"
+        else:
+            description = " + ".join(labels[i] for i in included) + " only"
+
+        click.echo(f"{description + ':':<35} {len(ids):>5}")
 
 
-def _print_summary(
-    baseline_only: set, kodit_only: set, b_resolved: int, k_resolved: int
-) -> None:
-    """Print the summary section."""
-    improvement = len(kodit_only) - len(baseline_only)
-    if improvement > 0:
-        click.echo(f"Kodit resolved {improvement} more instance(s) than baseline")
-    elif improvement < 0:
-        click.echo(f"Baseline resolved {-improvement} more instance(s) than Kodit")
-    else:
-        click.echo("Both approaches resolved the same number of unique instances")
-
-    if k_resolved > b_resolved:
-        diff = k_resolved - b_resolved
-        click.echo(f"Overall: Kodit has {diff} more total resolutions")
-    elif b_resolved > k_resolved:
-        diff = b_resolved - k_resolved
-        click.echo(f"Overall: Baseline has {diff} more total resolutions")
-
-
-def _print_resolution_differences(baseline_only: set, kodit_only: set) -> None:
-    """Print the resolution differences section."""
-    if not baseline_only and not kodit_only:
-        return
-
-    _print_section("RESOLUTION DIFFERENCES")
-
-    if baseline_only:
-        click.echo("\nBaseline resolved but Kodit did not:")
-        for instance_id in sorted(baseline_only):
-            click.echo(f"  - {instance_id}")
-
-    if kodit_only:
-        click.echo("\nKodit resolved but Baseline did not:")
-        for instance_id in sorted(kodit_only):
-            click.echo(f"  + {instance_id}")
+def _print_pairwise_summary(labels: list[str], resolveds: list[int]) -> None:
+    """Print pairwise resolution comparisons."""
+    for i in range(len(labels)):
+        for j in range(i + 1, len(labels)):
+            diff = resolveds[j] - resolveds[i]
+            if diff > 0:
+                click.echo(f"{labels[j]} resolved {diff} more than {labels[i]}")
+            elif diff < 0:
+                click.echo(f"{labels[i]} resolved {-diff} more than {labels[j]}")
+            else:
+                click.echo(f"{labels[i]} and {labels[j]} resolved the same number")
 
 
 # Server defaults
@@ -671,7 +636,12 @@ def mini_run_baseline(  # noqa: PLR0913, PLR0915, C901
     default=Path(__file__).resolve().parents[2] / ".db_cache",
     help="Directory for caching indexed database dumps (set empty to disable)",
 )
-def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
+@click.option(
+    "--simple-chunking/--no-simple-chunking",
+    default=False,
+    help="Use simple chunking mode (no AST slicing or snippet summaries)",
+)
+def mini_run_kodit(  # noqa: PLR0913, PLR0915, PLR0912, C901
     dataset_file: Path,
     output_dir: Path,
     repos_dir: Path,
@@ -693,6 +663,7 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
     stream: bool,  # noqa: FBT001
     evaluate: bool,  # noqa: FBT001
     cache_dir: Path | None,
+    simple_chunking: bool,  # noqa: FBT001
 ) -> None:
     """Run mini-swe-agent with live Kodit MCP access.
 
@@ -710,6 +681,18 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
     if not embedding_api_key:
         embedding_api_key = api_key
     log = structlog.get_logger(__name__)
+
+    # Determine subdirectory, run_id, and cache based on simple_chunking flag
+    if simple_chunking:
+        kodit_subdir = "kodit-simple"
+        eval_run_id = "mini_swe_agent_kodit_simple"
+        if cache_dir is not None:
+            cache_dir = cache_dir.parent / ".db_cache_simple"
+        extra_env: dict[str, str] = {"SIMPLE_CHUNKING_ENABLED": "true"}
+    else:
+        kodit_subdir = "kodit"
+        eval_run_id = "mini_swe_agent_kodit"
+        extra_env = {}
 
     # Load instances
     loader = DatasetLoader()
@@ -729,6 +712,7 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
         "Running mini-swe-agent with Kodit MCP",
         instance_count=len(instances),
         repos_dir=str(repos_dir),
+        simple_chunking=simple_chunking,
     )
 
     # Helper to create a fresh server for each instance
@@ -746,6 +730,7 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
             embedding_api_key=embedding_api_key,
             embedding_parallel_tasks=embedding_parallel_tasks,
             embedding_timeout=embedding_timeout,
+            extra_env=extra_env,
         )
 
     base_url = f"http://{host}:{port}"
@@ -769,6 +754,7 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
         instances=instances,
         server_factory=create_server,
         port=port,
+        condition=kodit_subdir,
     )
 
     click.echo("\n" + "=" * 60)
@@ -813,7 +799,7 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
                 predictions_path=jsonl_path,
                 dataset_name="princeton-nlp/SWE-bench_Verified",
                 max_workers=1,
-                run_id="mini_swe_agent_kodit",
+                run_id=eval_run_id,
             )
 
             click.echo("\n" + "-" * 60)
@@ -842,15 +828,21 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
 @mini_swe_agent_group.command("compare")
 @click.option(
     "--baseline-dir",
-    type=click.Path(path_type=Path, exists=True),
+    type=click.Path(path_type=Path),
     default=MINI_SWE_AGENT_OUTPUT_DIR / "baseline",
     help="Path to baseline output directory",
 )
 @click.option(
     "--kodit-dir",
-    type=click.Path(path_type=Path, exists=True),
+    type=click.Path(path_type=Path),
     default=MINI_SWE_AGENT_OUTPUT_DIR / "kodit",
     help="Path to Kodit output directory",
+)
+@click.option(
+    "--kodit-simple-dir",
+    type=click.Path(path_type=Path),
+    default=MINI_SWE_AGENT_OUTPUT_DIR / "kodit-simple",
+    help="Path to Kodit simple-chunking output directory",
 )
 @click.option(
     "--baseline-eval",
@@ -865,78 +857,62 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
     help="Path to Kodit evaluation JSON (auto-detected if not specified)",
 )
 @click.option(
+    "--kodit-simple-eval",
+    type=click.Path(path_type=Path, exists=True),
+    default=None,
+    help="Path to Kodit simple evaluation JSON (auto-detected if not specified)",
+)
+@click.option(
     "--output",
     type=click.Path(path_type=Path),
     default=MINI_SWE_AGENT_OUTPUT_DIR / "comparison.json",
     help="Output JSON file for comparison results",
 )
-def mini_compare(
+def mini_compare(  # noqa: PLR0913
     baseline_dir: Path,
     kodit_dir: Path,
+    kodit_simple_dir: Path,
     baseline_eval: Path | None,
     kodit_eval: Path | None,
+    kodit_simple_eval: Path | None,
     output: Path,
 ) -> None:
-    """Compare baseline and Kodit mini-swe-agent results.
+    """Compare baseline, Kodit, and Kodit simple-chunking results.
 
-    Compares pass/fail rates, total costs, and token usage between
-    the baseline and Kodit-augmented approaches.
+    Produces a three-way comparison of pass/fail rates, total costs,
+    and token usage. Columns with missing data show zeros.
 
     Requires evaluation results to have been generated (run with --evaluate).
     """
     log = structlog.get_logger(__name__)
-    log.info(
-        "Comparing results",
-        baseline_dir=str(baseline_dir),
-        kodit_dir=str(kodit_dir),
-    )
 
-    # Extract stats from both directories
-    baseline_stats = _extract_run_stats(baseline_dir)
-    kodit_stats = _extract_run_stats(kodit_dir)
+    # Define runs: (label, directory, eval_path, run_id)
+    run_defs = [
+        ("Baseline", baseline_dir, baseline_eval, "mini_swe_agent_baseline"),
+        ("Kodit", kodit_dir, kodit_eval, "mini_swe_agent_kodit"),
+        (
+            "Kodit Simple",
+            kodit_simple_dir,
+            kodit_simple_eval,
+            "mini_swe_agent_kodit_simple",
+        ),
+    ]
 
-    # Load evaluation results
-    baseline_results = _load_evaluation_results(
-        baseline_eval, baseline_dir, "mini_swe_agent_baseline"
-    )
-    kodit_results = _load_evaluation_results(
-        kodit_eval, kodit_dir, "mini_swe_agent_kodit"
-    )
-
-    # Compute comparison metrics
-    baseline_resolved = baseline_results["resolved_ids"]
-    kodit_resolved = kodit_results["resolved_ids"]
-    both_resolved = baseline_resolved & kodit_resolved
-    baseline_only = baseline_resolved - kodit_resolved
-    kodit_only = kodit_resolved - baseline_resolved
-
-    all_instances = (
-        baseline_results["resolved_ids"]
-        | baseline_results["unresolved_ids"]
-        | baseline_results["error_ids"]
-        | baseline_results["empty_patch_ids"]
-        | kodit_results["resolved_ids"]
-        | kodit_results["unresolved_ids"]
-        | kodit_results["error_ids"]
-        | kodit_results["empty_patch_ids"]
-    )
-    neither = all_instances - baseline_resolved - kodit_resolved
-
-    instance_sets = {
-        "both": both_resolved,
-        "baseline_only": baseline_only,
-        "kodit_only": kodit_only,
-        "neither": neither,
-    }
+    runs: list[tuple[str, dict, dict]] = []
+    for label, directory, eval_path, run_id in run_defs:
+        if directory.is_dir():
+            stats = _extract_run_stats(directory)
+        else:
+            log.warning(
+                "Output directory not found, using empty stats",
+                dir=str(directory),
+            )
+            stats = _empty_stats()
+        results = _load_evaluation_results(eval_path, directory, run_id)
+        runs.append((label, stats, results))
 
     # Build comparison data for JSON output
-    comparison = _build_comparison_dict(
-        baseline_stats,
-        kodit_stats,
-        baseline_results,
-        kodit_results,
-        instance_sets,
-    )
+    comparison = _build_comparison_dict_multi(runs)
 
     # Write comparison JSON
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -944,13 +920,18 @@ def mini_compare(
         json.dump(comparison, f, indent=2)
 
     # Display formatted report
-    _display_comparison_report(
-        baseline_stats,
-        kodit_stats,
-        baseline_results,
-        kodit_results,
-        output,
-    )
+    _display_comparison_report(runs, output)
+
+
+def _empty_stats() -> dict:
+    """Return an empty stats dict for a missing run."""
+    return {
+        "total_cost": 0.0,
+        "total_api_calls": 0,
+        "instance_count": 0,
+        "instances_with_patch": 0,
+        "instance_stats": {},
+    }
 
 
 def _build_run_summary(stats: dict, results: dict) -> dict:
@@ -962,43 +943,51 @@ def _build_run_summary(stats: dict, results: dict) -> dict:
         "resolve_rate": results["resolved"] / total if total > 0 else 0.0,
         "total_cost": stats["total_cost"],
         "total_api_calls": stats["total_api_calls"],
-        "total_tokens_sent": stats["total_tokens_sent"],
-        "total_tokens_received": stats["total_tokens_received"],
-        "total_tokens": stats["total_tokens_sent"] + stats["total_tokens_received"],
     }
 
 
-def _build_comparison_dict(
-    baseline_stats: dict,
-    kodit_stats: dict,
-    baseline_results: dict,
-    kodit_results: dict,
-    instance_sets: dict,
-) -> dict:
-    """Build comparison dictionary for JSON output."""
-    both = instance_sets["both"]
-    baseline_only = instance_sets["baseline_only"]
-    kodit_only = instance_sets["kodit_only"]
-    neither = instance_sets["neither"]
+def _build_comparison_dict_multi(runs: list[tuple[str, dict, dict]]) -> dict:
+    """Build comparison dictionary for JSON output from N runs."""
+    labels = [r[0] for r in runs]
+    all_results = [r[2] for r in runs]
+    resolved_sets = [r["resolved_ids"] for r in all_results]
+
+    # Build per-run summaries
+    run_summaries = {}
+    for label, stats, results in runs:
+        key = label.lower().replace(" ", "_")
+        run_summaries[key] = _build_run_summary(stats, results)
+
+    # Build instance breakdown (all 2^n subsets)
+    all_ids: set = set()
+    for s in resolved_sets:
+        all_ids |= s
+
+    n = len(labels)
+    breakdown: dict[str, list[str]] = {}
+    for mask in range(2**n - 1, -1, -1):
+        included = [i for i in range(n) if mask & (1 << i)]
+        excluded = [i for i in range(n) if not (mask & (1 << i))]
+
+        ids = all_ids.copy()
+        for i in included:
+            ids &= resolved_sets[i]
+        for i in excluded:
+            ids -= resolved_sets[i]
+
+        if mask == 2**n - 1:
+            key = "all"
+        elif mask == 0:
+            key = "none"
+        else:
+            parts = [labels[i].lower().replace(" ", "_") for i in included]
+            key = "_and_".join(parts) if len(parts) > 1 else parts[0] + "_only"
+
+        breakdown[key] = sorted(ids)
 
     return {
-        "summary": {
-            "baseline": _build_run_summary(baseline_stats, baseline_results),
-            "kodit": _build_run_summary(kodit_stats, kodit_results),
-            "comparison": {
-                "both_resolved": len(both),
-                "baseline_only_resolved": len(baseline_only),
-                "kodit_only_resolved": len(kodit_only),
-                "neither_resolved": len(neither),
-                "kodit_improvement": len(kodit_only) - len(baseline_only),
-            },
-        },
-        "instances": {
-            "both_resolved": sorted(both),
-            "baseline_only_resolved": sorted(baseline_only),
-            "kodit_only_resolved": sorted(kodit_only),
-            "neither_resolved": sorted(neither),
-        },
+        "runs": run_summaries,
+        "instance_breakdown": breakdown,
     }
 
 
