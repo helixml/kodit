@@ -122,6 +122,7 @@ func AutoMigrate(db database.Database) error {
 		&EnrichmentModel{},
 		&EnrichmentAssociationModel{},
 		&EmbeddingModel{},
+		&ChunkLineRangeModel{},
 		&TaskModel{},
 		&TaskStatusModel{},
 	); err != nil {
@@ -219,6 +220,7 @@ func allModels() []interface{} {
 		&EnrichmentModel{},
 		&EnrichmentAssociationModel{},
 		&EmbeddingModel{},
+		&ChunkLineRangeModel{},
 		&TaskModel{},
 		&TaskStatusModel{},
 	}

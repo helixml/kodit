@@ -39,8 +39,8 @@ func (c *Client) registerHandlers() error {
 	// Indexing handlers — choose between simple chunking and AST-based extraction
 	if c.simpleChunking {
 		c.registry.Register(task.OperationExtractSnippetsForCommit, indexinghandler.NewChunkFiles(
-			c.repoStores.Repositories, c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.repoStores.Files,
-			c.gitInfra.Adapter, c.chunkParams, c.enrichCtx.Tracker, c.logger,
+			c.repoStores.Repositories, c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.lineRangeStore,
+			c.repoStores.Files, c.gitInfra.Adapter, c.chunkParams, c.enrichCtx.Tracker, c.logger,
 		))
 	} else {
 		c.registry.Register(task.OperationExtractSnippetsForCommit, indexinghandler.NewExtractSnippets(

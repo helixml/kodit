@@ -41,6 +41,7 @@ func TestChunkFiles_SkipsWhenEnrichmentsExist(t *testing.T) {
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
+	lineRangeStore := persistence.NewChunkLineRangeStore(db)
 	repoStore := persistence.NewRepositoryStore(db)
 	fileStore := persistence.NewFileStore(db)
 
@@ -63,7 +64,7 @@ func TestChunkFiles_SkipsWhenEnrichmentsExist(t *testing.T) {
 	require.NoError(t, err)
 
 	h := NewChunkFiles(
-		repoStore, enrichmentStore, associationStore, fileStore,
+		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
 		&fakeGitAdapter{},
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
@@ -95,6 +96,7 @@ func TestChunkFiles_CreatesEnrichmentsForTextFiles(t *testing.T) {
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
+	lineRangeStore := persistence.NewChunkLineRangeStore(db)
 	repoStore := persistence.NewRepositoryStore(db)
 	fileStore := persistence.NewFileStore(db)
 
@@ -122,7 +124,7 @@ func TestChunkFiles_CreatesEnrichmentsForTextFiles(t *testing.T) {
 	adapter := &fakeGitAdapter{files: map[string][]byte{"main.go": content}}
 
 	h := NewChunkFiles(
-		repoStore, enrichmentStore, associationStore, fileStore,
+		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
 		adapter,
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
@@ -191,6 +193,7 @@ func TestChunkFiles_SkipsBinaryFiles(t *testing.T) {
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
+	lineRangeStore := persistence.NewChunkLineRangeStore(db)
 	repoStore := persistence.NewRepositoryStore(db)
 	fileStore := persistence.NewFileStore(db)
 
@@ -214,7 +217,7 @@ func TestChunkFiles_SkipsBinaryFiles(t *testing.T) {
 	adapter := &fakeGitAdapter{files: map[string][]byte{"image.png": binaryContent}}
 
 	h := NewChunkFiles(
-		repoStore, enrichmentStore, associationStore, fileStore,
+		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
 		adapter,
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
@@ -245,6 +248,7 @@ func TestChunkFiles_ContinuesOnFileContentError(t *testing.T) {
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
+	lineRangeStore := persistence.NewChunkLineRangeStore(db)
 	repoStore := persistence.NewRepositoryStore(db)
 	fileStore := persistence.NewFileStore(db)
 
@@ -275,7 +279,7 @@ func TestChunkFiles_ContinuesOnFileContentError(t *testing.T) {
 	adapter := &fakeGitAdapter{files: map[string][]byte{"good.go": goodContent}}
 
 	h := NewChunkFiles(
-		repoStore, enrichmentStore, associationStore, fileStore,
+		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
 		adapter,
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
@@ -353,6 +357,7 @@ func TestChunkFiles_HandlesAbsoluteFilePaths(t *testing.T) {
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
+	lineRangeStore := persistence.NewChunkLineRangeStore(db)
 	repoStore := persistence.NewRepositoryStore(db)
 	fileStore := persistence.NewFileStore(db)
 
@@ -382,7 +387,7 @@ func TestChunkFiles_HandlesAbsoluteFilePaths(t *testing.T) {
 	adapter := &fakeGitAdapter{files: map[string][]byte{"bigquery/main.py": content}}
 
 	h := NewChunkFiles(
-		repoStore, enrichmentStore, associationStore, fileStore,
+		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
 		adapter,
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
@@ -413,6 +418,7 @@ func TestChunkFiles_OnlyIndexesSourceAndDocFiles(t *testing.T) {
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
+	lineRangeStore := persistence.NewChunkLineRangeStore(db)
 	repoStore := persistence.NewRepositoryStore(db)
 	fileStore := persistence.NewFileStore(db)
 
@@ -481,7 +487,7 @@ func TestChunkFiles_OnlyIndexesSourceAndDocFiles(t *testing.T) {
 	}
 
 	h := NewChunkFiles(
-		repoStore, enrichmentStore, associationStore, fileStore,
+		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
 		&fakeGitAdapter{files: adapterFiles},
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
@@ -512,6 +518,7 @@ func TestChunkFiles_SetsLanguageFromExtension(t *testing.T) {
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
+	lineRangeStore := persistence.NewChunkLineRangeStore(db)
 	repoStore := persistence.NewRepositoryStore(db)
 	fileStore := persistence.NewFileStore(db)
 
@@ -538,7 +545,7 @@ func TestChunkFiles_SetsLanguageFromExtension(t *testing.T) {
 	adapter := &fakeGitAdapter{files: map[string][]byte{"script.py": content}}
 
 	h := NewChunkFiles(
-		repoStore, enrichmentStore, associationStore, fileStore,
+		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
 		adapter,
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
@@ -561,4 +568,83 @@ func TestChunkFiles_SetsLanguageFromExtension(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, chunks, 1)
 	assert.Equal(t, ".py", chunks[0].Language())
+}
+
+func TestChunkFiles_PersistsLineRanges(t *testing.T) {
+	ctx := context.Background()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	db := testdb.New(t)
+
+	enrichmentStore := persistence.NewEnrichmentStore(db)
+	associationStore := persistence.NewAssociationStore(db)
+	lineRangeStore := persistence.NewChunkLineRangeStore(db)
+	repoStore := persistence.NewRepositoryStore(db)
+	fileStore := persistence.NewFileStore(db)
+
+	commitSHA := "linerange111222"
+	tmpDir := t.TempDir()
+
+	repo, err := repository.NewRepository("https://github.com/test/repo")
+	require.NoError(t, err)
+	repo = repo.
+		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
+	savedRepo, err := repoStore.Save(ctx, repo)
+	require.NoError(t, err)
+
+	// 3 lines of 10 chars each → with Size=15 we get 2 chunks:
+	//   chunk 1: lines 1-2 ("aaaaaaaaaa\nbbbbbbbbbb\n")
+	//   chunk 2: line 3  ("cccccccccc\n")
+	content := []byte("aaaaaaaaaa\nbbbbbbbbbb\ncccccccccc\n")
+
+	f := repository.NewFileWithDetails(commitSHA, "lines.go", "abc123", "text/x-go", ".go", int64(len(content)))
+	_, err = fileStore.Save(ctx, f)
+	require.NoError(t, err)
+
+	adapter := &fakeGitAdapter{files: map[string][]byte{"lines.go": content}}
+
+	h := NewChunkFiles(
+		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
+		adapter,
+		chunking.ChunkParams{Size: 25, Overlap: 0, MinSize: 1},
+		&fakeTrackerFactory{},
+		logger,
+	)
+
+	payload := map[string]any{
+		"repository_id": savedRepo.ID(),
+		"commit_sha":    commitSHA,
+	}
+
+	err = h.Execute(ctx, payload)
+	require.NoError(t, err)
+
+	chunks, err := enrichmentStore.Find(ctx,
+		enrichment.WithCommitSHA(commitSHA),
+		enrichment.WithType(enrichment.TypeDevelopment),
+		enrichment.WithSubtype(enrichment.SubtypeChunk),
+	)
+	require.NoError(t, err)
+	require.Len(t, chunks, 2)
+
+	// Verify a line range was persisted for each chunk enrichment.
+	for _, c := range chunks {
+		ranges, err := lineRangeStore.Find(ctx, repository.WithCondition("enrichment_id", c.ID()))
+		require.NoError(t, err)
+		require.Len(t, ranges, 1, "each chunk should have exactly one line range")
+		assert.Greater(t, ranges[0].StartLine(), 0, "start line must be positive")
+		assert.GreaterOrEqual(t, ranges[0].EndLine(), ranges[0].StartLine(), "end line >= start line")
+		assert.Equal(t, c.ID(), ranges[0].EnrichmentID())
+	}
+
+	// First chunk should cover lines 1-2, second chunk should cover line 3.
+	r1, err := lineRangeStore.Find(ctx, repository.WithCondition("enrichment_id", chunks[0].ID()))
+	require.NoError(t, err)
+	assert.Equal(t, 1, r1[0].StartLine())
+	assert.Equal(t, 2, r1[0].EndLine())
+
+	r2, err := lineRangeStore.Find(ctx, repository.WithCondition("enrichment_id", chunks[1].ID()))
+	require.NoError(t, err)
+	assert.Equal(t, 3, r2[0].StartLine())
+	assert.Equal(t, 3, r2[0].EndLine())
 }
