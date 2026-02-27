@@ -49,8 +49,10 @@ type GitFileSchema struct {
 
 // SnippetContentSchema represents snippet content in search results.
 type SnippetContentSchema struct {
-	Value    string `json:"value"`
-	Language string `json:"language"`
+	Value     string `json:"value"`
+	Language  string `json:"language"`
+	StartLine *int   `json:"start_line,omitempty"`
+	EndLine   *int   `json:"end_line,omitempty"`
 }
 
 // EnrichmentSchema represents an enrichment in search results.

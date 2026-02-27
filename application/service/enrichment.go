@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/helixml/kodit/domain/chunk"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
@@ -29,6 +30,7 @@ type Enrichment struct {
 	bm25Store          search.BM25Store
 	codeEmbeddingStore search.EmbeddingStore
 	textEmbeddingStore search.EmbeddingStore
+	lineRangeStore     chunk.LineRangeStore
 }
 
 // NewEnrichment creates a new Enrichment service.
@@ -38,6 +40,7 @@ func NewEnrichment(
 	bm25Store search.BM25Store,
 	codeEmbeddingStore search.EmbeddingStore,
 	textEmbeddingStore search.EmbeddingStore,
+	lineRangeStore chunk.LineRangeStore,
 ) *Enrichment {
 	return &Enrichment{
 		Collection:         repository.NewCollection[enrichment.Enrichment](enrichmentStore),
@@ -46,6 +49,7 @@ func NewEnrichment(
 		bm25Store:          bm25Store,
 		codeEmbeddingStore: codeEmbeddingStore,
 		textEmbeddingStore: textEmbeddingStore,
+		lineRangeStore:     lineRangeStore,
 	}
 }
 
@@ -228,6 +232,25 @@ func (s *Enrichment) SourceFiles(ctx context.Context, enrichmentIDs []int64) (ma
 			continue
 		}
 		result[key] = append(result[key], fileID)
+	}
+
+	return result, nil
+}
+
+// LineRanges returns chunk line ranges keyed by enrichment ID string.
+func (s *Enrichment) LineRanges(ctx context.Context, enrichmentIDs []int64) (map[string]chunk.LineRange, error) {
+	if len(enrichmentIDs) == 0 {
+		return map[string]chunk.LineRange{}, nil
+	}
+
+	ranges, err := s.lineRangeStore.Find(ctx, repository.WithConditionIn("enrichment_id", enrichmentIDs))
+	if err != nil {
+		return nil, fmt.Errorf("find line ranges: %w", err)
+	}
+
+	result := make(map[string]chunk.LineRange, len(ranges))
+	for _, r := range ranges {
+		result[strconv.FormatInt(r.EnrichmentID(), 10)] = r
 	}
 
 	return result, nil

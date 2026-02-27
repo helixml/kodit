@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit/domain/chunk"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
@@ -92,6 +93,12 @@ func (r *SearchRouter) Search(w http.ResponseWriter, req *http.Request) {
 		fileMap = map[string][]repository.File{}
 	}
 
+	lineRanges, err := r.client.Enrichments.LineRanges(ctx, ids)
+	if err != nil {
+		r.logger.Warn("failed to fetch line ranges", "error", err)
+		lineRanges = map[string]chunk.LineRange{}
+	}
+
 	commits, err := r.commitMap(ctx, fileMap)
 	if err != nil {
 		r.logger.Warn("failed to fetch commits", "error", err)
@@ -104,7 +111,7 @@ func (r *SearchRouter) Search(w http.ResponseWriter, req *http.Request) {
 		repos = map[int64]repository.Repository{}
 	}
 
-	response := buildSearchResponse(result, related, fileMap, commits, repos)
+	response := buildSearchResponse(result, related, fileMap, lineRanges, commits, repos)
 	middleware.WriteJSON(w, http.StatusOK, response)
 }
 
@@ -176,6 +183,7 @@ func buildSearchResponse(
 	result service.MultiSearchResult,
 	related map[string][]enrichment.Enrichment,
 	fileMap map[string][]repository.File,
+	lineRanges map[string]chunk.LineRange,
 	commits map[string]repository.Commit,
 	repos map[int64]repository.Repository,
 ) dto.SearchResponse {
@@ -185,7 +193,12 @@ func buildSearchResponse(
 	data := make([]dto.SnippetData, len(enrichments))
 	for i, e := range enrichments {
 		idStr := strconv.FormatInt(e.ID(), 10)
-		data[i] = enrichmentToSearchResult(e, originalScores[idStr], related[idStr], fileMap[idStr], commits, repos)
+		lr, hasLR := lineRanges[idStr]
+		var lrPtr *chunk.LineRange
+		if hasLR {
+			lrPtr = &lr
+		}
+		data[i] = enrichmentToSearchResult(e, originalScores[idStr], related[idStr], fileMap[idStr], lrPtr, commits, repos)
 	}
 
 	return dto.SearchResponse{
@@ -198,6 +211,7 @@ func enrichmentToSearchResult(
 	scores []float64,
 	related []enrichment.Enrichment,
 	files []repository.File,
+	lr *chunk.LineRange,
 	commits map[string]repository.Commit,
 	repos map[int64]repository.Repository,
 ) dto.SnippetData {
@@ -224,17 +238,25 @@ func enrichmentToSearchResult(
 
 	links := snippetLinks(files, commits, repos)
 
+	content := dto.SnippetContentSchema{
+		Value:    e.Content(),
+		Language: e.Language(),
+	}
+	if lr != nil {
+		startLine := lr.StartLine()
+		endLine := lr.EndLine()
+		content.StartLine = &startLine
+		content.EndLine = &endLine
+	}
+
 	return dto.SnippetData{
 		Type: string(e.Subtype()),
 		ID:   strconv.FormatInt(e.ID(), 10),
 		Attributes: dto.SnippetAttributes{
-			CreatedAt:   &createdAt,
-			UpdatedAt:   &updatedAt,
-			DerivesFrom: derivesFrom,
-			Content: dto.SnippetContentSchema{
-				Value:    e.Content(),
-				Language: e.Language(),
-			},
+			CreatedAt:      &createdAt,
+			UpdatedAt:      &updatedAt,
+			DerivesFrom:    derivesFrom,
+			Content:        content,
 			Enrichments:    enrichmentSchemas,
 			OriginalScores: scores,
 		},

@@ -285,7 +285,7 @@ func New(opts ...Option) (*Client, error) {
 	registry := service.NewRegistry()
 	queue := service.NewQueue(taskStore, logger)
 
-	enrichQSvc := service.NewEnrichment(enrichmentStore, associationStore, bm25Store, codeEmbeddingStore, textEmbeddingStore)
+	enrichQSvc := service.NewEnrichment(enrichmentStore, associationStore, bm25Store, codeEmbeddingStore, textEmbeddingStore, lineRangeStore)
 	trackingSvc := service.NewTracking(statusStore, taskStore)
 
 	// Create BM25 service for keyword search (always available)

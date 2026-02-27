@@ -36,6 +36,8 @@ type EnrichmentAttributes struct {
 	Type      string    `json:"type"`
 	Subtype   string    `json:"subtype"`
 	Content   string    `json:"content"`
+	StartLine *int      `json:"start_line,omitempty"`
+	EndLine   *int      `json:"end_line,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

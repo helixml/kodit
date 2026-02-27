@@ -56,7 +56,7 @@ func TestRescan_DeletesOldStatuses(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, statuses, 1)
 
-	enrichmentSvc := service.NewEnrichment(enrichmentStore, associationStore, nil, nil, nil)
+	enrichmentSvc := service.NewEnrichment(enrichmentStore, associationStore, nil, nil, nil, nil)
 	h := NewRescan(enrichmentSvc, associationStore, statusStore, &fakeTrackerFactory{}, logger)
 
 	payload := map[string]any{
