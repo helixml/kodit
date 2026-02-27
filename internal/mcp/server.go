@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/chunk"
@@ -20,11 +19,6 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
-
-// Searcher provides code search operations for MCP tools.
-type Searcher interface {
-	Search(ctx context.Context, request search.MultiRequest) (service.MultiSearchResult, error)
-}
 
 // EnrichmentLookup provides enrichment retrieval by ID for MCP tools.
 type EnrichmentLookup interface {
@@ -76,7 +70,6 @@ type FileFinder interface {
 // Server wraps the MCP server with kodit-specific tools.
 type Server struct {
 	mcpServer          *server.MCPServer
-	searchService      Searcher
 	repositories       RepositoryLister
 	commits            CommitFinder
 	enrichmentQuery    EnrichmentQuery
@@ -101,7 +94,6 @@ const instructions = "This server provides access to code knowledge through mult
 	"- get_commit_description() - Recent changes and context\n" +
 	"- get_database_schema() - Data models\n" +
 	"- get_cookbook() - Complete usage examples\n" +
-	"- search() - Find specific code snippets matching keywords\n" +
 	"- semantic_search() - Find files matching a natural language query (returns resource URIs)\n" +
 	"- keyword_search() - Find files matching keywords using BM25 search (returns resource URIs)\n\n" +
 	"**Reading file content:**\n" +
@@ -115,7 +107,6 @@ const instructions = "This server provides access to code knowledge through mult
 
 // NewServer creates a new MCP server with the given dependencies.
 func NewServer(
-	searchService Searcher,
 	repositories RepositoryLister,
 	commits CommitFinder,
 	enrichmentQuery EnrichmentQuery,
@@ -132,7 +123,6 @@ func NewServer(
 	}
 
 	s := &Server{
-		searchService:      searchService,
 		repositories:       repositories,
 		commits:            commits,
 		enrichmentQuery:    enrichmentQuery,
@@ -162,48 +152,6 @@ func NewServer(
 
 // registerTools registers all kodit tools with the MCP server.
 func (s *Server) registerTools(mcpServer *server.MCPServer) {
-	mcpServer.AddTool(mcp.NewTool("search",
-		mcp.WithDescription("Search the codebase using hybrid BM25 and vector search"),
-		mcp.WithString("user_intent",
-			mcp.Required(),
-			mcp.Description("Natural language description of what you are looking for"),
-		),
-		mcp.WithArray("keywords",
-			mcp.Required(),
-			mcp.Description("Keywords to search for"),
-			mcp.WithStringItems(),
-		),
-		mcp.WithArray("related_file_paths",
-			mcp.Required(),
-			mcp.Description("Paths of files related to the search context"),
-			mcp.WithStringItems(),
-		),
-		mcp.WithArray("related_file_contents",
-			mcp.Required(),
-			mcp.Description("Contents of files related to the search context"),
-			mcp.WithStringItems(),
-		),
-		mcp.WithString("language",
-			mcp.Description("Filter by programming language"),
-		),
-		mcp.WithString("author",
-			mcp.Description("Filter by commit author"),
-		),
-		mcp.WithString("created_after",
-			mcp.Description("Filter for items created after this date (ISO 8601)"),
-		),
-		mcp.WithString("created_before",
-			mcp.Description("Filter for items created before this date (ISO 8601)"),
-		),
-		mcp.WithString("source_repo",
-			mcp.Description("Filter by source repository URL"),
-		),
-		mcp.WithArray("enrichment_subtypes",
-			mcp.Description("Filter by enrichment subtypes"),
-			mcp.WithStringItems(),
-		),
-	), s.handleSearch)
-
 	mcpServer.AddTool(mcp.NewTool("get_version",
 		mcp.WithDescription("Get the kodit server version"),
 	), s.handleGetVersion)
@@ -300,101 +248,6 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 			mcp.Description("Maximum number of results (default 10)"),
 		),
 	), s.handleKeywordSearch)
-}
-
-// handleSearch handles the search tool invocation.
-func (s *Server) handleSearch(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	userIntent, err := request.RequireString("user_intent")
-	if err != nil {
-		return mcp.NewToolResultError("user_intent is required"), nil
-	}
-
-	keywords, err := request.RequireStringSlice("keywords")
-	if err != nil {
-		return mcp.NewToolResultError("keywords is required"), nil
-	}
-
-	relatedFilePaths := request.GetStringSlice("related_file_paths", nil)
-	relatedFileContents := request.GetStringSlice("related_file_contents", nil)
-
-	s.logger.Info("search",
-		slog.String("user_intent", userIntent),
-		slog.Any("keywords", keywords),
-		slog.Any("related_file_paths", relatedFilePaths),
-	)
-
-	codeQuery := strings.Join(relatedFileContents, "\n")
-
-	var opts []search.FiltersOption
-	if lang := request.GetString("language", ""); lang != "" {
-		opts = append(opts, search.WithLanguages([]string{lang}))
-	}
-	if author := request.GetString("author", ""); author != "" {
-		opts = append(opts, search.WithAuthors([]string{author}))
-	}
-	if after := request.GetString("created_after", ""); after != "" {
-		if t, parseErr := time.Parse(time.RFC3339, after); parseErr == nil {
-			opts = append(opts, search.WithCreatedAfter(t))
-		}
-	}
-	if before := request.GetString("created_before", ""); before != "" {
-		if t, parseErr := time.Parse(time.RFC3339, before); parseErr == nil {
-			opts = append(opts, search.WithCreatedBefore(t))
-		}
-	}
-	if repo := request.GetString("source_repo", ""); repo != "" {
-		repoID, parseErr := strconv.ParseInt(repo, 10, 64)
-		if parseErr != nil {
-			return nil, fmt.Errorf("invalid source_repo %q: %w", repo, parseErr)
-		}
-		opts = append(opts, search.WithSourceRepos([]int64{repoID}))
-	}
-	if subtypes := request.GetStringSlice("enrichment_subtypes", nil); len(subtypes) > 0 {
-		opts = append(opts, search.WithEnrichmentSubtypes(subtypes))
-	}
-
-	filters := search.NewFilters(opts...)
-	searchReq := search.NewMultiRequest(10, userIntent, codeQuery, keywords, filters)
-
-	result, err := s.searchService.Search(ctx, searchReq)
-	if err != nil {
-		s.logger.Error("search failed", slog.Any("error", err))
-		return mcp.NewToolResultError(fmt.Sprintf("search failed: %v", err)), nil
-	}
-
-	enrichments := result.Enrichments()
-	originalScores := result.OriginalScores()
-
-	type searchResult struct {
-		ID       string  `json:"id"`
-		Content  string  `json:"content"`
-		Language string  `json:"language"`
-		Score    float64 `json:"score"`
-	}
-
-	results := make([]searchResult, len(enrichments))
-	for i, e := range enrichments {
-		idStr := strconv.FormatInt(e.ID(), 10)
-		var best float64
-		for _, s := range originalScores[idStr] {
-			if s > best {
-				best = s
-			}
-		}
-		results[i] = searchResult{
-			ID:       idStr,
-			Content:  e.Content(),
-			Language: e.Language(),
-			Score:    best,
-		}
-	}
-
-	jsonBytes, err := json.Marshal(results)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal results: %v", err)), nil
-	}
-
-	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
 // handleGetVersion returns the kodit server version.

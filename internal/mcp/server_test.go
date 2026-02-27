@@ -14,17 +14,6 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// fakeSearch implements Searcher with a canned result.
-type fakeSearch struct {
-	enrichments    []enrichment.Enrichment
-	scores         map[string]float64
-	originalScores map[string][]float64
-}
-
-func (f *fakeSearch) Search(_ context.Context, _ search.MultiRequest) (service.MultiSearchResult, error) {
-	return service.NewMultiSearchResult(f.enrichments, f.scores, f.originalScores), nil
-}
-
 // fakeRepositoryLister implements RepositoryLister with canned repos.
 type fakeRepositoryLister struct {
 	repos []repository.Repository
@@ -223,13 +212,7 @@ func testCommit() repository.Commit {
 }
 
 func testServer() *Server {
-	e := testEnrichment()
 	return NewServer(
-		&fakeSearch{
-			enrichments:    []enrichment.Enrichment{e},
-			scores:         map[string]float64{"42": 0.95},
-			originalScores: map[string][]float64{"42": {0.85}},
-		},
 		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
 		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
 		&fakeEnrichmentQuery{enrichments: []enrichment.Enrichment{testArchEnrichment()}},
@@ -289,8 +272,8 @@ func TestServer_ListTools(t *testing.T) {
 	var result mcp.ListToolsResult
 	resultJSON(t, resp, &result)
 
-	if len(result.Tools) != 10 {
-		t.Fatalf("expected 10 tools, got %d", len(result.Tools))
+	if len(result.Tools) != 9 {
+		t.Fatalf("expected 9 tools, got %d", len(result.Tools))
 	}
 
 	tools := map[string]mcp.Tool{}
@@ -299,7 +282,6 @@ func TestServer_ListTools(t *testing.T) {
 	}
 
 	expected := []string{
-		"search",
 		"get_version",
 		"list_repositories",
 		"get_architecture_docs",
@@ -314,95 +296,6 @@ func TestServer_ListTools(t *testing.T) {
 		if _, ok := tools[name]; !ok {
 			t.Errorf("missing tool: %s", name)
 		}
-	}
-
-	// Verify search tool parameters
-	searchTool := tools["search"]
-	props := searchTool.InputSchema.Properties
-	if props == nil {
-		t.Fatal("search tool has no properties")
-	}
-	for _, param := range []string{"user_intent", "keywords", "related_file_paths", "related_file_contents"} {
-		if _, ok := props[param]; !ok {
-			t.Errorf("search tool missing %s parameter", param)
-		}
-	}
-	if !contains(searchTool.InputSchema.Required, "user_intent") {
-		t.Error("user_intent should be required")
-	}
-	if !contains(searchTool.InputSchema.Required, "keywords") {
-		t.Error("keywords should be required")
-	}
-}
-
-func TestServer_Search(t *testing.T) {
-	srv := testServer()
-	sendMessage(t, srv, "initialize", 1, initializeParams())
-
-	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "search",
-		"arguments": map[string]any{
-			"user_intent":           "hello",
-			"keywords":              []string{"hello"},
-			"related_file_paths":    []string{},
-			"related_file_contents": []string{},
-		},
-	})
-
-	var result mcp.CallToolResult
-	resultJSON(t, resp, &result)
-
-	if result.IsError {
-		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
-	}
-	if len(result.Content) == 0 {
-		t.Fatal("expected content in response")
-	}
-
-	text := textFromContent(t, result)
-
-	var items []struct {
-		ID       string  `json:"id"`
-		Content  string  `json:"content"`
-		Language string  `json:"language"`
-		Score    float64 `json:"score"`
-	}
-	if err := json.Unmarshal([]byte(text), &items); err != nil {
-		t.Fatalf("unmarshal search results: %v", err)
-	}
-	if len(items) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(items))
-	}
-	if items[0].ID != "42" {
-		t.Errorf("expected id 42, got %s", items[0].ID)
-	}
-	if items[0].Language != "go" {
-		t.Errorf("expected language go, got %s", items[0].Language)
-	}
-	if items[0].Score != 0.85 {
-		t.Errorf("expected score 0.85, got %f", items[0].Score)
-	}
-}
-
-func TestServer_SearchMissingUserIntent(t *testing.T) {
-	srv := testServer()
-	sendMessage(t, srv, "initialize", 1, initializeParams())
-
-	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name":      "search",
-		"arguments": map[string]any{},
-	})
-
-	var result mcp.CallToolResult
-	resultJSON(t, resp, &result)
-
-	if !result.IsError {
-		t.Fatal("expected error response")
-	}
-
-	text := textFromContent(t, result)
-	if text == "" || !containsStr(text, "user_intent is required") {
-		t.Errorf("expected error text containing 'user_intent is required', got: %s", text)
 	}
 }
 
@@ -525,15 +418,6 @@ func textFromContent(t *testing.T, result mcp.CallToolResult) string {
 	return tc.Text
 }
 
-func contains(items []string, target string) bool {
-	for _, s := range items {
-		if s == target {
-			return true
-		}
-	}
-	return false
-}
-
 func containsStr(haystack, needle string) bool {
 	return len(haystack) >= len(needle) && searchStr(haystack, needle)
 }
@@ -653,7 +537,6 @@ func semanticSearchServer() *Server {
 		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 	)
 	return NewServer(
-		&fakeSearch{},
 		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
 		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
 		&fakeEnrichmentQuery{},
@@ -772,7 +655,6 @@ func TestServer_SemanticSearch_AbsolutePathNormalized(t *testing.T) {
 		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 	)
 	srv := NewServer(
-		&fakeSearch{},
 		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
 		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
 		&fakeEnrichmentQuery{},
@@ -850,7 +732,6 @@ func TestServer_SemanticSearch_LanguageFilterDotPrefix(t *testing.T) {
 		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 	)
 	srv := NewServer(
-		&fakeSearch{},
 		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
 		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
 		&fakeEnrichmentQuery{},
@@ -1003,7 +884,6 @@ func TestServer_SemanticSearch_LimitCapsResults(t *testing.T) {
 	f3 := repository.ReconstructFile(103, "ccc", "c.go", "", "", ".go", ".go", 64, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC))
 
 	srv := NewServer(
-		&fakeSearch{},
 		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
 		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
 		&fakeEnrichmentQuery{},
@@ -1099,7 +979,6 @@ func TestServer_SemanticSearchThenReadFile(t *testing.T) {
 		body: map[string][]byte{"src/handler.go": fileContent},
 	}
 	srv := NewServer(
-		&fakeSearch{},
 		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
 		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
 		&fakeEnrichmentQuery{},
@@ -1182,7 +1061,6 @@ func TestServer_SemanticSearchThenReadFile_AbsolutePath(t *testing.T) {
 		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 	)
 	srv := NewServer(
-		&fakeSearch{},
 		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
 		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
 		&fakeEnrichmentQuery{},
@@ -1261,7 +1139,6 @@ func TestServer_SemanticSearchThenReadFile_WithLineRange(t *testing.T) {
 		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 	)
 	srv := NewServer(
-		&fakeSearch{},
 		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
 		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
 		&fakeEnrichmentQuery{},
@@ -1325,7 +1202,6 @@ func TestServer_SemanticSearchThenReadFile_WithLineRange(t *testing.T) {
 
 func TestServer_SemanticSearchNoResults(t *testing.T) {
 	srv := NewServer(
-		&fakeSearch{},
 		&fakeRepositoryLister{},
 		&fakeCommitFinder{},
 		&fakeEnrichmentQuery{},
@@ -1379,7 +1255,6 @@ func keywordSearchServer() *Server {
 		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 	)
 	return NewServer(
-		&fakeSearch{},
 		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
 		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
 		&fakeEnrichmentQuery{},
@@ -1598,7 +1473,6 @@ func TestServer_KeywordSearch_SourceRepoFilter(t *testing.T) {
 
 func TestServer_KeywordSearch_NoResults(t *testing.T) {
 	srv := NewServer(
-		&fakeSearch{},
 		&fakeRepositoryLister{},
 		&fakeCommitFinder{},
 		&fakeEnrichmentQuery{},
@@ -1656,7 +1530,6 @@ func TestServer_KeywordSearchThenReadFile(t *testing.T) {
 		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 	)
 	srv := NewServer(
-		&fakeSearch{},
 		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
 		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
 		&fakeEnrichmentQuery{},
@@ -1752,7 +1625,6 @@ func readResourceText(t *testing.T, srv *Server, uri string) string {
 
 // Ensure fakes satisfy interfaces at compile time.
 var (
-	_ Searcher           = (*fakeSearch)(nil)
 	_ RepositoryLister   = (*fakeRepositoryLister)(nil)
 	_ CommitFinder       = (*fakeCommitFinder)(nil)
 	_ EnrichmentQuery    = (*fakeEnrichmentQuery)(nil)
