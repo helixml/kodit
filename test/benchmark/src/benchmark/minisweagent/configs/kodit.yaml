@@ -25,13 +25,22 @@ agent:
 
     ### Available commands:
 
-    **Search the codebase** - find relevant code snippets by intent and keywords:
+    **Semantic search** - find relevant code using natural language:
     ```
-    python /kodit-cli.py search --intent "describe what you're looking for" --keywords "keyword1,keyword2"
+    python /kodit-cli.py semantic-search --query "describe what you're looking for"
     ```
-    You can optionally filter by file paths or content:
+    You can optionally filter by language or repository:
     ```
-    python /kodit-cli.py search --intent "..." --keywords "..." --file-paths "src/,lib/" --file-contents "class,function"
+    python /kodit-cli.py semantic-search --query "..." --language ".py" --limit 20
+    ```
+
+    **Keyword search** - find code by exact keywords (BM25):
+    ```
+    python /kodit-cli.py keyword-search --keywords "keyword1 keyword2"
+    ```
+    You can optionally filter by language or repository:
+    ```
+    python /kodit-cli.py keyword-search --keywords "..." --language ".py" --limit 20
     ```
 
     **Get architecture documentation** - understand the high-level structure:
@@ -54,6 +63,15 @@ agent:
     python /kodit-cli.py cookbook --repo-url "REPO_URL"
     ```
 
+    **Read file content** - read a file using its resource URI from search results:
+    ```
+    python /kodit-cli.py read-file --uri "file://1/abc123/path/to/file.py?lines=L42-L89&line_numbers=true"
+    ```
+    To read the entire file, remove the `?lines=...` query parameter:
+    ```
+    python /kodit-cli.py read-file --uri "file://1/abc123/path/to/file.py"
+    ```
+
     **List indexed repositories** - find the repo URL to use with other commands:
     ```
     python /kodit-cli.py list-repositories
@@ -61,7 +79,8 @@ agent:
 
     ### When to use Kodit tools:
     - **Start here**: Use `list-repositories` to find the repo URL, then `architecture` to understand the project structure
-    - **Before searching files manually**: Use `search` with a clear intent — it returns semantically relevant code snippets
+    - **Before searching files manually**: Use `semantic-search` with a natural language query — it returns semantically relevant code snippets. Use `keyword-search` when you know the exact identifiers or terms.
+    - **After searching**: Use `read-file` with the `uri` from search results to read the full file content. This is faster and more reliable than using `cat` or `nl`.
     - **When you need context**: Use `api-docs`, `database-schema`, or `cookbook` to understand how the code works
     - **Multiple queries are fine**: Call these tools as many times as needed throughout your investigation
   instance_template: |
@@ -76,8 +95,8 @@ agent:
     1. **Start by querying Kodit** to understand the codebase:
        - Run `python /kodit-cli.py list-repositories` to find the repo URL
        - Run `python /kodit-cli.py architecture --repo-url "REPO_URL"` to understand the project structure
-       - Run `python /kodit-cli.py search --intent "..." --keywords "..."` to find relevant code
-    2. Read the full content of the relevant files identified from Kodit results
+       - Run `python /kodit-cli.py semantic-search --query "..."` to find relevant code
+    2. Read the full content of relevant files using `python /kodit-cli.py read-file --uri "URI"` with URIs from search results
     3. Create a script to reproduce the issue
     4. Edit the source code to resolve the issue
     5. Verify your fix works by running your script again
@@ -205,6 +224,7 @@ agent:
   step_limit: 0.
   cost_limit: 0.
 environment:
+  cwd: /testbed
   env:
     PAGER: cat
     MANPAGER: cat

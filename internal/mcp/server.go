@@ -504,7 +504,7 @@ func (s *Server) handleEnrichmentDocs(
 ) (*mcp.CallToolResult, error) {
 	repoURL, err := request.RequireString("repo_url")
 	if err != nil {
-		return mcp.NewToolResultError("repo_url is required"), nil
+		return mcp.NewToolResultError(fmt.Sprintf("repo_url is required: %v", err)), nil
 	}
 
 	repos, err := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
@@ -674,7 +674,7 @@ func (s *Server) resolveFileResults(
 func (s *Server) handleSemanticSearch(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	query, err := request.RequireString("query")
 	if err != nil {
-		return mcp.NewToolResultError("query is required"), nil
+		return mcp.NewToolResultError(fmt.Sprintf("query is required: %v", err)), nil
 	}
 	if strings.TrimSpace(query) == "" {
 		return mcp.NewToolResultError("query must not be empty"), nil
@@ -750,7 +750,7 @@ func (s *Server) handleSemanticSearch(ctx context.Context, request mcp.CallToolR
 func (s *Server) handleKeywordSearch(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	keywords, err := request.RequireString("keywords")
 	if err != nil {
-		return mcp.NewToolResultError("keywords is required"), nil
+		return mcp.NewToolResultError(fmt.Sprintf("keywords is required: %v", err)), nil
 	}
 	if strings.TrimSpace(keywords) == "" {
 		return mcp.NewToolResultError("keywords must not be empty"), nil
