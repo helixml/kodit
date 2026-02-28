@@ -1,17 +1,26 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/chunk"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
+	"github.com/helixml/kodit/infrastructure/api/middleware"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 )
 
 // fakeRepositoryLister implements RepositoryLister with canned repos.
@@ -1510,6 +1519,58 @@ func TestServer_KeywordSearch_NoResults(t *testing.T) {
 	}
 }
 
+// TestServer_KeywordSearch_RawJSON sends a hand-crafted JSON string identical
+// to what the Python kodit_mcp_cli.py produces, to verify the full
+// JSON → UnmarshalJSON → GetArguments → RequireString path.
+func TestServer_KeywordSearch_RawJSON(t *testing.T) {
+	srv := keywordSearchServer()
+
+	// Initialize with raw JSON (like the Python CLI does).
+	initJSON := []byte(`{
+		"jsonrpc": "2.0",
+		"id": 0,
+		"method": "initialize",
+		"params": {
+			"protocolVersion": "2025-06-18",
+			"capabilities": {},
+			"clientInfo": {"name": "kodit-cli", "version": "1.0.0"}
+		}
+	}`)
+	initResult := srv.MCPServer().HandleMessage(context.Background(), initJSON)
+	if initResult == nil {
+		t.Fatal("expected initialize response, got nil")
+	}
+
+	// Now send the exact JSON the Python CLI would produce for keyword_search.
+	toolCallJSON := []byte(`{
+		"jsonrpc": "2.0",
+		"id": 1,
+		"method": "tools/call",
+		"params": {
+			"name": "keyword_search",
+			"arguments": {
+				"keywords": "structured ndarray gets viewed as a mixin",
+				"language": ".py",
+				"limit": 20
+			}
+		}
+	}`)
+
+	result := srv.MCPServer().HandleMessage(context.Background(), toolCallJSON)
+	resp, ok := result.(mcp.JSONRPCResponse)
+	if !ok {
+		t.Fatalf("expected JSONRPCResponse, got %T: %+v", result, result)
+	}
+
+	var toolResult mcp.CallToolResult
+	resultJSON(t, resp, &toolResult)
+
+	if toolResult.IsError {
+		text := textFromContent(t, toolResult)
+		t.Fatalf("keyword_search with raw JSON returned error: %s", text)
+	}
+}
+
 func TestServer_KeywordSearchThenReadFile(t *testing.T) {
 	fileContent := []byte("package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"hello\")\n}\n")
 	reader := &recordingFileContentReader{
@@ -1634,3 +1695,93 @@ var (
 	_ EnrichmentResolver = (*fakeEnrichmentResolver)(nil)
 	_ FileFinder         = (*fakeFileFinder)(nil)
 )
+
+// TestServer_KeywordSearch_HTTP exercises keyword_search through the full HTTP
+// transport layer (StreamableHTTPServer) with the logging middleware applied.
+// This matches the production stack: logging middleware reads and reconstructs
+// the request body before the MCP handler processes it.
+func TestServer_KeywordSearch_HTTP(t *testing.T) {
+	srv := keywordSearchServer()
+	httpHandler := server.NewStreamableHTTPServer(srv.MCPServer())
+
+	// Build the full production middleware stack:
+	//   outer Server: RequestID → RealIP → Recoverer → CORS
+	//   inner APIServer router: Logging → CorrelationID → MCP
+	outerRouter := chi.NewRouter()
+	outerRouter.Use(chimiddleware.RequestID)
+	outerRouter.Use(chimiddleware.RealIP)
+	outerRouter.Use(chimiddleware.Recoverer)
+	outerRouter.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-API-KEY", "X-Correlation-ID"},
+		ExposedHeaders:   []string{"X-Correlation-ID"},
+		AllowCredentials: false,
+		MaxAge:           300,
+	}))
+
+	innerRouter := chi.NewRouter()
+	innerRouter.Use(middleware.Logging(nil))
+	innerRouter.Mount("/mcp", httpHandler)
+
+	outerRouter.Mount("/", innerRouter)
+
+	handler := http.Handler(outerRouter)
+
+	// Helper to POST JSON to the handler.
+	post := func(body []byte, sessionID string) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		if sessionID != "" {
+			req.Header.Set("Mcp-Session-Id", sessionID)
+		}
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		return w
+	}
+
+	// 1. Initialize and capture session ID.
+	initBody := []byte(`{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"kodit-cli","version":"1.0.0"}}}`)
+	initResp := post(initBody, "")
+	if initResp.Code != http.StatusOK {
+		t.Fatalf("initialize: status=%d, body=%s", initResp.Code, initResp.Body.String())
+	}
+	sessionID := initResp.Header().Get("Mcp-Session-Id")
+	if sessionID == "" {
+		t.Fatal("initialize did not return session ID")
+	}
+
+	// 2. Call keyword_search — this is the exact JSON the Python CLI sends.
+	toolBody := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"keyword_search","arguments":{"keywords":"handleRequest http","limit":20}}}`)
+	toolResp := post(toolBody, sessionID)
+	if toolResp.Code != http.StatusOK {
+		t.Fatalf("keyword_search: status=%d, body=%s", toolResp.Code, toolResp.Body.String())
+	}
+
+	// Parse the response.
+	respBody, _ := io.ReadAll(toolResp.Body)
+	var rpcResp struct {
+		Result struct {
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+			IsError bool `json:"isError"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(respBody, &rpcResp); err != nil {
+		t.Fatalf("decode response: %v (raw: %s)", err, string(respBody))
+	}
+
+	text := ""
+	if len(rpcResp.Result.Content) > 0 {
+		text = rpcResp.Result.Content[0].Text
+	}
+
+	if rpcResp.Result.IsError {
+		t.Fatalf("keyword_search via HTTP returned error: %s", text)
+	}
+	if text == "" {
+		t.Fatal("keyword_search via HTTP returned empty result")
+	}
+}
