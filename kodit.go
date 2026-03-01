@@ -328,7 +328,11 @@ func New(opts ...Option) (*Client, error) {
 	if cfg.workerPollPeriod > 0 {
 		worker.WithPollPeriod(cfg.workerPollPeriod)
 	}
-	prescribedOps := task.NewPrescribedOperations(!cfg.simpleChunking)
+	enrichments := cfg.textProvider != nil
+	prescribedOps := task.NewPrescribedOperations(!cfg.simpleChunking, enrichments)
+	if !enrichments {
+		logger.Warn("enrichment endpoint not configured — LLM-based enrichments (summaries, architecture docs, commit descriptions, cookbooks, wiki) will be disabled; set ENRICHMENT_ENDPOINT_* environment variables to enable them")
+	}
 	periodicSync := service.NewPeriodicSync(cfg.periodicSync, repoStore, queue, prescribedOps, logger)
 
 	// Create enricher infrastructure (only if text provider is configured)
@@ -409,11 +413,12 @@ func New(opts ...Option) (*Client, error) {
 	}
 
 	// Validate all prescribed operations have handlers
-	if !cfg.skipProviderValidation {
-		if err := client.validateHandlers(); err != nil {
-			_ = db.Close()
-			return nil, err
-		}
+	if cfg.skipProviderValidation {
+		logger.Warn("SKIP_PROVIDER_VALIDATION is deprecated and will be removed in a future release — enrichments are now automatically disabled when no enrichment endpoint is configured")
+	}
+	if err := client.validateHandlers(); err != nil {
+		_ = db.Close()
+		return nil, err
 	}
 
 	// Start the background worker and periodic sync
