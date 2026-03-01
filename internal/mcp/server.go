@@ -16,6 +16,7 @@ import (
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
+	"github.com/helixml/kodit/domain/wiki"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -94,6 +95,8 @@ const instructions = "This server provides access to code knowledge through mult
 	"- get_commit_description() - Recent changes and context\n" +
 	"- get_database_schema() - Data models\n" +
 	"- get_cookbook() - Complete usage examples\n" +
+	"- get_wiki() - Get the table of contents for a repository's wiki\n" +
+	"- get_wiki_page() - Get the content of a specific wiki page by slug\n" +
 	"- semantic_search() - Find files matching a natural language query (returns resource URIs)\n" +
 	"- keyword_search() - Find files matching keywords using BM25 search (returns resource URIs)\n\n" +
 	"**Reading file content:**\n" +
@@ -215,6 +218,32 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 		),
 	), s.handleGetCookbook)
 
+	mcpServer.AddTool(mcp.NewTool("get_wiki",
+		mcp.WithDescription("Get the table of contents for a repository's wiki"),
+		mcp.WithString("repo_url",
+			mcp.Required(),
+			mcp.Description("The remote URL of the repository"),
+		),
+		mcp.WithString("commit_sha",
+			mcp.Description("The commit SHA to get the wiki for (defaults to latest)"),
+		),
+	), s.handleGetWiki)
+
+	mcpServer.AddTool(mcp.NewTool("get_wiki_page",
+		mcp.WithDescription("Get the content of a specific wiki page"),
+		mcp.WithString("repo_url",
+			mcp.Required(),
+			mcp.Description("The remote URL of the repository"),
+		),
+		mcp.WithString("page_slug",
+			mcp.Required(),
+			mcp.Description("The slug of the wiki page to retrieve"),
+		),
+		mcp.WithString("commit_sha",
+			mcp.Description("The commit SHA to get the wiki for (defaults to latest)"),
+		),
+	), s.handleGetWikiPage)
+
 	mcpServer.AddTool(mcp.NewTool("semantic_search",
 		mcp.WithDescription("Search indexed files using semantic similarity and return file resource URIs"),
 		mcp.WithString("query",
@@ -326,6 +355,144 @@ func (s *Server) handleGetCookbook(ctx context.Context, request mcp.CallToolRequ
 	typ := enrichment.TypeUsage
 	subtype := enrichment.SubtypeCookbook
 	return s.handleEnrichmentDocs(ctx, request, typ, subtype)
+}
+
+// handleGetWiki returns the wiki table of contents for a repository.
+func (s *Server) handleGetWiki(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	repoURL, err := request.RequireString("repo_url")
+	if err != nil {
+		return mcp.NewToolResultError("repo_url is required"), nil
+	}
+
+	repos, err := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
+	if err != nil {
+		s.logger.Error("failed to find repository", slog.String("repo_url", repoURL), slog.Any("error", err))
+		return mcp.NewToolResultError(fmt.Sprintf("failed to find repository: %v", err)), nil
+	}
+	if len(repos) == 0 {
+		return mcp.NewToolResultError(fmt.Sprintf("repository not found: %s", repoURL)), nil
+	}
+
+	commitSHA := request.GetString("commit_sha", "")
+	if commitSHA == "" {
+		commits, commitErr := s.commits.Find(ctx,
+			repository.WithRepoID(repos[0].ID()),
+			repository.WithOrderDesc("date"),
+			repository.WithLimit(1),
+		)
+		if commitErr != nil {
+			s.logger.Error("failed to find latest commit", slog.Any("error", commitErr))
+			return mcp.NewToolResultError(fmt.Sprintf("failed to find latest commit: %v", commitErr)), nil
+		}
+		if len(commits) == 0 {
+			return mcp.NewToolResultError("no commits found for repository"), nil
+		}
+		commitSHA = commits[0].SHA()
+	}
+
+	typ := enrichment.TypeUsage
+	subtype := enrichment.SubtypeWiki
+	enrichments, err := s.enrichmentQuery.List(ctx, &service.EnrichmentListParams{
+		CommitSHA: commitSHA,
+		Type:      &typ,
+		Subtype:   &subtype,
+	})
+	if err != nil {
+		s.logger.Error("failed to list enrichments", slog.Any("error", err))
+		return mcp.NewToolResultError(fmt.Sprintf("failed to get wiki: %v", err)), nil
+	}
+	if len(enrichments) == 0 {
+		return mcp.NewToolResultText("No wiki found for this commit."), nil
+	}
+
+	w, err := wiki.ParseWiki(enrichments[0].Content())
+	if err != nil {
+		s.logger.Error("failed to parse wiki", slog.Any("error", err))
+		return mcp.NewToolResultError(fmt.Sprintf("failed to parse wiki: %v", err)), nil
+	}
+
+	pathIndex := w.PathIndex()
+	var b strings.Builder
+	b.WriteString("Wiki pages (use get_wiki_page with the slug to read a page):\n\n")
+	formatPageTree(&b, w.Pages(), pathIndex, 0)
+	return mcp.NewToolResultText(b.String()), nil
+}
+
+// handleGetWikiPage returns the markdown content of a specific wiki page.
+func (s *Server) handleGetWikiPage(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	repoURL, err := request.RequireString("repo_url")
+	if err != nil {
+		return mcp.NewToolResultError("repo_url is required"), nil
+	}
+
+	pageSlug, err := request.RequireString("page_slug")
+	if err != nil {
+		return mcp.NewToolResultError("page_slug is required"), nil
+	}
+
+	repos, err := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
+	if err != nil {
+		s.logger.Error("failed to find repository", slog.String("repo_url", repoURL), slog.Any("error", err))
+		return mcp.NewToolResultError(fmt.Sprintf("failed to find repository: %v", err)), nil
+	}
+	if len(repos) == 0 {
+		return mcp.NewToolResultError(fmt.Sprintf("repository not found: %s", repoURL)), nil
+	}
+
+	commitSHA := request.GetString("commit_sha", "")
+	if commitSHA == "" {
+		commits, commitErr := s.commits.Find(ctx,
+			repository.WithRepoID(repos[0].ID()),
+			repository.WithOrderDesc("date"),
+			repository.WithLimit(1),
+		)
+		if commitErr != nil {
+			s.logger.Error("failed to find latest commit", slog.Any("error", commitErr))
+			return mcp.NewToolResultError(fmt.Sprintf("failed to find latest commit: %v", commitErr)), nil
+		}
+		if len(commits) == 0 {
+			return mcp.NewToolResultError("no commits found for repository"), nil
+		}
+		commitSHA = commits[0].SHA()
+	}
+
+	typ := enrichment.TypeUsage
+	subtype := enrichment.SubtypeWiki
+	enrichments, err := s.enrichmentQuery.List(ctx, &service.EnrichmentListParams{
+		CommitSHA: commitSHA,
+		Type:      &typ,
+		Subtype:   &subtype,
+	})
+	if err != nil {
+		s.logger.Error("failed to list enrichments", slog.Any("error", err))
+		return mcp.NewToolResultError(fmt.Sprintf("failed to get wiki: %v", err)), nil
+	}
+	if len(enrichments) == 0 {
+		return mcp.NewToolResultError("no wiki found for this commit"), nil
+	}
+
+	w, err := wiki.ParseWiki(enrichments[0].Content())
+	if err != nil {
+		s.logger.Error("failed to parse wiki", slog.Any("error", err))
+		return mcp.NewToolResultError(fmt.Sprintf("failed to parse wiki: %v", err)), nil
+	}
+
+	page, ok := w.Page(pageSlug)
+	if !ok {
+		return mcp.NewToolResultError(fmt.Sprintf("wiki page not found: %s", pageSlug)), nil
+	}
+
+	return mcp.NewToolResultText(page.Content()), nil
+}
+
+// formatPageTree writes a hierarchical listing of wiki pages to the builder.
+func formatPageTree(b *strings.Builder, pages []wiki.Page, pathIndex map[string]string, depth int) {
+	indent := strings.Repeat("  ", depth)
+	for _, p := range pages {
+		path := pathIndex[p.Slug()]
+		fmt.Fprintf(b, "%s- %s: %s (slug: %s)\n", indent, path, p.Title(), p.Slug())
+		formatPageTree(b, p.Children(), pathIndex, depth+1)
+	}
 }
 
 // handleEnrichmentDocs is the shared handler for enrichment doc tools.

@@ -841,6 +841,83 @@ Update tracking configuration for a repository
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+### GET /repositories/{id}/wiki
+
+Get the wiki navigation tree (titles and paths, no content)
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Repository ID |
+
+
+#### Responses
+
+- 200: OK
+
+[dto.WikiTreeResponse](#dto.wikitreeresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### POST /repositories/{id}/wiki/rescan
+
+Delete the existing wiki and regenerate it from scratch
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Repository ID |
+
+
+#### Responses
+
+- 202: Accepted
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### GET /repositories/{id}/wiki/{path}
+
+Get a wiki page by hierarchical path as raw markdown
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Repository ID |
+| path | string | True | Wiki page path (e.g. architecture/database-layer.md) |
+
+
+#### Responses
+
+- 200: OK
+
+string
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 ### POST /search
 
 Hybrid search across code snippets and enrichments
@@ -1499,6 +1576,27 @@ Hybrid search across code snippets and enrichments
 
 
 
+
+
+### dto.WikiTreeNode
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| children | array |  |
+| path | string |  |
+| slug | string |  |
+| title | string |  |
+
+
+### dto.WikiTreeResponse
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data | array |  |
 
 
 ### jsonapi.Links

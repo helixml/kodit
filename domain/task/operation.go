@@ -39,6 +39,7 @@ const (
 	OperationCreateExampleSummaryForCommit           Operation = "kodit.commit.create_example_summary"
 	OperationCreateExampleCodeEmbeddingsForCommit    Operation = "kodit.commit.create_example_code_embeddings"
 	OperationCreateExampleSummaryEmbeddingsForCommit Operation = "kodit.commit.create_example_summary_embeddings"
+	OperationGenerateWikiForCommit                   Operation = "kodit.commit.generate_wiki"
 	OperationScanCommit                              Operation = "kodit.commit.scan"
 	OperationRescanCommit                            Operation = "kodit.commit.rescan"
 )
@@ -140,6 +141,7 @@ func (p PrescribedOperations) ScanAndIndexCommit() []Operation {
 		OperationCreateCommitDescriptionForCommit,
 		OperationCreateDatabaseSchemaForCommit,
 		OperationCreateCookbookForCommit,
+		OperationGenerateWikiForCommit,
 	)
 	return ops
 }
@@ -161,6 +163,7 @@ func (p PrescribedOperations) IndexCommit() []Operation {
 		OperationCreateCommitDescriptionForCommit,
 		OperationCreateDatabaseSchemaForCommit,
 		OperationCreateCookbookForCommit,
+		OperationGenerateWikiForCommit,
 	)
 	return ops
 }
@@ -199,6 +202,7 @@ func (p PrescribedOperations) RescanCommit() []Operation {
 		OperationCreateCommitDescriptionForCommit,
 		OperationCreateDatabaseSchemaForCommit,
 		OperationCreateCookbookForCommit,
+		OperationGenerateWikiForCommit,
 	)
 	return ops
 }

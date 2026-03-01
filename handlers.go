@@ -134,6 +134,12 @@ func (c *Client) registerHandlers() error {
 			return fmt.Errorf("cookbook handler: %w", err)
 		}
 		c.registry.Register(task.OperationCreateCookbookForCommit, h6)
+
+		h7, err := enrichmenthandler.NewWiki(c.repoStores.Repositories, c.repoStores.Commits, c.repoStores.Files, c.enrichCtx, c.wikiContext)
+		if err != nil {
+			return fmt.Errorf("wiki handler: %w", err)
+		}
+		c.registry.Register(task.OperationGenerateWikiForCommit, h7)
 	}
 
 	// API docs enrichment (AST-based, no LLM dependency)

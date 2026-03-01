@@ -201,7 +201,7 @@ swag-check: ## Check swagger docs are up to date (fails if stale)
 openapi: swag ## Generate Swagger 2.0 and convert to OpenAPI 3.0
 	@echo "Converting Swagger 2.0 to OpenAPI 3.0..."
 	openapi-spec-converter -t 3.0 -f json -o $(SWAGGER_DIR)/openapi.json $(SWAGGER_DIR)/swagger.json
-	sed -i 's|"url":"https://[^/]*/|"url":"/|' $(SWAGGER_DIR)/openapi.json
+	sed 's|"url":"https://[^/]*/|"url":"/|' $(SWAGGER_DIR)/openapi.json > $(SWAGGER_DIR)/openapi.json.tmp && mv $(SWAGGER_DIR)/openapi.json.tmp $(SWAGGER_DIR)/openapi.json
 	python3 -m json.tool $(SWAGGER_DIR)/openapi.json $(SWAGGER_DIR)/openapi.json.tmp && mv $(SWAGGER_DIR)/openapi.json.tmp $(SWAGGER_DIR)/openapi.json
 	cp $(SWAGGER_DIR)/openapi.json $(OPENAPI_EMBED)
 	@echo "OpenAPI 3.0 spec generated at $(OPENAPI_EMBED)"
@@ -210,7 +210,7 @@ openapi: swag ## Generate Swagger 2.0 and convert to OpenAPI 3.0
 openapi-convert: ## Convert existing swagger.json to OpenAPI 3.0 (skip swag generation)
 	@echo "Converting existing Swagger 2.0 to OpenAPI 3.0..."
 	openapi-spec-converter -t 3.0 -f json -o $(OPENAPI_EMBED) $(SWAGGER_DIR)/swagger.json
-	sed -i 's|"url":"https://[^/]*/|"url":"/|' $(OPENAPI_EMBED)
+	sed 's|"url":"https://[^/]*/|"url":"/|' $(OPENAPI_EMBED) > $(OPENAPI_EMBED).tmp && mv $(OPENAPI_EMBED).tmp $(OPENAPI_EMBED)
 	python3 -m json.tool $(OPENAPI_EMBED) $(OPENAPI_EMBED).tmp && mv $(OPENAPI_EMBED).tmp $(OPENAPI_EMBED)
 	@echo "OpenAPI 3.0 spec generated at $(OPENAPI_EMBED)"
 

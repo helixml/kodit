@@ -82,9 +82,12 @@ services:
       # Use host.docker.internal for everything just in case the user has it running
       # locally (e.g. ollama desktop)
       - DB_URL=postgresql://postgres:mysecretpassword@host.docker.internal:5432/kodit
-      - ENRICHMENT_ENDPOINT_BASE_URL=http://host.docker.internal:11434/v1
-      - ENRICHMENT_ENDPOINT_MODEL=qwen3:0.6b
-      - ENRICHMENT_ENDPOINT_API_KEY=ollama
+      - ENRICHMENT_ENDPOINT_BASE_URL=${ENRICHMENT_ENDPOINT_BASE_URL:-http://host.docker.internal:11434/v1}
+      - ENRICHMENT_ENDPOINT_MODEL=${ENRICHMENT_ENDPOINT_MODEL:-qwen3:0.6b}
+      - ENRICHMENT_ENDPOINT_API_KEY=${ENRICHMENT_ENDPOINT_API_KEY:-ollama}
+      - ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS=${ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS:-3}
+      - ENRICHMENT_ENDPOINT_TIMEOUT=${ENRICHMENT_ENDPOINT_TIMEOUT:-300}
+      - 'ENRICHMENT_ENDPOINT_EXTRA_PARAMS=${ENRICHMENT_ENDPOINT_EXTRA_PARAMS:-{"extra_body": {"think": false, "options": {"num_predict": 200, "temperature": 0.7}}}}'
       - LOG_LEVEL=INFO
       - HTTP_CACHE_DIR=/kodit-data
       - SIMPLE_CHUNKING_ENABLED=true

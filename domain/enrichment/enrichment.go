@@ -43,6 +43,7 @@ const (
 const (
 	SubtypeCookbook Subtype = "cookbook"
 	SubtypeAPIDocs  Subtype = "api_docs"
+	SubtypeWiki     Subtype = "wiki"
 )
 
 // EntityTypeKey represents the type of entity an enrichment is attached to.

@@ -26,3 +26,14 @@ func IsCookbook(e Enrichment) bool {
 func IsAPIDocs(e Enrichment) bool {
 	return e.Type() == TypeUsage && e.Subtype() == SubtypeAPIDocs
 }
+
+// NewWiki creates a wiki enrichment for a commit.
+// Wikis are multi-page structured documentation generated from repository content.
+func NewWiki(content string) Enrichment {
+	return NewEnrichment(TypeUsage, SubtypeWiki, EntityTypeCommit, content)
+}
+
+// IsWiki returns true if the enrichment is a wiki subtype.
+func IsWiki(e Enrichment) bool {
+	return e.Type() == TypeUsage && e.Subtype() == SubtypeWiki
+}

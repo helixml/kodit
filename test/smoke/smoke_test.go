@@ -456,6 +456,59 @@ func TestSmoke(t *testing.T) {
 		t.Logf("repository enrichments: count=%d", len(*parsed.Data))
 	})
 
+	t.Run("wiki_tree", func(t *testing.T) {
+		resp, err := client.GetRepositoriesIdWikiWithResponse(ctx, repoID)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		if resp.StatusCode() == http.StatusNotFound {
+			t.Skip("wiki not generated (LLM provider may not be configured)")
+		}
+		if resp.StatusCode() != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", resp.StatusCode(), string(resp.Body))
+		}
+		if resp.JSON200 == nil || resp.JSON200.Data == nil || len(*resp.JSON200.Data) == 0 {
+			t.Skip("wiki tree is empty")
+		}
+		nodes := *resp.JSON200.Data
+		for i, node := range nodes {
+			if node.Slug == nil || *node.Slug == "" {
+				t.Fatalf("wiki node %d: expected slug", i)
+			}
+			if node.Title == nil || *node.Title == "" {
+				t.Fatalf("wiki node %d: expected title", i)
+			}
+			if node.Path == nil || *node.Path == "" {
+				t.Fatalf("wiki node %d: expected path", i)
+			}
+		}
+		t.Logf("wiki tree: %d top-level pages", len(nodes))
+
+		// Fetch the first page by path.
+		pagePath := *nodes[0].Path
+		pageResp, err := client.GetRepositoriesIdWikiPathWithResponse(ctx, repoID, pagePath)
+		if err != nil {
+			t.Fatalf("wiki page request failed: %v", err)
+		}
+		if pageResp.StatusCode() != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", pageResp.StatusCode(), string(pageResp.Body))
+		}
+		if len(pageResp.Body) == 0 {
+			t.Fatal("expected non-empty wiki page body")
+		}
+		t.Logf("wiki page %s: %d bytes", pagePath, len(pageResp.Body))
+	})
+
+	t.Run("wiki_rescan", func(t *testing.T) {
+		resp, err := client.PostRepositoriesIdWikiRescanWithResponse(ctx, repoID)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		if resp.StatusCode() != http.StatusAccepted {
+			t.Fatalf("expected 202, got %d: %s", resp.StatusCode(), string(resp.Body))
+		}
+	})
+
 	t.Run("global_enrichments", func(t *testing.T) {
 		resp, err := client.GetEnrichmentsWithResponse(ctx, nil)
 		if err != nil {

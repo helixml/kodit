@@ -185,6 +185,15 @@ type ClientInterface interface {
 
 	PutRepositoriesIdTrackingConfig(ctx context.Context, id int, body PutRepositoriesIdTrackingConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetRepositoriesIdWiki request
+	GetRepositoriesIdWiki(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostRepositoriesIdWikiRescan request
+	PostRepositoriesIdWikiRescan(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetRepositoriesIdWikiPath request
+	GetRepositoriesIdWikiPath(ctx context.Context, id int, path string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PostSearchWithBody request with any body
 	PostSearchWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -577,6 +586,42 @@ func (c *Client) PutRepositoriesIdTrackingConfigWithBody(ctx context.Context, id
 
 func (c *Client) PutRepositoriesIdTrackingConfig(ctx context.Context, id int, body PutRepositoriesIdTrackingConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPutRepositoriesIdTrackingConfigRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetRepositoriesIdWiki(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdWikiRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostRepositoriesIdWikiRescan(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostRepositoriesIdWikiRescanRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetRepositoriesIdWikiPath(ctx context.Context, id int, path string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdWikiPathRequest(c.Server, id, path)
 	if err != nil {
 		return nil, err
 	}
@@ -2246,6 +2291,115 @@ func NewPutRepositoriesIdTrackingConfigRequestWithBody(server string, id int, co
 	return req, nil
 }
 
+// NewGetRepositoriesIdWikiRequest generates requests for GetRepositoriesIdWiki
+func NewGetRepositoriesIdWikiRequest(server string, id int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/repositories/%s/wiki", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPostRepositoriesIdWikiRescanRequest generates requests for PostRepositoriesIdWikiRescan
+func NewPostRepositoriesIdWikiRescanRequest(server string, id int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/repositories/%s/wiki/rescan", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetRepositoriesIdWikiPathRequest generates requests for GetRepositoriesIdWikiPath
+func NewGetRepositoriesIdWikiPathRequest(server string, id int, path string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "path", runtime.ParamLocationPath, path)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/repositories/%s/wiki/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewPostSearchRequest calls the generic PostSearch builder with application/json body
 func NewPostSearchRequest(server string, body PostSearchJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -2424,6 +2578,15 @@ type ClientWithResponsesInterface interface {
 	PutRepositoriesIdTrackingConfigWithBodyWithResponse(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutRepositoriesIdTrackingConfigResponse, error)
 
 	PutRepositoriesIdTrackingConfigWithResponse(ctx context.Context, id int, body PutRepositoriesIdTrackingConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*PutRepositoriesIdTrackingConfigResponse, error)
+
+	// GetRepositoriesIdWikiWithResponse request
+	GetRepositoriesIdWikiWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdWikiResponse, error)
+
+	// PostRepositoriesIdWikiRescanWithResponse request
+	PostRepositoriesIdWikiRescanWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*PostRepositoriesIdWikiRescanResponse, error)
+
+	// GetRepositoriesIdWikiPathWithResponse request
+	GetRepositoriesIdWikiPathWithResponse(ctx context.Context, id int, path string, reqEditors ...RequestEditorFn) (*GetRepositoriesIdWikiPathResponse, error)
 
 	// PostSearchWithBodyWithResponse request with any body
 	PostSearchWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSearchResponse, error)
@@ -3139,6 +3302,74 @@ func (r PutRepositoriesIdTrackingConfigResponse) StatusCode() int {
 	return 0
 }
 
+type GetRepositoriesIdWikiResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DtoWikiTreeResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetRepositoriesIdWikiResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetRepositoriesIdWikiResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PostRepositoriesIdWikiRescanResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r PostRepositoriesIdWikiRescanResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostRepositoriesIdWikiRescanResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetRepositoriesIdWikiPathResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r GetRepositoriesIdWikiPathResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetRepositoriesIdWikiPathResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type PostSearchResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3455,6 +3686,33 @@ func (c *ClientWithResponses) PutRepositoriesIdTrackingConfigWithResponse(ctx co
 		return nil, err
 	}
 	return ParsePutRepositoriesIdTrackingConfigResponse(rsp)
+}
+
+// GetRepositoriesIdWikiWithResponse request returning *GetRepositoriesIdWikiResponse
+func (c *ClientWithResponses) GetRepositoriesIdWikiWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdWikiResponse, error) {
+	rsp, err := c.GetRepositoriesIdWiki(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetRepositoriesIdWikiResponse(rsp)
+}
+
+// PostRepositoriesIdWikiRescanWithResponse request returning *PostRepositoriesIdWikiRescanResponse
+func (c *ClientWithResponses) PostRepositoriesIdWikiRescanWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*PostRepositoriesIdWikiRescanResponse, error) {
+	rsp, err := c.PostRepositoriesIdWikiRescan(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostRepositoriesIdWikiRescanResponse(rsp)
+}
+
+// GetRepositoriesIdWikiPathWithResponse request returning *GetRepositoriesIdWikiPathResponse
+func (c *ClientWithResponses) GetRepositoriesIdWikiPathWithResponse(ctx context.Context, id int, path string, reqEditors ...RequestEditorFn) (*GetRepositoriesIdWikiPathResponse, error) {
+	rsp, err := c.GetRepositoriesIdWikiPath(ctx, id, path, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetRepositoriesIdWikiPathResponse(rsp)
 }
 
 // PostSearchWithBodyWithResponse request with arbitrary body returning *PostSearchResponse
@@ -4582,6 +4840,95 @@ func ParsePutRepositoriesIdTrackingConfigResponse(rsp *http.Response) (*PutRepos
 		}
 		response.JSON500 = &dest
 
+	}
+
+	return response, nil
+}
+
+// ParseGetRepositoriesIdWikiResponse parses an HTTP response from a GetRepositoriesIdWikiWithResponse call
+func ParseGetRepositoriesIdWikiResponse(rsp *http.Response) (*GetRepositoriesIdWikiResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetRepositoriesIdWikiResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DtoWikiTreeResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostRepositoriesIdWikiRescanResponse parses an HTTP response from a PostRepositoriesIdWikiRescanWithResponse call
+func ParsePostRepositoriesIdWikiRescanResponse(rsp *http.Response) (*PostRepositoriesIdWikiRescanResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostRepositoriesIdWikiRescanResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetRepositoriesIdWikiPathResponse parses an HTTP response from a GetRepositoriesIdWikiPathWithResponse call
+func ParseGetRepositoriesIdWikiPathResponse(rsp *http.Response) (*GetRepositoriesIdWikiPathResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetRepositoriesIdWikiPathResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
 	}
 
 	return response, nil
