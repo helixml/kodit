@@ -260,6 +260,12 @@ func TestServer_Initialize(t *testing.T) {
 	if !containsStr(result.Instructions, "semantic_search") {
 		t.Error("expected instructions to mention semantic_search")
 	}
+	if !containsStr(result.Instructions, "get_wiki") {
+		t.Error("expected instructions to mention get_wiki")
+	}
+	if !containsStr(result.Instructions, "get_wiki_page") {
+		t.Error("expected instructions to mention get_wiki_page")
+	}
 }
 
 func TestServer_ListTools(t *testing.T) {
@@ -272,8 +278,8 @@ func TestServer_ListTools(t *testing.T) {
 	var result mcp.ListToolsResult
 	resultJSON(t, resp, &result)
 
-	if len(result.Tools) != 9 {
-		t.Fatalf("expected 9 tools, got %d", len(result.Tools))
+	if len(result.Tools) != 11 {
+		t.Fatalf("expected 11 tools, got %d", len(result.Tools))
 	}
 
 	tools := map[string]mcp.Tool{}
@@ -291,6 +297,8 @@ func TestServer_ListTools(t *testing.T) {
 		"get_cookbook",
 		"semantic_search",
 		"keyword_search",
+		"get_wiki",
+		"get_wiki_page",
 	}
 	for _, name := range expected {
 		if _, ok := tools[name]; !ok {
@@ -1621,6 +1629,222 @@ func readResourceText(t *testing.T, srv *Server, uri string) string {
 		t.Fatalf("expected 1 content item, got %d", len(result.Contents))
 	}
 	return result.Contents[0].Text
+}
+
+func testWikiEnrichment() enrichment.Enrichment {
+	wikiJSON := `{"pages":[` +
+		`{"slug":"overview","title":"Overview","position":0,` +
+		`"content":"# Overview\nThis is the overview page.",` +
+		`"children":[` +
+		`{"slug":"getting-started","title":"Getting Started","position":0,` +
+		`"content":"# Getting Started\nWelcome to the project.","children":[]}` +
+		`]},` +
+		`{"slug":"architecture","title":"Architecture","position":1,` +
+		`"content":"# Architecture\nSystem design details.","children":[]}` +
+		`]}`
+
+	return enrichment.ReconstructEnrichment(
+		200,
+		enrichment.TypeUsage,
+		enrichment.SubtypeWiki,
+		enrichment.EntityTypeCommit,
+		wikiJSON,
+		"",
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	)
+}
+
+func wikiServer() *Server {
+	return NewServer(
+		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{enrichments: []enrichment.Enrichment{testWikiEnrichment()}},
+		&fakeFileContentReader{content: []byte("placeholder"), commitSHA: "abc1234567890"},
+		&fakeSemanticSearcher{},
+		&fakeKeywordSearcher{},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{},
+			lineRanges:    map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{},
+		},
+		&fakeFileFinder{},
+		"1.0.0-test",
+		nil,
+	)
+}
+
+func TestServer_GetWiki(t *testing.T) {
+	srv := wikiServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "get_wiki",
+		"arguments": map[string]any{
+			"repo_url": "https://github.com/example/repo",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+	if !containsStr(text, "overview") {
+		t.Errorf("expected 'overview' slug in output, got: %s", text)
+	}
+	if !containsStr(text, "Overview") {
+		t.Errorf("expected 'Overview' title in output, got: %s", text)
+	}
+	if !containsStr(text, "getting-started") {
+		t.Errorf("expected 'getting-started' slug in output, got: %s", text)
+	}
+	if !containsStr(text, "architecture") {
+		t.Errorf("expected 'architecture' slug in output, got: %s", text)
+	}
+}
+
+func TestServer_GetWiki_RepoNotFound(t *testing.T) {
+	srv := wikiServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "get_wiki",
+		"arguments": map[string]any{
+			"repo_url": "https://github.com/nonexistent/repo",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if !result.IsError {
+		t.Fatal("expected error for unknown repo")
+	}
+
+	text := textFromContent(t, result)
+	if !containsStr(text, "repository not found") {
+		t.Errorf("expected 'repository not found' error, got: %s", text)
+	}
+}
+
+func TestServer_GetWiki_NoWiki(t *testing.T) {
+	srv := NewServer(
+		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{enrichments: []enrichment.Enrichment{}},
+		&fakeFileContentReader{},
+		&fakeSemanticSearcher{},
+		&fakeKeywordSearcher{},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{},
+			lineRanges:    map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{},
+		},
+		&fakeFileFinder{},
+		"1.0.0-test",
+		nil,
+	)
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "get_wiki",
+		"arguments": map[string]any{
+			"repo_url": "https://github.com/example/repo",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+	if !containsStr(text, "No wiki") {
+		t.Errorf("expected 'No wiki' message, got: %s", text)
+	}
+}
+
+func TestServer_GetWikiPage(t *testing.T) {
+	srv := wikiServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "get_wiki_page",
+		"arguments": map[string]any{
+			"repo_url":  "https://github.com/example/repo",
+			"page_slug": "getting-started",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+	if !containsStr(text, "Getting Started") {
+		t.Errorf("expected page content with 'Getting Started', got: %s", text)
+	}
+	if !containsStr(text, "Welcome to the project") {
+		t.Errorf("expected page content with 'Welcome to the project', got: %s", text)
+	}
+}
+
+func TestServer_GetWikiPage_NotFound(t *testing.T) {
+	srv := wikiServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "get_wiki_page",
+		"arguments": map[string]any{
+			"repo_url":  "https://github.com/example/repo",
+			"page_slug": "nonexistent-page",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if !result.IsError {
+		t.Fatal("expected error for unknown page slug")
+	}
+
+	text := textFromContent(t, result)
+	if !containsStr(text, "not found") {
+		t.Errorf("expected 'not found' error, got: %s", text)
+	}
+}
+
+func TestServer_GetWikiPage_MissingSlug(t *testing.T) {
+	srv := wikiServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "get_wiki_page",
+		"arguments": map[string]any{
+			"repo_url": "https://github.com/example/repo",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if !result.IsError {
+		t.Fatal("expected error for missing page_slug")
+	}
+
+	text := textFromContent(t, result)
+	if !containsStr(text, "page_slug is required") {
+		t.Errorf("expected 'page_slug is required' error, got: %s", text)
+	}
 }
 
 // Ensure fakes satisfy interfaces at compile time.
