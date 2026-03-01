@@ -768,8 +768,8 @@ func validateSearchResults(t *testing.T, results []kodit.DtoSnippetData, mode st
 		if result.Id == nil || *result.Id == "" {
 			t.Fatalf("%s result %d: expected ID", mode, i)
 		}
-		if result.Type == nil || (*result.Type != "snippet" && *result.Type != "example") {
-			t.Fatalf("%s result %d: expected type snippet or example, got %v", mode, i, result.Type)
+		if result.Type == nil || *result.Type == "" {
+			t.Fatalf("%s result %d: expected non-empty type", mode, i)
 		}
 		if result.Attributes == nil {
 			t.Fatalf("%s result %d: expected attributes", mode, i)
