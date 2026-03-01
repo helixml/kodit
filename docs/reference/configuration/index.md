@@ -17,7 +17,7 @@ This document contains the complete configuration reference for Kodit. All confi
 | `LOG_LEVEL` | string | `INFO` | The log verbosity level. |
 | `LOG_FORMAT` | string | `pretty` | The log output format (pretty or json). |
 | `DISABLE_TELEMETRY` | bool | `false` | Telemetry collection. |
-| `SKIP_PROVIDER_VALIDATION` | bool | `false` | Provider requirement validation at startup. |
+| `SKIP_PROVIDER_VALIDATION` | bool | `false` | **Deprecated.** No longer needed — enrichments are automatically disabled when no enrichment endpoint is configured. Will be removed in a future release. |
 | `API_KEYS` | string | _(empty)_ | A comma-separated list of valid API keys. |
 | `EMBEDDING_ENDPOINT_BASE_URL` | string | _(empty)_ | The base URL for the endpoint. |
 | `EMBEDDING_ENDPOINT_MODEL` | string | _(empty)_ | The model identifier (e.g., openai/text-embedding-3-small). |

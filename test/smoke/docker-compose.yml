@@ -21,7 +21,6 @@ services:
       - ENRICHMENT_ENDPOINT_BASE_URL=http://ollama:11434/v1
       - ENRICHMENT_ENDPOINT_MODEL=qwen2.5:0.5b
       - ENRICHMENT_ENDPOINT_API_KEY=ollama
-      - SKIP_PROVIDER_VALIDATION=true
     ports:
       - "8080:8080"
     healthcheck:

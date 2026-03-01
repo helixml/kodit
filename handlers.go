@@ -171,7 +171,7 @@ func (c *Client) validateHandlers() error {
 		return nil
 	}
 	return fmt.Errorf(
-		"missing handlers for operations: [%s] — configure a text provider (WithOpenAI, WithAnthropic) or set SKIP_PROVIDER_VALIDATION=true to start without them",
+		"missing handlers for operations: [%s] — configure a text provider (WithOpenAI, WithAnthropic) or an enrichment endpoint (ENRICHMENT_ENDPOINT_*)",
 		strings.Join(missing, ", "),
 	)
 }

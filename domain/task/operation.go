@@ -61,12 +61,15 @@ func (o Operation) IsCommitOperation() bool {
 
 // PrescribedOperations provides predefined operation sequences for common workflows.
 type PrescribedOperations struct {
-	examples bool
+	examples    bool
+	enrichments bool
 }
 
-// NewPrescribedOperations creates a PrescribedOperations with the given example extraction setting.
-func NewPrescribedOperations(examples bool) PrescribedOperations {
-	return PrescribedOperations{examples: examples}
+// NewPrescribedOperations creates a PrescribedOperations with the given settings.
+// When enrichments is false, LLM-dependent operations (summaries, architecture docs,
+// commit descriptions, cookbooks, wiki) are excluded from all workflows.
+func NewPrescribedOperations(examples bool, enrichments bool) PrescribedOperations {
+	return PrescribedOperations{examples: examples, enrichments: enrichments}
 }
 
 // All returns every operation that appears in any prescribed workflow.
@@ -123,26 +126,28 @@ func (p PrescribedOperations) ScanAndIndexCommit() []Operation {
 	if p.examples {
 		ops = append(ops, OperationCreateExampleCodeEmbeddingsForCommit)
 	}
-	if p.examples {
+	if p.enrichments && p.examples {
 		ops = append(ops, OperationCreateSummaryEnrichmentForCommit)
 	}
-	if p.examples {
+	if p.enrichments && p.examples {
 		ops = append(ops, OperationCreateExampleSummaryForCommit)
 	}
-	ops = append(ops,
-		OperationCreateSummaryEmbeddingsForCommit,
-	)
-	if p.examples {
+	if p.enrichments {
+		ops = append(ops, OperationCreateSummaryEmbeddingsForCommit)
+	}
+	if p.enrichments && p.examples {
 		ops = append(ops, OperationCreateExampleSummaryEmbeddingsForCommit)
 	}
-	ops = append(ops,
-		OperationCreateArchitectureEnrichmentForCommit,
-		OperationCreatePublicAPIDocsForCommit,
-		OperationCreateCommitDescriptionForCommit,
-		OperationCreateDatabaseSchemaForCommit,
-		OperationCreateCookbookForCommit,
-		OperationGenerateWikiForCommit,
-	)
+	ops = append(ops, OperationCreatePublicAPIDocsForCommit)
+	if p.enrichments {
+		ops = append(ops,
+			OperationCreateArchitectureEnrichmentForCommit,
+			OperationCreateCommitDescriptionForCommit,
+			OperationCreateDatabaseSchemaForCommit,
+			OperationCreateCookbookForCommit,
+			OperationGenerateWikiForCommit,
+		)
+	}
 	return ops
 }
 
@@ -153,18 +158,22 @@ func (p PrescribedOperations) IndexCommit() []Operation {
 		OperationCreateBM25IndexForCommit,
 		OperationCreateCodeEmbeddingsForCommit,
 	}
-	if p.examples {
+	if p.enrichments && p.examples {
 		ops = append(ops, OperationCreateSummaryEnrichmentForCommit)
 	}
-	ops = append(ops,
-		OperationCreateSummaryEmbeddingsForCommit,
-		OperationCreateArchitectureEnrichmentForCommit,
-		OperationCreatePublicAPIDocsForCommit,
-		OperationCreateCommitDescriptionForCommit,
-		OperationCreateDatabaseSchemaForCommit,
-		OperationCreateCookbookForCommit,
-		OperationGenerateWikiForCommit,
-	)
+	if p.enrichments {
+		ops = append(ops, OperationCreateSummaryEmbeddingsForCommit)
+	}
+	ops = append(ops, OperationCreatePublicAPIDocsForCommit)
+	if p.enrichments {
+		ops = append(ops,
+			OperationCreateArchitectureEnrichmentForCommit,
+			OperationCreateCommitDescriptionForCommit,
+			OperationCreateDatabaseSchemaForCommit,
+			OperationCreateCookbookForCommit,
+			OperationGenerateWikiForCommit,
+		)
+	}
 	return ops
 }
 
@@ -184,25 +193,27 @@ func (p PrescribedOperations) RescanCommit() []Operation {
 	if p.examples {
 		ops = append(ops, OperationCreateExampleCodeEmbeddingsForCommit)
 	}
-	if p.examples {
+	if p.enrichments && p.examples {
 		ops = append(ops, OperationCreateSummaryEnrichmentForCommit)
 	}
-	if p.examples {
+	if p.enrichments && p.examples {
 		ops = append(ops, OperationCreateExampleSummaryForCommit)
 	}
-	ops = append(ops,
-		OperationCreateSummaryEmbeddingsForCommit,
-	)
-	if p.examples {
+	if p.enrichments {
+		ops = append(ops, OperationCreateSummaryEmbeddingsForCommit)
+	}
+	if p.enrichments && p.examples {
 		ops = append(ops, OperationCreateExampleSummaryEmbeddingsForCommit)
 	}
-	ops = append(ops,
-		OperationCreateArchitectureEnrichmentForCommit,
-		OperationCreatePublicAPIDocsForCommit,
-		OperationCreateCommitDescriptionForCommit,
-		OperationCreateDatabaseSchemaForCommit,
-		OperationCreateCookbookForCommit,
-		OperationGenerateWikiForCommit,
-	)
+	ops = append(ops, OperationCreatePublicAPIDocsForCommit)
+	if p.enrichments {
+		ops = append(ops,
+			OperationCreateArchitectureEnrichmentForCommit,
+			OperationCreateCommitDescriptionForCommit,
+			OperationCreateDatabaseSchemaForCommit,
+			OperationCreateCookbookForCommit,
+			OperationGenerateWikiForCommit,
+		)
+	}
 	return ops
 }
