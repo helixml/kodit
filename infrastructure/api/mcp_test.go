@@ -156,14 +156,16 @@ func TestMCPEndpoint_ListTools(t *testing.T) {
 		"get_cookbook",
 		"semantic_search",
 		"keyword_search",
+		"get_wiki",
+		"get_wiki_page",
 	}
 	for _, name := range expected {
 		if !names[name] {
 			t.Errorf("missing %s tool", name)
 		}
 	}
-	if len(resp.Result.Tools) != 9 {
-		t.Errorf("expected 9 tools, got %d", len(resp.Result.Tools))
+	if len(resp.Result.Tools) != 11 {
+		t.Errorf("expected 11 tools, got %d", len(resp.Result.Tools))
 	}
 }
 
