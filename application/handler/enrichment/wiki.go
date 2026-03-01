@@ -269,7 +269,7 @@ func (h *Wiki) Execute(ctx context.Context, payload map[string]any) error {
 
 // deleteExistingWiki removes any previous wiki enrichments for the repository.
 func (h *Wiki) deleteExistingWiki(ctx context.Context, repoID int64) error {
-	commits, err := h.commitStore.Find(ctx, repository.WithRepoID(repoID), repository.WithLimit(100))
+	commits, err := h.commitStore.Find(ctx, repository.WithRepoID(repoID))
 	if err != nil {
 		return fmt.Errorf("find commits: %w", err)
 	}

@@ -1290,7 +1290,7 @@ func (r *RepositoriesRouter) RescanWiki(w http.ResponseWriter, req *http.Request
 
 // latestWiki finds the most recent wiki enrichment for a repository.
 func (r *RepositoriesRouter) latestWiki(ctx context.Context, repoID int64) (wiki.Wiki, error) {
-	commits, err := r.client.Commits.Find(ctx, repository.WithRepoID(repoID), repository.WithLimit(10))
+	commits, err := r.client.Commits.Find(ctx, repository.WithRepoID(repoID))
 	if err != nil {
 		return wiki.Wiki{}, fmt.Errorf("find commits: %w", err)
 	}

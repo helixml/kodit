@@ -92,7 +92,12 @@ func buildPathIndex(pages []Page, prefix string, index map[string]string) {
 		if prefix != "" {
 			path = prefix + "/" + p.slug
 		}
-		index[p.slug] = path
+		// First-writer-wins: matches findPage which returns the first
+		// depth-first match. Duplicate slugs at different tree levels
+		// resolve consistently.
+		if _, exists := index[p.slug]; !exists {
+			index[p.slug] = path
+		}
 		buildPathIndex(p.children, path, index)
 	}
 }
