@@ -67,10 +67,10 @@ def _post(url, payload, session_id=""):
         resp = urllib.request.urlopen(req, timeout=120)  # noqa: S310
     except urllib.error.HTTPError as exc:
         error_body = exc.read().decode(errors="replace")
-        print(f"ERROR: HTTP {exc.code}: {error_body}", file=sys.stderr)
+        print("ERROR: HTTP {0}: {1}".format(exc.code, error_body), file=sys.stderr)
         sys.exit(1)
     except urllib.error.URLError as exc:
-        print(f"ERROR: Cannot reach Kodit server: {exc.reason}", file=sys.stderr)
+        print("ERROR: Cannot reach Kodit server: {0}".format(exc.reason), file=sys.stderr)
         sys.exit(1)
 
     resp_session = resp.headers.get("Mcp-Session-Id", "")
@@ -97,7 +97,7 @@ def _ensure_session(url):
     data, resp_session = _post(url, payload)
 
     if "error" in data:
-        print(f"ERROR: MCP initialize failed: {data['error']}", file=sys.stderr)
+        print("ERROR: MCP initialize failed: {0}".format(data['error']), file=sys.stderr)
         sys.exit(1)
 
     session_id = resp_session
@@ -129,7 +129,7 @@ def _call_tool(tool_name, arguments):
     if "error" in data:
         code = data["error"].get("code", "")
         message = data["error"].get("message", "")
-        print(f"ERROR: JSON-RPC error {code}: {message}", file=sys.stderr)
+        print("ERROR: JSON-RPC error {0}: {1}".format(code, message), file=sys.stderr)
         sys.exit(1)
 
     result = data.get("result", {})
@@ -140,7 +140,7 @@ def _call_tool(tool_name, arguments):
     output = "\n".join(text_parts)
 
     if is_error:
-        print(f"Tool error: {output}", file=sys.stderr)
+        print("Tool error: {0}".format(output), file=sys.stderr)
         sys.exit(1)
 
     print(output)
@@ -162,7 +162,7 @@ def _read_resource(uri):
     if "error" in data:
         code = data["error"].get("code", "")
         message = data["error"].get("message", "")
-        print(f"ERROR: JSON-RPC error {code}: {message}", file=sys.stderr)
+        print("ERROR: JSON-RPC error {0}: {1}".format(code, message), file=sys.stderr)
         sys.exit(1)
     result = data.get("result", {})
     contents = result.get("contents", [])
@@ -261,7 +261,7 @@ def main():
         description="CLI wrapper for Kodit MCP tools",
         prog="kodit-cli",
     )
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(dest="command")
 
     # semantic-search
     sp_sem = subparsers.add_parser(
@@ -330,6 +330,9 @@ def main():
     sp_ver.set_defaults(func=cmd_version)
 
     args = parser.parse_args()
+    if args.command is None:
+        parser.print_help()
+        sys.exit(1)
     args.func(args)
 
 

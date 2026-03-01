@@ -79,10 +79,15 @@ agent:
 
     ### When to use Kodit tools:
     - **Start here**: Use `list-repositories` to find the repo URL, then `architecture` to understand the project structure
-    - **Before searching files manually**: Use `semantic-search` with a natural language query — it returns semantically relevant code snippets. Use `keyword-search` when you know the exact identifiers or terms.
-    - **After searching**: Use `read-file` with the `uri` from search results to read the full file content. This is faster and more reliable than using `cat` or `nl`.
+    - **Before searching files manually**: Use `semantic-search` with a natural language query — it returns semantically relevant code snippets. Prefer `keyword-search` over `grep` for finding specific function names, class names, or error messages — it searches the full indexed codebase and is faster than manual grep.
+    - **After searching**: Use `read-file` with the `uri` from search results to read the full file content. This is faster and more reliable than using `cat` or `nl`. Continue using `read-file` throughout the session, not just during initial exploration.
     - **When you need context**: Use `api-docs`, `database-schema`, or `cookbook` to understand how the code works
     - **Multiple queries are fine**: Call these tools as many times as needed throughout your investigation
+
+    ## Important Notes
+    - The repository source code is located at `/testbed`. All file paths in bash commands should use `/testbed/...`.
+    - Kodit resource URIs (e.g. `file://1/abc123/path/to/file.py`) are NOT filesystem paths. Use them only with `read-file --uri`. To edit or run files, use the corresponding path under `/testbed/`.
+    - If you have been trying the same approach multiple times without success, try a different strategy or submit your current changes.
   instance_template: |
     Please solve this issue: {{task}}
 
@@ -191,6 +196,7 @@ agent:
   format_error_template: |
     Please always provide EXACTLY ONE action in triple backticks, found {{actions|length}} actions.
     If you want to end the task, please issue the following command: `(echo "COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT" && git diff)`
+    If you are stuck and cannot make further progress, submit your current changes rather than continuing to retry.
     Else, please format your response exactly as follows:
 
     <response_example>
@@ -221,8 +227,8 @@ agent:
     </output_tail>
     {%- endif %}
     Please try another command and make sure to avoid those requiring interactive input.
-  step_limit: 0.
-  cost_limit: 0.
+  step_limit: 200
+  cost_limit: 2.0
 environment:
   cwd: /testbed
   env:
