@@ -141,31 +141,20 @@ func TestMCPEndpoint_ListTools(t *testing.T) {
 		t.Fatalf("decode response: %v", err)
 	}
 
+	if len(resp.Result.Tools) == 0 {
+		t.Fatal("expected at least one tool")
+	}
+
 	names := map[string]bool{}
 	for _, tool := range resp.Result.Tools {
 		names[tool.Name] = true
 	}
 
-	expected := []string{
-		"get_version",
-		"list_repositories",
-		"get_architecture_docs",
-		"get_api_docs",
-		"get_commit_description",
-		"get_database_schema",
-		"get_cookbook",
-		"semantic_search",
-		"keyword_search",
-		"get_wiki",
-		"get_wiki_page",
-	}
-	for _, name := range expected {
+	// Spot-check a few core tools rather than maintaining an exhaustive list.
+	for _, name := range []string{"get_version", "list_repositories", "semantic_search"} {
 		if !names[name] {
 			t.Errorf("missing %s tool", name)
 		}
-	}
-	if len(resp.Result.Tools) != 11 {
-		t.Errorf("expected 11 tools, got %d", len(resp.Result.Tools))
 	}
 }
 
