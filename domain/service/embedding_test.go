@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/helixml/kodit/domain/repository"
@@ -14,13 +15,16 @@ import (
 // --- fakes ---
 
 type fakeEmbedder struct {
+	mu    sync.Mutex
 	calls [][]string
 	errAt int // batch index at which to return an error; -1 = never
 }
 
 func (f *fakeEmbedder) Embed(_ context.Context, texts []string) ([][]float64, error) {
+	f.mu.Lock()
 	idx := len(f.calls)
 	f.calls = append(f.calls, texts)
+	f.mu.Unlock()
 	if f.errAt >= 0 && idx == f.errAt {
 		return nil, fmt.Errorf("embed error at batch %d", idx)
 	}
@@ -32,12 +36,15 @@ func (f *fakeEmbedder) Embed(_ context.Context, texts []string) ([][]float64, er
 }
 
 type fakeEmbeddingStore struct {
+	mu       sync.Mutex
 	saved    [][]search.Embedding
 	existing map[string]search.Embedding
 	saveErr  int // SaveAll call index at which to return an error; -1 = never
 }
 
 func (f *fakeEmbeddingStore) SaveAll(_ context.Context, embeddings []search.Embedding) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	idx := len(f.saved)
 	f.saved = append(f.saved, embeddings)
 	if f.saveErr >= 0 && idx == f.saveErr {
@@ -50,6 +57,8 @@ func (f *fakeEmbeddingStore) SaveAll(_ context.Context, embeddings []search.Embe
 }
 
 func (f *fakeEmbeddingStore) Find(_ context.Context, options ...repository.Option) ([]search.Embedding, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	q := repository.Build(options...)
 	ids := search.SnippetIDsFrom(q)
 	var result []search.Embedding
@@ -66,6 +75,8 @@ func (f *fakeEmbeddingStore) Search(_ context.Context, _ ...repository.Option) (
 }
 
 func (f *fakeEmbeddingStore) Exists(_ context.Context, _ ...repository.Option) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return len(f.existing) > 0, nil
 }
 

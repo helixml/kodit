@@ -287,6 +287,68 @@ func TestIntegration_SearchAfterIndexing(t *testing.T) {
 	t.Logf("search returned %d results", result.Count())
 }
 
+func TestIntegration_WithoutEnrichmentModel(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	dataDir := filepath.Join(tmpDir, "data")
+	cloneDir := filepath.Join(tmpDir, "repos")
+
+	repoPath := createTestGitRepo(t)
+	branch := currentBranch(t, repoPath)
+
+	// Create client WITHOUT a text provider and WITHOUT WithSkipProviderValidation.
+	// PR #427 made this work by automatically disabling enrichments.
+	client, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithDataDir(dataDir),
+		kodit.WithCloneDir(cloneDir),
+		kodit.WithModelDir("infrastructure/provider/models"),
+		kodit.WithWorkerPollPeriod(testPollPeriod),
+	)
+	require.NoError(t, err, "client should start without an enrichment model")
+	defer func() { _ = client.Close() }()
+
+	ctx := context.Background()
+
+	// Index a repository — all non-enrichment operations should succeed.
+	repo, _, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{
+		URL:    fileURI(repoPath),
+		Branch: branch,
+	})
+	require.NoError(t, err)
+
+	waitForTasks(ctx, t, client, 60*time.Second)
+
+	// Commits should be indexed.
+	commits, err := client.Commits.Find(ctx, repository.WithRepoID(repo.ID()))
+	require.NoError(t, err)
+	require.NotEmpty(t, commits, "expected at least one commit")
+
+	// BM25 keyword search should work.
+	result, err := client.Search.Query(ctx, "add numbers",
+		service.WithLimit(10),
+	)
+	require.NoError(t, err)
+	t.Logf("search returned %d results", result.Count())
+
+	// BM25 documents and code embeddings should be populated.
+	counts := snapshotTableCounts(t, dbPath)
+	assert.Greater(t, counts["kodit_bm25_documents"], int64(0),
+		"BM25 index should be populated without enrichment model")
+	assert.Greater(t, counts["kodit_code_embeddings"], int64(0),
+		"code embeddings should be populated without enrichment model")
+
+	// Text embeddings (summary embeddings) should remain empty because
+	// they depend on the enrichment model.
+	assert.Equal(t, int64(0), counts["kodit_text_embeddings"],
+		"text embeddings should be empty without enrichment model")
+}
+
 func TestIntegration_DeleteRepository(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
