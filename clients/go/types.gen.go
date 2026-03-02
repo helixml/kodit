@@ -121,31 +121,28 @@ type DtoFileJSONAPIResponse struct {
 	Data *DtoFileData `json:"data,omitempty"`
 }
 
-// DtoGitFileSchema defines model for dto.GitFileSchema.
-type DtoGitFileSchema struct {
-	BlobSha  *string `json:"blob_sha,omitempty"`
-	MimeType *string `json:"mime_type,omitempty"`
-	Path     *string `json:"path,omitempty"`
-	Size     *int    `json:"size,omitempty"`
+// DtoGrepFileLinks defines model for dto.GrepFileLinks.
+type DtoGrepFileLinks struct {
+	File *string `json:"file,omitempty"`
 }
 
-// DtoKeywordSearchAttributes defines model for dto.KeywordSearchAttributes.
-type DtoKeywordSearchAttributes struct {
-	Keywords   *string `json:"keywords,omitempty"`
-	Language   *string `json:"language,omitempty"`
-	Limit      *int    `json:"limit,omitempty"`
-	SourceRepo *string `json:"source_repo,omitempty"`
+// DtoGrepFileSchema defines model for dto.GrepFileSchema.
+type DtoGrepFileSchema struct {
+	Language *string               `json:"language,omitempty"`
+	Links    *DtoGrepFileLinks     `json:"links,omitempty"`
+	Matches  *[]DtoGrepMatchSchema `json:"matches,omitempty"`
+	Path     *string               `json:"path,omitempty"`
 }
 
-// DtoKeywordSearchData defines model for dto.KeywordSearchData.
-type DtoKeywordSearchData struct {
-	Attributes *DtoKeywordSearchAttributes `json:"attributes,omitempty"`
-	Type       *string                     `json:"type,omitempty"`
+// DtoGrepMatchSchema defines model for dto.GrepMatchSchema.
+type DtoGrepMatchSchema struct {
+	Content *string `json:"content,omitempty"`
+	Line    *int    `json:"line,omitempty"`
 }
 
-// DtoKeywordSearchRequest defines model for dto.KeywordSearchRequest.
-type DtoKeywordSearchRequest struct {
-	Data *DtoKeywordSearchData `json:"data,omitempty"`
+// DtoGrepResponse defines model for dto.GrepResponse.
+type DtoGrepResponse struct {
+	Data *[]DtoGrepFileSchema `json:"data,omitempty"`
 }
 
 // DtoLsFileAttributes defines model for dto.LsFileAttributes.
@@ -301,30 +298,10 @@ type DtoSearchResponse struct {
 	Data *[]DtoSnippetData `json:"data,omitempty"`
 }
 
-// DtoSemanticSearchAttributes defines model for dto.SemanticSearchAttributes.
-type DtoSemanticSearchAttributes struct {
-	Language   *string `json:"language,omitempty"`
-	Limit      *int    `json:"limit,omitempty"`
-	Query      *string `json:"query,omitempty"`
-	SourceRepo *string `json:"source_repo,omitempty"`
-}
-
-// DtoSemanticSearchData defines model for dto.SemanticSearchData.
-type DtoSemanticSearchData struct {
-	Attributes *DtoSemanticSearchAttributes `json:"attributes,omitempty"`
-	Type       *string                      `json:"type,omitempty"`
-}
-
-// DtoSemanticSearchRequest defines model for dto.SemanticSearchRequest.
-type DtoSemanticSearchRequest struct {
-	Data *DtoSemanticSearchData `json:"data,omitempty"`
-}
-
 // DtoSnippetAttributes defines model for dto.SnippetAttributes.
 type DtoSnippetAttributes struct {
 	Content        *DtoSnippetContentSchema `json:"content,omitempty"`
 	CreatedAt      *string                  `json:"created_at,omitempty"`
-	DerivesFrom    *[]DtoGitFileSchema      `json:"derives_from,omitempty"`
 	Enrichments    *[]DtoEnrichmentSchema   `json:"enrichments,omitempty"`
 	OriginalScores *[]float32               `json:"original_scores,omitempty"`
 	UpdatedAt      *string                  `json:"updated_at,omitempty"`
@@ -627,10 +604,40 @@ type GetRepositoriesIdTagsParams struct {
 	PageSize *int `form:"page_size,omitempty" json:"page_size,omitempty"`
 }
 
+// GetSearchGrepParams defines parameters for GetSearchGrep.
+type GetSearchGrepParams struct {
+	// RepositoryId Repository ID
+	RepositoryId int `form:"repository_id" json:"repository_id"`
+
+	// Pattern Regex pattern to search for
+	Pattern string `form:"pattern" json:"pattern"`
+
+	// Glob File path filter (e.g. *.go, src/**/*.ts)
+	Glob *string `form:"glob,omitempty" json:"glob,omitempty"`
+
+	// Limit Maximum number of file results (default 10, max 200)
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetSearchKeywordParams defines parameters for GetSearchKeyword.
+type GetSearchKeywordParams struct {
+	// Keywords Search keywords
+	Keywords string `form:"keywords" json:"keywords"`
+
+	// Language Language filter (e.g. py, go)
+	Language *string `form:"language,omitempty" json:"language,omitempty"`
+
+	// RepositoryId Repository ID filter
+	RepositoryId *int `form:"repository_id,omitempty" json:"repository_id,omitempty"`
+
+	// Limit Maximum results (default 10)
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // GetSearchLsParams defines parameters for GetSearchLs.
 type GetSearchLsParams struct {
-	// RepoUrl Repository remote URL
-	RepoUrl string `form:"repo_url" json:"repo_url"`
+	// RepositoryId Repository ID
+	RepositoryId int `form:"repository_id" json:"repository_id"`
 
 	// Pattern Glob/pathspec pattern (e.g. **/*.go, src/*.py)
 	Pattern string `form:"pattern" json:"pattern"`
@@ -640,6 +647,21 @@ type GetSearchLsParams struct {
 
 	// PageSize Results per page (default: 20, max: 100)
 	PageSize *int `form:"page_size,omitempty" json:"page_size,omitempty"`
+}
+
+// GetSearchSemanticParams defines parameters for GetSearchSemantic.
+type GetSearchSemanticParams struct {
+	// Query Natural language search query
+	Query string `form:"query" json:"query"`
+
+	// Language Language filter (e.g. py, go)
+	Language *string `form:"language,omitempty" json:"language,omitempty"`
+
+	// RepositoryId Repository ID filter
+	RepositoryId *int `form:"repository_id,omitempty" json:"repository_id,omitempty"`
+
+	// Limit Maximum results (default 10)
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // PatchEnrichmentsIdJSONRequestBody defines body for PatchEnrichmentsId for application/json ContentType.
@@ -653,9 +675,3 @@ type PutRepositoriesIdTrackingConfigJSONRequestBody = DtoTrackingConfigUpdateReq
 
 // PostSearchJSONRequestBody defines body for PostSearch for application/json ContentType.
 type PostSearchJSONRequestBody = DtoSearchRequest
-
-// PostSearchKeywordJSONRequestBody defines body for PostSearchKeyword for application/json ContentType.
-type PostSearchKeywordJSONRequestBody = DtoKeywordSearchRequest
-
-// PostSearchSemanticJSONRequestBody defines body for PostSearchSemantic for application/json ContentType.
-type PostSearchSemanticJSONRequestBody = DtoSemanticSearchRequest

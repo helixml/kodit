@@ -918,12 +918,6 @@ func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http
 		related = map[string][]enrichment.Enrichment{}
 	}
 
-	fileMap, err := sourceFileMap(ctx, r.client, ids)
-	if err != nil {
-		r.logger.Warn("failed to fetch source files", "error", err)
-		fileMap = map[string][]repository.File{}
-	}
-
 	data := make([]dto.SnippetData, 0, len(enrichments))
 	for _, e := range enrichments {
 		createdAt := e.CreatedAt()
@@ -938,23 +932,12 @@ func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http
 			})
 		}
 
-		derivesFrom := make([]dto.GitFileSchema, 0)
-		for _, f := range fileMap[idStr] {
-			derivesFrom = append(derivesFrom, dto.GitFileSchema{
-				BlobSHA:  f.BlobSHA(),
-				Path:     f.Path(),
-				MimeType: f.MimeType(),
-				Size:     f.Size(),
-			})
-		}
-
 		data = append(data, dto.SnippetData{
 			Type: string(e.Subtype()),
 			ID:   idStr,
 			Attributes: dto.SnippetAttributes{
-				CreatedAt:   &createdAt,
-				UpdatedAt:   &updatedAt,
-				DerivesFrom: derivesFrom,
+				CreatedAt: &createdAt,
+				UpdatedAt: &updatedAt,
 				Content: dto.SnippetContentSchema{
 					Value:    e.Content(),
 					Language: e.Language(),
@@ -1676,7 +1659,9 @@ func (r *RepositoriesRouter) GetBlob(w http.ResponseWriter, req *http.Request) {
 }
 
 // Grep searches file contents in a repository using git grep.
+// Deprecated: Use GET /api/v1/search/grep instead.
 func (r *RepositoriesRouter) Grep(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Deprecated", "true")
 	repoID, err := r.repositoryID(req)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)

@@ -942,14 +942,52 @@ Hybrid search across code snippets and enrichments
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
-### POST /search/keyword
+### GET /search/grep
+
+Search file contents in a repository using git grep with regex patterns
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| repository_id | integer | True | Repository ID |
+| pattern | string | True | Regex pattern to search for |
+| glob | string |  | File path filter (e.g. *.go, src/**/*.ts) |
+| limit | integer |  | Maximum number of file results (default 10, max 200) |
+
+
+#### Responses
+
+- 200: OK
+
+[dto.GrepResponse](#dto.grepresponse)
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### GET /search/keyword
 
 Search code snippets using BM25 keyword matching
 
 
-#### Request Body
+#### Parameters
 
-[dto.KeywordSearchRequest](#dto.keywordsearchrequest)
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| keywords | string | True | Search keywords |
+| language | string |  | Language filter (e.g. py, go) |
+| repository_id | integer |  | Repository ID filter |
+| limit | integer |  | Maximum results (default 10) |
 
 
 #### Responses
@@ -975,7 +1013,7 @@ Returns files from a repository working copy matching a glob pattern, with file:
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| repo_url | string | True | Repository remote URL |
+| repository_id | integer | True | Repository ID |
 | pattern | string | True | Glob/pathspec pattern (e.g. **/*.go, src/*.py) |
 | page | integer |  | Page number (default: 1) |
 | page_size | integer |  | Results per page (default: 20, max: 100) |
@@ -999,14 +1037,19 @@ Returns files from a repository working copy matching a glob pattern, with file:
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
-### POST /search/semantic
+### GET /search/semantic
 
 Search code snippets using semantic similarity
 
 
-#### Request Body
+#### Parameters
 
-[dto.SemanticSearchRequest](#dto.semanticsearchrequest)
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| query | string | True | Natural language search query |
+| language | string |  | Language filter (e.g. py, go) |
+| repository_id | integer |  | Repository ID filter |
+| limit | integer |  | Maximum results (default 10) |
 
 
 #### Responses
@@ -1199,47 +1242,44 @@ Search code snippets using semantic similarity
 | data |  |  |
 
 
-### dto.GitFileSchema
+### dto.GrepFileLinks
 
 
 
 | Field | Type | Description |
 |-------|------|-------------|
-| blob_sha | string |  |
-| mime_type | string |  |
-| path | string |  |
-| size | integer |  |
+| file | string |  |
 
 
-### dto.KeywordSearchAttributes
+### dto.GrepFileSchema
 
 
 
 | Field | Type | Description |
 |-------|------|-------------|
-| keywords | string |  |
 | language | string |  |
-| limit | integer |  |
-| source_repo | string |  |
+| links |  |  |
+| matches | array |  |
+| path | string |  |
 
 
-### dto.KeywordSearchData
-
-
-
-| Field | Type | Description |
-|-------|------|-------------|
-| attributes |  |  |
-| type | string |  |
-
-
-### dto.KeywordSearchRequest
+### dto.GrepMatchSchema
 
 
 
 | Field | Type | Description |
 |-------|------|-------------|
-| data |  |  |
+| content | string |  |
+| line | integer |  |
+
+
+### dto.GrepResponse
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data | array |  |
 
 
 ### dto.LsFileAttributes
@@ -1483,37 +1523,6 @@ Search code snippets using semantic similarity
 | data | array |  |
 
 
-### dto.SemanticSearchAttributes
-
-
-
-| Field | Type | Description |
-|-------|------|-------------|
-| language | string |  |
-| limit | integer |  |
-| query | string |  |
-| source_repo | string |  |
-
-
-### dto.SemanticSearchData
-
-
-
-| Field | Type | Description |
-|-------|------|-------------|
-| attributes |  |  |
-| type | string |  |
-
-
-### dto.SemanticSearchRequest
-
-
-
-| Field | Type | Description |
-|-------|------|-------------|
-| data |  |  |
-
-
 ### dto.SnippetAttributes
 
 
@@ -1522,7 +1531,6 @@ Search code snippets using semantic similarity
 |-------|------|-------------|
 | content |  |  |
 | created_at | string |  |
-| derives_from | array |  |
 | enrichments | array |  |
 | original_scores | array |  |
 | updated_at | string |  |

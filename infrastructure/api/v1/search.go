@@ -11,13 +11,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit"
+	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/chunk"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
-	"github.com/helixml/kodit/internal/database"
 )
 
 // SearchRouter handles search API endpoints.
@@ -39,9 +39,10 @@ func (r *SearchRouter) Routes() chi.Router {
 	router := chi.NewRouter()
 
 	router.Post("/", r.Search)
-	router.Post("/semantic", r.SemanticSearch)
-	router.Post("/keyword", r.KeywordSearch)
+	router.Get("/semantic", r.SemanticSearch)
+	router.Get("/keyword", r.KeywordSearch)
 	router.Get("/ls", r.Ls)
+	router.Get("/grep", r.Grep)
 
 	return router
 }
@@ -57,7 +58,6 @@ func (r *SearchRouter) Routes() chi.Router {
 //	@Success		200		{object}	dto.SearchResponse
 //	@Failure		400		{object}	middleware.JSONAPIErrorResponse
 //	@Failure		500		{object}	middleware.JSONAPIErrorResponse
-//	@Security		APIKeyAuth
 //	@Router			/search [post]
 func (r *SearchRouter) Search(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
@@ -87,42 +87,66 @@ func (r *SearchRouter) Search(w http.ResponseWriter, req *http.Request) {
 	middleware.WriteJSON(w, http.StatusOK, response)
 }
 
-// SemanticSearch handles POST /api/v1/search/semantic.
+// SemanticSearch handles GET /api/v1/search/semantic.
 //
 //	@Summary		Semantic code search
 //	@Description	Search code snippets using semantic similarity
 //	@Tags			search
-//	@Accept			json
 //	@Produce		json
-//	@Param			body	body		dto.SemanticSearchRequest	true	"Semantic search request"
-//	@Success		200		{object}	dto.SearchResponse
-//	@Failure		400		{object}	middleware.JSONAPIErrorResponse
-//	@Failure		500		{object}	middleware.JSONAPIErrorResponse
-//	@Security		APIKeyAuth
-//	@Router			/search/semantic [post]
+//	@Param			query			query		string	true	"Natural language search query"
+//	@Param			language		query		string	false	"Language filter (e.g. py, go)"
+//	@Param			repository_id	query		int		false	"Repository ID filter"
+//	@Param			limit			query		int		false	"Maximum results (default 10)"
+//	@Success		200				{object}	dto.SearchResponse
+//	@Failure		400				{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500				{object}	middleware.JSONAPIErrorResponse
+//	@Router			/search/semantic [get]
 func (r *SearchRouter) SemanticSearch(w http.ResponseWriter, req *http.Request) {
-	ctx := req.Context()
-
-	var body dto.SemanticSearchRequest
-	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	attrs := body.Data.Attributes
-	if attrs.Query == "" {
+	query := req.URL.Query().Get("query")
+	if query == "" {
 		middleware.WriteError(w, req, fmt.Errorf("query is required: %w", middleware.ErrValidation), r.logger)
 		return
 	}
 
-	limit := 10
-	if attrs.Limit != nil && *attrs.Limit > 0 {
-		limit = *attrs.Limit
+	var language *string
+	if l := req.URL.Query().Get("language"); l != "" {
+		language = &l
 	}
 
-	language := normalizeExtension(attrs.Language)
+	var repositoryID *int64
+	if s := req.URL.Query().Get("repository_id"); s != "" {
+		parsed, parseErr := strconv.ParseInt(s, 10, 64)
+		if parseErr != nil {
+			middleware.WriteError(w, req, fmt.Errorf("invalid repository_id: %w", middleware.ErrValidation), r.logger)
+			return
+		}
+		repositoryID = &parsed
+	}
 
-	enrichments, scores, err := r.client.Search.SearchCodeWithScores(ctx, attrs.Query, limit)
+	var limit *int
+	if limitStr := req.URL.Query().Get("limit"); limitStr != "" {
+		parsed, parseErr := strconv.Atoi(limitStr)
+		if parseErr != nil || parsed < 0 {
+			middleware.WriteError(w, req, fmt.Errorf("invalid limit: %w", middleware.ErrValidation), r.logger)
+			return
+		}
+		limit = &parsed
+	}
+
+	r.handleSemanticSearch(w, req, query, language, repositoryID, limit)
+}
+
+func (r *SearchRouter) handleSemanticSearch(w http.ResponseWriter, req *http.Request, query string, languagePtr *string, repositoryID *int64, limitPtr *int) {
+	ctx := req.Context()
+
+	limit := 10
+	if limitPtr != nil && *limitPtr > 0 {
+		limit = *limitPtr
+	}
+
+	language := normalizeExtension(languagePtr)
+
+	enrichments, scores, err := r.client.Search.SearchCodeWithScores(ctx, query, limit)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -130,6 +154,14 @@ func (r *SearchRouter) SemanticSearch(w http.ResponseWriter, req *http.Request) 
 
 	if language != "" {
 		enrichments = filterByLanguage(enrichments, language)
+	}
+
+	if repositoryID != nil {
+		enrichments, err = r.filterByRepository(ctx, enrichments, *repositoryID)
+		if err != nil {
+			middleware.WriteError(w, req, err, r.logger)
+			return
+		}
 	}
 
 	if len(enrichments) > limit {
@@ -145,48 +177,75 @@ func (r *SearchRouter) SemanticSearch(w http.ResponseWriter, req *http.Request) 
 	middleware.WriteJSON(w, http.StatusOK, response)
 }
 
-// KeywordSearch handles POST /api/v1/search/keyword.
+// KeywordSearch handles GET /api/v1/search/keyword.
 //
 //	@Summary		Keyword code search
 //	@Description	Search code snippets using BM25 keyword matching
 //	@Tags			search
-//	@Accept			json
 //	@Produce		json
-//	@Param			body	body		dto.KeywordSearchRequest	true	"Keyword search request"
-//	@Success		200		{object}	dto.SearchResponse
-//	@Failure		400		{object}	middleware.JSONAPIErrorResponse
-//	@Failure		500		{object}	middleware.JSONAPIErrorResponse
-//	@Security		APIKeyAuth
-//	@Router			/search/keyword [post]
+//	@Param			keywords		query		string	true	"Search keywords"
+//	@Param			language		query		string	false	"Language filter (e.g. py, go)"
+//	@Param			repository_id	query		int		false	"Repository ID filter"
+//	@Param			limit			query		int		false	"Maximum results (default 10)"
+//	@Success		200				{object}	dto.SearchResponse
+//	@Failure		400				{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500				{object}	middleware.JSONAPIErrorResponse
+//	@Router			/search/keyword [get]
 func (r *SearchRouter) KeywordSearch(w http.ResponseWriter, req *http.Request) {
-	ctx := req.Context()
-
-	var body dto.KeywordSearchRequest
-	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	attrs := body.Data.Attributes
-	if attrs.Keywords == "" {
+	keywords := req.URL.Query().Get("keywords")
+	if keywords == "" {
 		middleware.WriteError(w, req, fmt.Errorf("keywords is required: %w", middleware.ErrValidation), r.logger)
 		return
 	}
 
-	limit := 10
-	if attrs.Limit != nil && *attrs.Limit > 0 {
-		limit = *attrs.Limit
+	var language *string
+	if l := req.URL.Query().Get("language"); l != "" {
+		language = &l
 	}
 
-	language := normalizeExtension(attrs.Language)
+	var repositoryID *int64
+	if s := req.URL.Query().Get("repository_id"); s != "" {
+		parsed, parseErr := strconv.ParseInt(s, 10, 64)
+		if parseErr != nil {
+			middleware.WriteError(w, req, fmt.Errorf("invalid repository_id: %w", middleware.ErrValidation), r.logger)
+			return
+		}
+		repositoryID = &parsed
+	}
+
+	var limit *int
+	if limitStr := req.URL.Query().Get("limit"); limitStr != "" {
+		parsed, parseErr := strconv.Atoi(limitStr)
+		if parseErr != nil || parsed < 0 {
+			middleware.WriteError(w, req, fmt.Errorf("invalid limit: %w", middleware.ErrValidation), r.logger)
+			return
+		}
+		limit = &parsed
+	}
+
+	r.handleKeywordSearch(w, req, keywords, language, repositoryID, limit)
+}
+
+func (r *SearchRouter) handleKeywordSearch(w http.ResponseWriter, req *http.Request, keywords string, languagePtr *string, repositoryID *int64, limitPtr *int) {
+	ctx := req.Context()
+
+	limit := 10
+	if limitPtr != nil && *limitPtr > 0 {
+		limit = *limitPtr
+	}
+
+	language := normalizeExtension(languagePtr)
 
 	var filterOpts []search.FiltersOption
 	if language != "" {
 		filterOpts = append(filterOpts, search.WithLanguages([]string{language}))
 	}
+	if repositoryID != nil {
+		filterOpts = append(filterOpts, search.WithSourceRepos([]int64{*repositoryID}))
+	}
 	filters := search.NewFilters(filterOpts...)
 
-	enrichments, scores, err := r.client.Search.SearchKeywordsWithScores(ctx, attrs.Keywords, limit, filters)
+	enrichments, scores, err := r.client.Search.SearchKeywordsWithScores(ctx, keywords, limit, filters)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -216,23 +275,27 @@ func (r *SearchRouter) KeywordSearch(w http.ResponseWriter, req *http.Request) {
 //	@Tags			search
 //	@Accept			json
 //	@Produce		json
-//	@Param			repo_url	query		string	true	"Repository remote URL"
-//	@Param			pattern		query		string	true	"Glob/pathspec pattern (e.g. **/*.go, src/*.py)"
-//	@Param			page		query		int		false	"Page number (default: 1)"
-//	@Param			page_size	query		int		false	"Results per page (default: 20, max: 100)"
-//	@Success		200			{object}	dto.LsResponse
-//	@Failure		400			{object}	middleware.JSONAPIErrorResponse
-//	@Failure		404			{object}	middleware.JSONAPIErrorResponse
-//	@Failure		500			{object}	middleware.JSONAPIErrorResponse
-//	@Security		APIKeyAuth
+//	@Param			repository_id	query		int		true	"Repository ID"
+//	@Param			pattern			query		string	true	"Glob/pathspec pattern (e.g. **/*.go, src/*.py)"
+//	@Param			page			query		int		false	"Page number (default: 1)"
+//	@Param			page_size		query		int		false	"Results per page (default: 20, max: 100)"
+//	@Success		200				{object}	dto.LsResponse
+//	@Failure		400				{object}	middleware.JSONAPIErrorResponse
+//	@Failure		404				{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500				{object}	middleware.JSONAPIErrorResponse
 //	@Router			/search/ls [get]
 func (r *SearchRouter) Ls(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 	pagination := ParsePagination(req)
 
-	repoURL := req.URL.Query().Get("repo_url")
-	if repoURL == "" {
-		middleware.WriteError(w, req, fmt.Errorf("repo_url query parameter is required: %w", middleware.ErrValidation), r.logger)
+	repoIDStr := req.URL.Query().Get("repository_id")
+	if repoIDStr == "" {
+		middleware.WriteError(w, req, fmt.Errorf("repository_id query parameter is required: %w", middleware.ErrValidation), r.logger)
+		return
+	}
+	repoID, err := strconv.ParseInt(repoIDStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, fmt.Errorf("invalid repository_id: %w", middleware.ErrValidation), r.logger)
 		return
 	}
 
@@ -242,17 +305,10 @@ func (r *SearchRouter) Ls(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	repos, err := r.client.Repositories.Find(ctx, repository.WithRemoteURL(repoURL))
-	if err != nil {
+	if _, err := r.client.Repositories.Get(ctx, repository.WithID(repoID)); err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
-	if len(repos) == 0 {
-		middleware.WriteError(w, req, fmt.Errorf("repository not found: %w", database.ErrNotFound), r.logger)
-		return
-	}
-	repo := repos[0]
-	repoID := repo.ID()
 
 	commits, err := r.client.Commits.Find(ctx, repository.WithRepoID(repoID), repository.WithOrderDesc("date"), repository.WithLimit(1))
 	if err != nil {
@@ -264,7 +320,12 @@ func (r *SearchRouter) Ls(w http.ResponseWriter, req *http.Request) {
 		commitSHA = commits[0].SHA()
 	}
 
-	files, err := r.client.Blobs.ListFiles(ctx, repoID, pattern)
+	var files []service.FileEntry
+	if commitSHA != "" {
+		files, err = r.client.Blobs.ListFilesForCommit(ctx, repoID, commitSHA, pattern)
+	} else {
+		files, err = r.client.Blobs.ListFiles(ctx, repoID, pattern)
+	}
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -282,18 +343,23 @@ func (r *SearchRouter) Ls(w http.ResponseWriter, req *http.Request) {
 	}
 	page := files[start:end]
 
+	repoIDFmt := strconv.FormatInt(repoID, 10)
 	data := make([]dto.LsFileData, 0, len(page))
 	for _, f := range page {
-		uri := fmt.Sprintf("file://%d/%s/%s", repoID, commitSHA, f.Path)
+		id := f.Path
+		if f.BlobSHA != "" {
+			id = f.BlobSHA
+		}
+		link := fmt.Sprintf("/api/v1/repositories/%s/blob/%s/%s", repoIDFmt, commitSHA, f.Path)
 		data = append(data, dto.LsFileData{
 			Type: "file",
-			ID:   f.Path,
+			ID:   id,
 			Attributes: dto.LsFileAttributes{
 				Path: f.Path,
 				Size: f.Size,
 			},
 			Links: dto.LsFileLinks{
-				Self: uri,
+				Self: link,
 			},
 		})
 	}
@@ -303,6 +369,90 @@ func (r *SearchRouter) Ls(w http.ResponseWriter, req *http.Request) {
 		Meta:  PaginationMeta(pagination, total),
 		Links: PaginationLinks(req, pagination, total),
 	})
+}
+
+// Grep handles GET /api/v1/search/grep.
+//
+//	@Summary		Search file contents with grep
+//	@Description	Search file contents in a repository using git grep with regex patterns
+//	@Tags			search
+//	@Produce		json
+//	@Param			repository_id	query		int		true	"Repository ID"
+//	@Param			pattern			query		string	true	"Regex pattern to search for"
+//	@Param			glob			query		string	false	"File path filter (e.g. *.go, src/**/*.ts)"
+//	@Param			limit			query		int		false	"Maximum number of file results (default 10, max 200)"
+//	@Success		200				{object}	dto.GrepResponse
+//	@Failure		400				{object}	middleware.JSONAPIErrorResponse
+//	@Failure		404				{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500				{object}	middleware.JSONAPIErrorResponse
+//	@Router			/search/grep [get]
+func (r *SearchRouter) Grep(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	repoIDStr := req.URL.Query().Get("repository_id")
+	if repoIDStr == "" {
+		middleware.WriteError(w, req, fmt.Errorf("repository_id query parameter is required: %w", middleware.ErrValidation), r.logger)
+		return
+	}
+	repoID, err := strconv.ParseInt(repoIDStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, fmt.Errorf("invalid repository_id: %w", middleware.ErrValidation), r.logger)
+		return
+	}
+
+	pattern := req.URL.Query().Get("pattern")
+	if pattern == "" {
+		middleware.WriteError(w, req, fmt.Errorf("pattern query parameter is required: %w", middleware.ErrValidation), r.logger)
+		return
+	}
+
+	glob := req.URL.Query().Get("glob")
+
+	limit := 10
+	if limitStr := req.URL.Query().Get("limit"); limitStr != "" {
+		parsed, parseErr := strconv.Atoi(limitStr)
+		if parseErr != nil || parsed < 0 {
+			middleware.WriteError(w, req, fmt.Errorf("invalid limit: %w", middleware.ErrValidation), r.logger)
+			return
+		}
+		limit = parsed
+	}
+	if limit > 200 {
+		limit = 200
+	}
+
+	if _, err := r.client.Repositories.Get(ctx, repository.WithID(repoID)); err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	results, err := r.client.Grep.Search(ctx, repoID, pattern, glob, limit)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	repoIDFmt := strconv.FormatInt(repoID, 10)
+	response := dto.GrepResponse{Data: make([]dto.GrepFileSchema, 0, len(results))}
+	for _, result := range results {
+		matches := make([]dto.GrepMatchSchema, 0, len(result.Matches))
+		for _, m := range result.Matches {
+			matches = append(matches, dto.GrepMatchSchema{
+				Line:    m.Line,
+				Content: m.Content,
+			})
+		}
+		response.Data = append(response.Data, dto.GrepFileSchema{
+			Path:     result.Path,
+			Language: result.Language,
+			Matches:  matches,
+			Links: &dto.GrepFileLinks{
+				File: fmt.Sprintf("/api/v1/repositories/%s/blob/%s/%s", repoIDFmt, result.CommitSHA, result.Path),
+			},
+		})
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, response)
 }
 
 func buildSearchRequest(body dto.SearchRequest) (search.MultiRequest, error) {
@@ -425,6 +575,32 @@ func (r *SearchRouter) resolveAndBuildResponse(
 	return dto.SearchResponse{Data: data}, nil
 }
 
+// filterByRepository returns only enrichments belonging to the given repository.
+func (r *SearchRouter) filterByRepository(ctx context.Context, enrichments []enrichment.Enrichment, repoID int64) ([]enrichment.Enrichment, error) {
+	if len(enrichments) == 0 {
+		return enrichments, nil
+	}
+
+	ids := make([]int64, len(enrichments))
+	for i, e := range enrichments {
+		ids[i] = e.ID()
+	}
+
+	repoIDs, err := r.client.Enrichments.RepositoryIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("resolve repository IDs: %w", err)
+	}
+
+	filtered := make([]enrichment.Enrichment, 0, len(enrichments))
+	for _, e := range enrichments {
+		idStr := strconv.FormatInt(e.ID(), 10)
+		if repoIDs[idStr] == repoID {
+			filtered = append(filtered, e)
+		}
+	}
+	return filtered, nil
+}
+
 // normalizeExtension strips a leading dot so that ".py" and "py" compare equal.
 // Returns empty string for nil input.
 func normalizeExtension(ext *string) string {
@@ -478,16 +654,6 @@ func enrichmentToSearchResult(
 		}
 	}
 
-	derivesFrom := make([]dto.GitFileSchema, len(files))
-	for i, f := range files {
-		derivesFrom[i] = dto.GitFileSchema{
-			BlobSHA:  f.BlobSHA(),
-			Path:     f.Path(),
-			MimeType: f.MimeType(),
-			Size:     f.Size(),
-		}
-	}
-
 	links := snippetLinks(files, commits, repos)
 
 	content := dto.SnippetContentSchema{
@@ -507,7 +673,6 @@ func enrichmentToSearchResult(
 		Attributes: dto.SnippetAttributes{
 			CreatedAt:      &createdAt,
 			UpdatedAt:      &updatedAt,
-			DerivesFrom:    derivesFrom,
 			Content:        content,
 			Enrichments:    enrichmentSchemas,
 			OriginalScores: scores,
@@ -602,6 +767,6 @@ func snippetLinks(files []repository.File, commits map[string]repository.Commit,
 	return &dto.SnippetLinks{
 		Repository: fmt.Sprintf("/api/v1/repositories/%s", repoID),
 		Commit:     fmt.Sprintf("/api/v1/repositories/%s/commits/%s", repoID, commit.SHA()),
-		File:       fmt.Sprintf("/api/v1/repositories/%s/commits/%s/files/%s", repoID, commit.SHA(), file.BlobSHA()),
+		File:       fmt.Sprintf("/api/v1/repositories/%s/blob/%s/%s", repoID, commit.SHA(), file.Path()),
 	}
 }

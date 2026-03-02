@@ -1852,11 +1852,6 @@ const docTemplate = `{
         },
         "/search": {
             "post": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
                 "description": "Hybrid search across code snippets and enrichments",
                 "consumes": [
                     "application/json"
@@ -1901,17 +1896,75 @@ const docTemplate = `{
                 }
             }
         },
-        "/search/keyword": {
-            "post": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Search code snippets using BM25 keyword matching",
-                "consumes": [
+        "/search/grep": {
+            "get": {
+                "description": "Search file contents in a repository using git grep with regex patterns",
+                "produces": [
                     "application/json"
                 ],
+                "tags": [
+                    "search"
+                ],
+                "summary": "Search file contents with grep",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Repository ID",
+                        "name": "repository_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Regex pattern to search for",
+                        "name": "pattern",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "File path filter (e.g. *.go, src/**/*.ts)",
+                        "name": "glob",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of file results (default 10, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GrepResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/search/keyword": {
+            "get": {
+                "description": "Search code snippets using BM25 keyword matching",
                 "produces": [
                     "application/json"
                 ],
@@ -1921,13 +1974,29 @@ const docTemplate = `{
                 "summary": "Keyword code search",
                 "parameters": [
                     {
-                        "description": "Keyword search request",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.KeywordSearchRequest"
-                        }
+                        "type": "string",
+                        "description": "Search keywords",
+                        "name": "keywords",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Language filter (e.g. py, go)",
+                        "name": "language",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Repository ID filter",
+                        "name": "repository_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum results (default 10)",
+                        "name": "limit",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1954,11 +2023,6 @@ const docTemplate = `{
         },
         "/search/ls": {
             "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
                 "description": "Returns files from a repository working copy matching a glob pattern, with file:// URIs",
                 "consumes": [
                     "application/json"
@@ -1972,9 +2036,9 @@ const docTemplate = `{
                 "summary": "List files matching a glob pattern",
                 "parameters": [
                     {
-                        "type": "string",
-                        "description": "Repository remote URL",
-                        "name": "repo_url",
+                        "type": "integer",
+                        "description": "Repository ID",
+                        "name": "repository_id",
                         "in": "query",
                         "required": true
                     },
@@ -2027,16 +2091,8 @@ const docTemplate = `{
             }
         },
         "/search/semantic": {
-            "post": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
+            "get": {
                 "description": "Search code snippets using semantic similarity",
-                "consumes": [
-                    "application/json"
-                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2046,13 +2102,29 @@ const docTemplate = `{
                 "summary": "Semantic code search",
                 "parameters": [
                     {
-                        "description": "Semantic search request",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.SemanticSearchRequest"
-                        }
+                        "type": "string",
+                        "description": "Natural language search query",
+                        "name": "query",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Language filter (e.g. py, go)",
+                        "name": "language",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Repository ID filter",
+                        "name": "repository_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum results (default 10)",
+                        "name": "limit",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -2300,56 +2372,53 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.GitFileSchema": {
+        "dto.GrepFileLinks": {
             "type": "object",
             "properties": {
-                "blob_sha": {
+                "file": {
                     "type": "string"
-                },
-                "mime_type": {
-                    "type": "string"
-                },
-                "path": {
-                    "type": "string"
-                },
-                "size": {
-                    "type": "integer"
                 }
             }
         },
-        "dto.KeywordSearchAttributes": {
+        "dto.GrepFileSchema": {
             "type": "object",
             "properties": {
-                "keywords": {
-                    "type": "string"
-                },
                 "language": {
                     "type": "string"
                 },
-                "limit": {
-                    "type": "integer"
+                "links": {
+                    "$ref": "#/definitions/dto.GrepFileLinks"
                 },
-                "source_repo": {
+                "matches": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.GrepMatchSchema"
+                    }
+                },
+                "path": {
                     "type": "string"
                 }
             }
         },
-        "dto.KeywordSearchData": {
+        "dto.GrepMatchSchema": {
             "type": "object",
             "properties": {
-                "attributes": {
-                    "$ref": "#/definitions/dto.KeywordSearchAttributes"
-                },
-                "type": {
+                "content": {
                     "type": "string"
+                },
+                "line": {
+                    "type": "integer"
                 }
             }
         },
-        "dto.KeywordSearchRequest": {
+        "dto.GrepResponse": {
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/dto.KeywordSearchData"
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.GrepFileSchema"
+                    }
                 }
             }
         },
@@ -2697,42 +2766,6 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.SemanticSearchAttributes": {
-            "type": "object",
-            "properties": {
-                "language": {
-                    "type": "string"
-                },
-                "limit": {
-                    "type": "integer"
-                },
-                "query": {
-                    "type": "string"
-                },
-                "source_repo": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.SemanticSearchData": {
-            "type": "object",
-            "properties": {
-                "attributes": {
-                    "$ref": "#/definitions/dto.SemanticSearchAttributes"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.SemanticSearchRequest": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/dto.SemanticSearchData"
-                }
-            }
-        },
         "dto.SnippetAttributes": {
             "type": "object",
             "properties": {
@@ -2741,12 +2774,6 @@ const docTemplate = `{
                 },
                 "created_at": {
                     "type": "string"
-                },
-                "derives_from": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.GitFileSchema"
-                    }
                 },
                 "enrichments": {
                     "type": "array",

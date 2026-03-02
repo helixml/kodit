@@ -142,39 +142,37 @@ definitions:
       data:
         $ref: '#/definitions/dto.FileData'
     type: object
-  dto.GitFileSchema:
+  dto.GrepFileLinks:
     properties:
-      blob_sha:
+      file:
         type: string
-      mime_type:
-        type: string
-      path:
-        type: string
-      size:
-        type: integer
     type: object
-  dto.KeywordSearchAttributes:
+  dto.GrepFileSchema:
     properties:
-      keywords:
-        type: string
       language:
         type: string
-      limit:
-        type: integer
-      source_repo:
+      links:
+        $ref: '#/definitions/dto.GrepFileLinks'
+      matches:
+        items:
+          $ref: '#/definitions/dto.GrepMatchSchema'
+        type: array
+      path:
         type: string
     type: object
-  dto.KeywordSearchData:
+  dto.GrepMatchSchema:
     properties:
-      attributes:
-        $ref: '#/definitions/dto.KeywordSearchAttributes'
-      type:
+      content:
         type: string
+      line:
+        type: integer
     type: object
-  dto.KeywordSearchRequest:
+  dto.GrepResponse:
     properties:
       data:
-        $ref: '#/definitions/dto.KeywordSearchData'
+        items:
+          $ref: '#/definitions/dto.GrepFileSchema'
+        type: array
     type: object
   dto.LsFileAttributes:
     properties:
@@ -398,39 +396,12 @@ definitions:
           $ref: '#/definitions/dto.SnippetData'
         type: array
     type: object
-  dto.SemanticSearchAttributes:
-    properties:
-      language:
-        type: string
-      limit:
-        type: integer
-      query:
-        type: string
-      source_repo:
-        type: string
-    type: object
-  dto.SemanticSearchData:
-    properties:
-      attributes:
-        $ref: '#/definitions/dto.SemanticSearchAttributes'
-      type:
-        type: string
-    type: object
-  dto.SemanticSearchRequest:
-    properties:
-      data:
-        $ref: '#/definitions/dto.SemanticSearchData'
-    type: object
   dto.SnippetAttributes:
     properties:
       content:
         $ref: '#/definitions/dto.SnippetContentSchema'
       created_at:
         type: string
-      derives_from:
-        items:
-          $ref: '#/definitions/dto.GitFileSchema'
-        type: array
       enrichments:
         items:
           $ref: '#/definitions/dto.EnrichmentSchema'
@@ -1910,23 +1881,75 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/middleware.JSONAPIErrorResponse'
-      security:
-      - APIKeyAuth: []
       summary: Search code
       tags:
       - search
-  /search/keyword:
-    post:
-      consumes:
+  /search/grep:
+    get:
+      description: Search file contents in a repository using git grep with regex
+        patterns
+      parameters:
+      - description: Repository ID
+        in: query
+        name: repository_id
+        required: true
+        type: integer
+      - description: Regex pattern to search for
+        in: query
+        name: pattern
+        required: true
+        type: string
+      - description: File path filter (e.g. *.go, src/**/*.ts)
+        in: query
+        name: glob
+        type: string
+      - description: Maximum number of file results (default 10, max 200)
+        in: query
+        name: limit
+        type: integer
+      produces:
       - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.GrepResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      summary: Search file contents with grep
+      tags:
+      - search
+  /search/keyword:
+    get:
       description: Search code snippets using BM25 keyword matching
       parameters:
-      - description: Keyword search request
-        in: body
-        name: body
+      - description: Search keywords
+        in: query
+        name: keywords
         required: true
-        schema:
-          $ref: '#/definitions/dto.KeywordSearchRequest'
+        type: string
+      - description: Language filter (e.g. py, go)
+        in: query
+        name: language
+        type: string
+      - description: Repository ID filter
+        in: query
+        name: repository_id
+        type: integer
+      - description: Maximum results (default 10)
+        in: query
+        name: limit
+        type: integer
       produces:
       - application/json
       responses:
@@ -1942,8 +1965,6 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/middleware.JSONAPIErrorResponse'
-      security:
-      - APIKeyAuth: []
       summary: Keyword code search
       tags:
       - search
@@ -1954,11 +1975,11 @@ paths:
       description: Returns files from a repository working copy matching a glob pattern,
         with file:// URIs
       parameters:
-      - description: Repository remote URL
+      - description: Repository ID
         in: query
-        name: repo_url
+        name: repository_id
         required: true
-        type: string
+        type: integer
       - description: Glob/pathspec pattern (e.g. **/*.go, src/*.py)
         in: query
         name: pattern
@@ -1991,23 +2012,30 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/middleware.JSONAPIErrorResponse'
-      security:
-      - APIKeyAuth: []
       summary: List files matching a glob pattern
       tags:
       - search
   /search/semantic:
-    post:
-      consumes:
-      - application/json
+    get:
       description: Search code snippets using semantic similarity
       parameters:
-      - description: Semantic search request
-        in: body
-        name: body
+      - description: Natural language search query
+        in: query
+        name: query
         required: true
-        schema:
-          $ref: '#/definitions/dto.SemanticSearchRequest'
+        type: string
+      - description: Language filter (e.g. py, go)
+        in: query
+        name: language
+        type: string
+      - description: Repository ID filter
+        in: query
+        name: repository_id
+        type: integer
+      - description: Maximum results (default 10)
+        in: query
+        name: limit
+        type: integer
       produces:
       - application/json
       responses:
@@ -2023,8 +2051,6 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/middleware.JSONAPIErrorResponse'
-      security:
-      - APIKeyAuth: []
       summary: Semantic code search
       tags:
       - search

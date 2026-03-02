@@ -114,69 +114,6 @@ type TrackingConfigAttributes struct {
 	Value *string `json:"value,omitempty"`
 }
 
-// SnippetContentSchema represents snippet content in search results.
-type SnippetContentSchema struct {
-	Value    string `json:"value"`
-	Language string `json:"language"`
-}
-
-// GitFileSchema represents a git file reference in search results.
-type GitFileSchema struct {
-	BlobSHA  string `json:"blob_sha"`
-	Path     string `json:"path"`
-	MimeType string `json:"mime_type"`
-	Size     int64  `json:"size"`
-}
-
-// EnrichmentSchema represents an enrichment in search results.
-type EnrichmentSchema struct {
-	Type    string `json:"type"`
-	Content string `json:"content"`
-}
-
-// SnippetAttributes represents snippet attributes in search results.
-type SnippetAttributes struct {
-	CreatedAt      *time.Time           `json:"created_at,omitempty"`
-	UpdatedAt      *time.Time           `json:"updated_at,omitempty"`
-	DerivesFrom    []GitFileSchema      `json:"derives_from"`
-	Content        SnippetContentSchema `json:"content"`
-	Enrichments    []EnrichmentSchema   `json:"enrichments"`
-	OriginalScores []float64            `json:"original_scores"`
-}
-
-// SearchFilters represents search filters in JSON:API format.
-type SearchFilters struct {
-	Languages          []string   `json:"languages,omitempty"`
-	Authors            []string   `json:"authors,omitempty"`
-	StartDate          *time.Time `json:"start_date,omitempty"`
-	EndDate            *time.Time `json:"end_date,omitempty"`
-	Sources            []string   `json:"sources,omitempty"`
-	FilePatterns       []string   `json:"file_patterns,omitempty"`
-	EnrichmentTypes    []string   `json:"enrichment_types,omitempty"`
-	EnrichmentSubtypes []string   `json:"enrichment_subtypes,omitempty"`
-	CommitSHA          []string   `json:"commit_sha,omitempty"`
-}
-
-// SearchAttributes represents search request attributes in JSON:API format.
-type SearchAttributes struct {
-	Keywords []string       `json:"keywords,omitempty"`
-	Code     *string        `json:"code,omitempty"`
-	Text     *string        `json:"text,omitempty"`
-	Limit    *int           `json:"limit,omitempty"`
-	Filters  *SearchFilters `json:"filters,omitempty"`
-}
-
-// SearchData represents search request data in JSON:API format.
-type SearchData struct {
-	Type       string           `json:"type"`
-	Attributes SearchAttributes `json:"attributes"`
-}
-
-// SearchRequest represents a JSON:API search request.
-type SearchRequest struct {
-	Data SearchData `json:"data"`
-}
-
 // Serializer converts domain objects to JSON:API resources.
 type Serializer struct{}
 
@@ -386,28 +323,6 @@ func (s *Serializer) TrackingConfigResource(repoID int64, tc repository.Tracking
 		Value: value,
 	}
 	return NewResource("tracking-config", fmt.Sprintf("%d", repoID), attrs)
-}
-
-// SnippetResourceFromEnrichment converts an enrichment to a JSON:API resource for search results.
-func (s *Serializer) SnippetResourceFromEnrichment(
-	e enrichment.Enrichment,
-	scores []float64,
-) *Resource {
-	createdAt := e.CreatedAt()
-	updatedAt := e.UpdatedAt()
-
-	attrs := &SnippetAttributes{
-		CreatedAt:   &createdAt,
-		UpdatedAt:   &updatedAt,
-		DerivesFrom: []GitFileSchema{},
-		Content: SnippetContentSchema{
-			Value:    e.Content(),
-			Language: e.Language(),
-		},
-		Enrichments:    []EnrichmentSchema{},
-		OriginalScores: scores,
-	}
-	return NewResource("snippet", fmt.Sprintf("%d", e.ID()), attrs)
 }
 
 // isVersionTag checks if a tag name looks like a version tag.

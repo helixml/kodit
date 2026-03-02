@@ -167,6 +167,16 @@ func (ts *TestServer) POST(path string, body any) *http.Response {
 	return resp
 }
 
+// POSTRaw performs a POST request with a raw string body and returns the response.
+func (ts *TestServer) POSTRaw(path string, body string) *http.Response {
+	ts.t.Helper()
+	resp, err := http.Post(ts.URL()+path, "application/json", bytes.NewReader([]byte(body)))
+	if err != nil {
+		ts.t.Fatalf("POST %s: %v", path, err)
+	}
+	return resp
+}
+
 // DELETE performs a DELETE request and returns the response.
 func (ts *TestServer) DELETE(path string) *http.Response {
 	ts.t.Helper()

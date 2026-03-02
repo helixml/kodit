@@ -3,6 +3,7 @@ package middleware
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -32,6 +33,8 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error, logger *slog.
 	var apiErr *APIError
 	var serverErr *ServerError
 	var authErr *AuthenticationError
+	var syntaxErr *json.SyntaxError
+	var unmarshalErr *json.UnmarshalTypeError
 
 	switch {
 	case errors.As(err, &apiErr):
@@ -46,6 +49,14 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error, logger *slog.
 		status = http.StatusUnauthorized
 		title = "Authentication Failed"
 		detail = authErr.Error()
+	case errors.As(err, &syntaxErr):
+		status = http.StatusBadRequest
+		title = "Bad Request"
+		detail = fmt.Sprintf("malformed JSON at offset %d", syntaxErr.Offset)
+	case errors.As(err, &unmarshalErr):
+		status = http.StatusBadRequest
+		title = "Bad Request"
+		detail = fmt.Sprintf("invalid value for field %q", unmarshalErr.Field)
 	case errors.Is(err, database.ErrNotFound):
 		status = http.StatusNotFound
 		title = "Not Found"

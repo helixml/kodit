@@ -39,14 +39,6 @@ type SearchRequest struct {
 	Data SearchData `json:"data"`
 }
 
-// GitFileSchema represents a git file reference in search results.
-type GitFileSchema struct {
-	BlobSHA  string `json:"blob_sha"`
-	Path     string `json:"path"`
-	MimeType string `json:"mime_type"`
-	Size     int64  `json:"size"`
-}
-
 // SnippetContentSchema represents snippet content in search results.
 type SnippetContentSchema struct {
 	Value     string `json:"value"`
@@ -65,7 +57,6 @@ type EnrichmentSchema struct {
 type SnippetAttributes struct {
 	CreatedAt      *time.Time           `json:"created_at,omitempty"`
 	UpdatedAt      *time.Time           `json:"updated_at,omitempty"`
-	DerivesFrom    []GitFileSchema      `json:"derives_from"`
 	Content        SnippetContentSchema `json:"content"`
 	Enrichments    []EnrichmentSchema   `json:"enrichments"`
 	OriginalScores []float64            `json:"original_scores"`
@@ -96,44 +87,6 @@ type SnippetListResponse struct {
 	Data  []SnippetData  `json:"data"`
 	Meta  *jsonapi.Meta  `json:"meta,omitempty"`
 	Links *jsonapi.Links `json:"links,omitempty"`
-}
-
-// SemanticSearchAttributes represents semantic search request attributes.
-type SemanticSearchAttributes struct {
-	Query      string  `json:"query"`
-	Language   *string `json:"language,omitempty"`
-	SourceRepo *string `json:"source_repo,omitempty"`
-	Limit      *int    `json:"limit,omitempty"`
-}
-
-// SemanticSearchData represents semantic search request data in JSON:API format.
-type SemanticSearchData struct {
-	Type       string                   `json:"type"`
-	Attributes SemanticSearchAttributes `json:"attributes"`
-}
-
-// SemanticSearchRequest represents a JSON:API semantic search request.
-type SemanticSearchRequest struct {
-	Data SemanticSearchData `json:"data"`
-}
-
-// KeywordSearchAttributes represents keyword search request attributes.
-type KeywordSearchAttributes struct {
-	Keywords   string  `json:"keywords"`
-	Language   *string `json:"language,omitempty"`
-	SourceRepo *string `json:"source_repo,omitempty"`
-	Limit      *int    `json:"limit,omitempty"`
-}
-
-// KeywordSearchData represents keyword search request data in JSON:API format.
-type KeywordSearchData struct {
-	Type       string                  `json:"type"`
-	Attributes KeywordSearchAttributes `json:"attributes"`
-}
-
-// KeywordSearchRequest represents a JSON:API keyword search request.
-type KeywordSearchRequest struct {
-	Data KeywordSearchData `json:"data"`
 }
 
 // Legacy types for backwards compatibility during migration
