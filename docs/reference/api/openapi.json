@@ -222,55 +222,52 @@
                 },
                 "type": "object"
             },
-            "dto.GitFileSchema": {
+            "dto.GrepFileLinks": {
                 "properties": {
-                    "blob_sha": {
+                    "file": {
                         "type": "string"
-                    },
-                    "mime_type": {
-                        "type": "string"
-                    },
-                    "path": {
-                        "type": "string"
-                    },
-                    "size": {
-                        "type": "integer"
                     }
                 },
                 "type": "object"
             },
-            "dto.KeywordSearchAttributes": {
+            "dto.GrepFileSchema": {
                 "properties": {
-                    "keywords": {
-                        "type": "string"
-                    },
                     "language": {
                         "type": "string"
                     },
-                    "limit": {
-                        "type": "integer"
+                    "links": {
+                        "$ref": "#/components/schemas/dto.GrepFileLinks"
                     },
-                    "source_repo": {
+                    "matches": {
+                        "items": {
+                            "$ref": "#/components/schemas/dto.GrepMatchSchema"
+                        },
+                        "type": "array"
+                    },
+                    "path": {
                         "type": "string"
                     }
                 },
                 "type": "object"
             },
-            "dto.KeywordSearchData": {
+            "dto.GrepMatchSchema": {
                 "properties": {
-                    "attributes": {
-                        "$ref": "#/components/schemas/dto.KeywordSearchAttributes"
-                    },
-                    "type": {
+                    "content": {
                         "type": "string"
+                    },
+                    "line": {
+                        "type": "integer"
                     }
                 },
                 "type": "object"
             },
-            "dto.KeywordSearchRequest": {
+            "dto.GrepResponse": {
                 "properties": {
                     "data": {
-                        "$ref": "#/components/schemas/dto.KeywordSearchData"
+                        "items": {
+                            "$ref": "#/components/schemas/dto.GrepFileSchema"
+                        },
+                        "type": "array"
                     }
                 },
                 "type": "object"
@@ -619,42 +616,6 @@
                 },
                 "type": "object"
             },
-            "dto.SemanticSearchAttributes": {
-                "properties": {
-                    "language": {
-                        "type": "string"
-                    },
-                    "limit": {
-                        "type": "integer"
-                    },
-                    "query": {
-                        "type": "string"
-                    },
-                    "source_repo": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "dto.SemanticSearchData": {
-                "properties": {
-                    "attributes": {
-                        "$ref": "#/components/schemas/dto.SemanticSearchAttributes"
-                    },
-                    "type": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "dto.SemanticSearchRequest": {
-                "properties": {
-                    "data": {
-                        "$ref": "#/components/schemas/dto.SemanticSearchData"
-                    }
-                },
-                "type": "object"
-            },
             "dto.SnippetAttributes": {
                 "properties": {
                     "content": {
@@ -662,12 +623,6 @@
                     },
                     "created_at": {
                         "type": "string"
-                    },
-                    "derives_from": {
-                        "items": {
-                            "$ref": "#/components/schemas/dto.GitFileSchema"
-                        },
-                        "type": "array"
                     },
                     "enrichments": {
                         "items": {
@@ -3308,32 +3263,137 @@
                         "description": "Internal Server Error"
                     }
                 },
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
                 "summary": "Search code",
                 "tags": [
                     "search"
                 ]
             }
         },
-        "/search/keyword": {
-            "post": {
-                "description": "Search code snippets using BM25 keyword matching",
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/dto.KeywordSearchRequest"
-                            }
+        "/search/grep": {
+            "get": {
+                "description": "Search file contents in a repository using git grep with regex patterns",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "query",
+                        "name": "repository_id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
                         }
                     },
-                    "description": "Keyword search request",
-                    "required": true,
-                    "x-originalParamName": "body"
+                    {
+                        "description": "Regex pattern to search for",
+                        "in": "query",
+                        "name": "pattern",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "File path filter (e.g. *.go, src/**/*.ts)",
+                        "in": "query",
+                        "name": "glob",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum number of file results (default 10, max 200)",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.GrepResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
                 },
+                "summary": "Search file contents with grep",
+                "tags": [
+                    "search"
+                ]
+            }
+        },
+        "/search/keyword": {
+            "get": {
+                "description": "Search code snippets using BM25 keyword matching",
+                "parameters": [
+                    {
+                        "description": "Search keywords",
+                        "in": "query",
+                        "name": "keywords",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Language filter (e.g. py, go)",
+                        "in": "query",
+                        "name": "language",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Repository ID filter",
+                        "in": "query",
+                        "name": "repository_id",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Maximum results (default 10)",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "content": {
@@ -3366,11 +3426,6 @@
                         "description": "Internal Server Error"
                     }
                 },
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
                 "summary": "Keyword code search",
                 "tags": [
                     "search"
@@ -3382,12 +3437,12 @@
                 "description": "Returns files from a repository working copy matching a glob pattern, with file:// URIs",
                 "parameters": [
                     {
-                        "description": "Repository remote URL",
+                        "description": "Repository ID",
                         "in": "query",
-                        "name": "repo_url",
+                        "name": "repository_id",
                         "required": true,
                         "schema": {
-                            "type": "string"
+                            "type": "integer"
                         }
                     },
                     {
@@ -3458,11 +3513,6 @@
                         "description": "Internal Server Error"
                     }
                 },
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
                 "summary": "List files matching a glob pattern",
                 "tags": [
                     "search"
@@ -3470,20 +3520,43 @@
             }
         },
         "/search/semantic": {
-            "post": {
+            "get": {
                 "description": "Search code snippets using semantic similarity",
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/dto.SemanticSearchRequest"
-                            }
+                "parameters": [
+                    {
+                        "description": "Natural language search query",
+                        "in": "query",
+                        "name": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
                         }
                     },
-                    "description": "Semantic search request",
-                    "required": true,
-                    "x-originalParamName": "body"
-                },
+                    {
+                        "description": "Language filter (e.g. py, go)",
+                        "in": "query",
+                        "name": "language",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Repository ID filter",
+                        "in": "query",
+                        "name": "repository_id",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Maximum results (default 10)",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "content": {
@@ -3516,11 +3589,6 @@
                         "description": "Internal Server Error"
                     }
                 },
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
                 "summary": "Semantic code search",
                 "tags": [
                     "search"

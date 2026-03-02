@@ -160,6 +160,49 @@ func (b *Blob) ListFiles(ctx context.Context, repoID int64, pattern string) ([]F
 	return entries, nil
 }
 
+// ListFilesForCommit returns files in a specific commit from the git tree, filtered by glob pattern.
+func (b *Blob) ListFilesForCommit(ctx context.Context, repoID int64, commitSHA, pattern string) ([]FileEntry, error) {
+	repo, err := b.repositories.FindOne(ctx, repository.WithID(repoID))
+	if err != nil {
+		return nil, fmt.Errorf("find repository: %w", err)
+	}
+
+	if !repo.HasWorkingCopy() {
+		return nil, fmt.Errorf("repository %d has no working copy", repoID)
+	}
+
+	wc := repo.WorkingCopy()
+	exists, err := b.git.RepositoryExists(ctx, wc.Path())
+	if err != nil {
+		return nil, fmt.Errorf("check repository: %w", err)
+	}
+	if !exists {
+		if err := b.git.CloneRepository(ctx, wc.URI(), wc.Path()); err != nil {
+			return nil, fmt.Errorf("clone repository: %w", err)
+		}
+	}
+
+	files, err := b.git.CommitFiles(ctx, wc.Path(), commitSHA)
+	if err != nil {
+		return nil, fmt.Errorf("commit files: %w", err)
+	}
+
+	matchAll := pattern == "" || pattern == "*" || pattern == "**"
+	entries := make([]FileEntry, 0, len(files))
+	for _, f := range files {
+		if !matchAll && !matchGlob(pattern, f.Path) {
+			continue
+		}
+		entries = append(entries, FileEntry{
+			Path:    f.Path,
+			Size:    f.Size,
+			BlobSHA: f.BlobSHA,
+		})
+	}
+
+	return entries, nil
+}
+
 // Content resolves the blob reference and returns the file content at the given path.
 func (b *Blob) Content(ctx context.Context, repoID int64, blobName, filePath string) (BlobContent, error) {
 	commitSHA, err := b.Resolve(ctx, repoID, blobName)

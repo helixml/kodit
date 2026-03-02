@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"testing"
 )
@@ -17,7 +16,7 @@ func TestLs_MatchesPattern(t *testing.T) {
 	repo := ts.CreateRepositoryWithRealWorkingCopy(repoURL, repoDir)
 	ts.CreateCommit(repo, commitSHA, "initial commit")
 
-	resp := ts.GET(fmt.Sprintf("/api/v1/search/ls?repo_url=%s&pattern=**/*.go", url.QueryEscape(repoURL)))
+	resp := ts.GET(fmt.Sprintf("/api/v1/search/ls?repository_id=%d&pattern=**/*.go", repo.ID()))
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
@@ -27,6 +26,7 @@ func TestLs_MatchesPattern(t *testing.T) {
 
 	var result struct {
 		Data []struct {
+			ID         string `json:"id"`
 			Attributes struct {
 				Path string `json:"path"`
 				Size int64  `json:"size"`
@@ -45,13 +45,23 @@ func TestLs_MatchesPattern(t *testing.T) {
 		t.Errorf("expected src/main.go, got %s", result.Data[0].Attributes.Path)
 	}
 
-	expectedURI := fmt.Sprintf("file://%d/%s/src/main.go", repo.ID(), commitSHA)
-	if result.Data[0].Links.Self != expectedURI {
-		t.Errorf("expected link %s, got %s", expectedURI, result.Data[0].Links.Self)
+	// ID should be the blob SHA (a hex string), not the path
+	id := result.Data[0].ID
+	if id == "src/main.go" {
+		t.Error("ID should be blob SHA, not file path")
+	}
+	if len(id) < 7 {
+		t.Errorf("ID should be a blob SHA (got %q)", id)
+	}
+
+	// Links should use HTTP blob API format, not file:// URIs
+	expectedLink := fmt.Sprintf("/api/v1/repositories/%d/blob/%s/src/main.go", repo.ID(), commitSHA)
+	if result.Data[0].Links.Self != expectedLink {
+		t.Errorf("expected link %s, got %s", expectedLink, result.Data[0].Links.Self)
 	}
 }
 
-func TestLs_MissingRepoURL(t *testing.T) {
+func TestLs_MissingRepositoryID(t *testing.T) {
 	ts := NewTestServer(t)
 
 	resp := ts.GET("/api/v1/search/ls?pattern=*.go")
@@ -66,7 +76,7 @@ func TestLs_MissingRepoURL(t *testing.T) {
 func TestLs_MissingPattern(t *testing.T) {
 	ts := NewTestServer(t)
 
-	resp := ts.GET(fmt.Sprintf("/api/v1/search/ls?repo_url=%s", url.QueryEscape("https://github.com/test/x.git")))
+	resp := ts.GET("/api/v1/search/ls?repository_id=1")
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusBadRequest {
@@ -78,7 +88,7 @@ func TestLs_MissingPattern(t *testing.T) {
 func TestLs_RepoNotFound(t *testing.T) {
 	ts := NewTestServer(t)
 
-	resp := ts.GET(fmt.Sprintf("/api/v1/search/ls?repo_url=%s&pattern=*.go", url.QueryEscape("https://github.com/test/nonexistent.git")))
+	resp := ts.GET("/api/v1/search/ls?repository_id=999999&pattern=*.go")
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNotFound {
@@ -95,7 +105,7 @@ func TestLs_NoMatches(t *testing.T) {
 	_ = repo
 	ts.CreateCommit(repo, commitSHA, "initial commit")
 
-	resp := ts.GET(fmt.Sprintf("/api/v1/search/ls?repo_url=%s&pattern=**/*.rs", url.QueryEscape(repoURL)))
+	resp := ts.GET(fmt.Sprintf("/api/v1/search/ls?repository_id=%d&pattern=**/*.rs", repo.ID()))
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
@@ -121,7 +131,7 @@ func TestLs_AllFiles(t *testing.T) {
 	repo := ts.CreateRepositoryWithRealWorkingCopy(repoURL, repoDir)
 	ts.CreateCommit(repo, commitSHA, "initial commit")
 
-	resp := ts.GET(fmt.Sprintf("/api/v1/search/ls?repo_url=%s&pattern=*", url.QueryEscape(repoURL)))
+	resp := ts.GET(fmt.Sprintf("/api/v1/search/ls?repository_id=%d&pattern=*", repo.ID()))
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
@@ -146,9 +156,10 @@ func TestLs_AllFiles(t *testing.T) {
 		t.Fatalf("expected 2 files, got %d", len(result.Data))
 	}
 
+	expectedPrefix := fmt.Sprintf("/api/v1/repositories/%d/blob/", repo.ID())
 	for _, f := range result.Data {
-		if !strings.HasPrefix(f.Links.Self, "file://") {
-			t.Errorf("expected file:// URI, got %s", f.Links.Self)
+		if !strings.HasPrefix(f.Links.Self, expectedPrefix) {
+			t.Errorf("expected link prefix %s, got %s", expectedPrefix, f.Links.Self)
 		}
 	}
 }

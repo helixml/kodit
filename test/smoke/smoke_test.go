@@ -630,8 +630,8 @@ func TestSmoke(t *testing.T) {
 	})
 
 	t.Run("search_semantic", func(t *testing.T) {
-		body := `{"data":{"type":"semantic_search","attributes":{"query":"HTTP server orders JSON"}}}`
-		resp := postJSON(t, baseURL+"/search/semantic", body)
+		semanticURL := fmt.Sprintf("%s/search/semantic?query=%s", baseURL, url.QueryEscape("HTTP server orders JSON"))
+		resp := getJSON(t, semanticURL)
 		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -649,8 +649,8 @@ func TestSmoke(t *testing.T) {
 	})
 
 	t.Run("search_keyword", func(t *testing.T) {
-		body := `{"data":{"type":"keyword_search","attributes":{"keywords":"orders GET json"}}}`
-		resp := postJSON(t, baseURL+"/search/keyword", body)
+		keywordURL := fmt.Sprintf("%s/search/keyword?keywords=%s", baseURL, url.QueryEscape("orders GET json"))
+		resp := getJSON(t, keywordURL)
 		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -739,8 +739,8 @@ func TestSmoke(t *testing.T) {
 			if !strings.HasSuffix(f.Attributes.Path, ".py") {
 				t.Fatalf("expected .py file, got %s", f.Attributes.Path)
 			}
-			if !strings.HasPrefix(f.Links.Self, "file://") {
-				t.Fatalf("expected file:// URI, got %s", f.Links.Self)
+			if !strings.HasPrefix(f.Links.Self, "/api/v1/repositories/") {
+				t.Fatalf("expected blob API link, got %s", f.Links.Self)
 			}
 		}
 		t.Logf("ls: %d matches", len(result.Data))
@@ -869,16 +869,6 @@ func validateSearchResults(t *testing.T, results []kodit.DtoSnippetData, mode st
 		if result.Attributes == nil {
 			t.Fatalf("%s result %d: expected attributes", mode, i)
 		}
-		if result.Attributes.DerivesFrom != nil && len(*result.Attributes.DerivesFrom) > 0 {
-			for j, df := range *result.Attributes.DerivesFrom {
-				if df.BlobSha == nil || *df.BlobSha == "" {
-					t.Fatalf("%s result %d derives_from %d: expected blob_sha", mode, i, j)
-				}
-				if df.Path == nil || *df.Path == "" {
-					t.Fatalf("%s result %d derives_from %d: expected path", mode, i, j)
-				}
-			}
-		}
 		if result.Attributes.Enrichments != nil && len(*result.Attributes.Enrichments) > 0 {
 			for j, e := range *result.Attributes.Enrichments {
 				if e.Type == nil || *e.Type == "" {
@@ -895,10 +885,6 @@ func validateSearchResults(t *testing.T, results []kodit.DtoSnippetData, mode st
 		if result.Attributes.Content.Value == nil || *result.Attributes.Content.Value == "" {
 			t.Fatalf("%s result %d: expected content value", mode, i)
 		}
-		derivesCount := 0
-		if result.Attributes.DerivesFrom != nil {
-			derivesCount = len(*result.Attributes.DerivesFrom)
-		}
 		enrichmentCount := 0
 		if result.Attributes.Enrichments != nil {
 			enrichmentCount = len(*result.Attributes.Enrichments)
@@ -907,8 +893,8 @@ func validateSearchResults(t *testing.T, results []kodit.DtoSnippetData, mode st
 		if result.Attributes.Content.Language != nil {
 			language = *result.Attributes.Content.Language
 		}
-		t.Logf("%s result %d: id=%s, language=%s, derives_from=%d, enrichments=%d",
-			mode, i, *result.Id, language, derivesCount, enrichmentCount)
+		t.Logf("%s result %d: id=%s, language=%s, enrichments=%d",
+			mode, i, *result.Id, language, enrichmentCount)
 	}
 }
 
@@ -1190,17 +1176,6 @@ func getJSON(t *testing.T, url string) *http.Response {
 	resp, err := httpClient.Get(url)
 	if err != nil {
 		t.Fatalf("GET %s failed: %v", url, err)
-	}
-	return resp
-}
-
-// postJSON sends a POST request with a JSON body and returns the response.
-func postJSON(t *testing.T, url, body string) *http.Response {
-	t.Helper()
-	httpClient := &http.Client{Timeout: 30 * time.Second}
-	resp, err := httpClient.Post(url, "application/json", strings.NewReader(body))
-	if err != nil {
-		t.Fatalf("POST %s failed: %v", url, err)
 	}
 	return resp
 }

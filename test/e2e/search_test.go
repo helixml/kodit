@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/helixml/kodit/domain/enrichment"
@@ -142,7 +143,7 @@ func TestSearch_POST_WithKeywords(t *testing.T) {
 	}
 }
 
-func TestSearch_POST_DerivesFromPopulated(t *testing.T) {
+func TestSearch_POST_LinksUseBlobAPI(t *testing.T) {
 	ts := NewTestServer(t)
 
 	// Seed a repository, commit, and file
@@ -179,134 +180,45 @@ func TestSearch_POST_DerivesFromPopulated(t *testing.T) {
 		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 
-	var result dto.SearchResponse
-	ts.DecodeJSON(resp, &result)
+	// Decode into a raw structure to check for absence of derives_from
+	// and presence of blob API links.
+	var raw struct {
+		Data []struct {
+			Attributes map[string]any `json:"attributes"`
+			Links      *struct {
+				Repository string `json:"repository"`
+				Commit     string `json:"commit"`
+				File       string `json:"file"`
+			} `json:"links"`
+		} `json:"data"`
+	}
+	ts.DecodeJSON(resp, &raw)
 
-	if len(result.Data) == 0 {
+	if len(raw.Data) == 0 {
 		t.Fatal("expected at least one search result")
 	}
 
-	found := false
-	for _, d := range result.Data {
-		if len(d.Attributes.DerivesFrom) == 0 {
-			continue
+	for _, d := range raw.Data {
+		// derives_from must NOT be present
+		if _, ok := d.Attributes["derives_from"]; ok {
+			t.Error("response still contains derives_from field")
 		}
-		for _, df := range d.Attributes.DerivesFrom {
-			if df.BlobSHA == file.BlobSHA() && df.Path == file.Path() {
-				found = true
+
+		// links.file must use the blob API format
+		if d.Links != nil && d.Links.File != "" {
+			expectedPrefix := fmt.Sprintf("/api/v1/repositories/%d/blob/", repo.ID())
+			if !strings.HasPrefix(d.Links.File, expectedPrefix) {
+				t.Errorf("links.file = %s, want prefix %s", d.Links.File, expectedPrefix)
+			}
+			expectedFile := fmt.Sprintf("/api/v1/repositories/%d/blob/%s/%s", repo.ID(), commit.SHA(), file.Path())
+			if d.Links.File != expectedFile {
+				t.Errorf("links.file = %s, want %s", d.Links.File, expectedFile)
 			}
 		}
 	}
-
-	if !found {
-		t.Errorf("derives_from did not contain expected file (blob_sha=%s, path=%s)", file.BlobSHA(), file.Path())
-	}
 }
 
-func TestSemanticSearch_POST_ReturnsEmpty(t *testing.T) {
-	ts := NewTestServer(t)
-
-	body := dto.SemanticSearchRequest{
-		Data: dto.SemanticSearchData{
-			Type: "semantic_search",
-			Attributes: dto.SemanticSearchAttributes{
-				Query: "authentication handler",
-			},
-		},
-	}
-
-	resp := ts.POST("/api/v1/search/semantic", body)
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
-	}
-
-	var result dto.SearchResponse
-	ts.DecodeJSON(resp, &result)
-
-	// No indexed data, so semantic search returns empty
-	if len(result.Data) != 0 {
-		t.Errorf("len(data) = %d, want 0", len(result.Data))
-	}
-}
-
-func TestSemanticSearch_POST_MissingQuery(t *testing.T) {
-	ts := NewTestServer(t)
-
-	body := dto.SemanticSearchRequest{
-		Data: dto.SemanticSearchData{
-			Type: "semantic_search",
-			Attributes: dto.SemanticSearchAttributes{
-				Query: "",
-			},
-		},
-	}
-
-	resp := ts.POST("/api/v1/search/semantic", body)
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusBadRequest)
-	}
-}
-
-func TestKeywordSearch_POST_ReturnsEmpty(t *testing.T) {
-	ts := NewTestServer(t)
-
-	body := dto.KeywordSearchRequest{
-		Data: dto.KeywordSearchData{
-			Type: "keyword_search",
-			Attributes: dto.KeywordSearchAttributes{
-				Keywords: "nonexistent_xyzzy_keyword",
-			},
-		},
-	}
-
-	resp := ts.POST("/api/v1/search/keyword", body)
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
-	}
-
-	var result dto.SearchResponse
-	ts.DecodeJSON(resp, &result)
-
-	if len(result.Data) != 0 {
-		t.Errorf("len(data) = %d, want 0", len(result.Data))
-	}
-}
-
-func TestKeywordSearch_POST_MissingKeywords(t *testing.T) {
-	ts := NewTestServer(t)
-
-	body := dto.KeywordSearchRequest{
-		Data: dto.KeywordSearchData{
-			Type: "keyword_search",
-			Attributes: dto.KeywordSearchAttributes{
-				Keywords: "",
-			},
-		},
-	}
-
-	resp := ts.POST("/api/v1/search/keyword", body)
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusBadRequest)
-	}
-}
-
-func TestKeywordSearch_POST_WithSeededData(t *testing.T) {
+func TestKeywordSearch_GET_WithSeededData(t *testing.T) {
 	ts := NewTestServer(t)
 
 	// Seed a repository, commit, and file
@@ -323,46 +235,44 @@ func TestKeywordSearch_POST_WithSeededData(t *testing.T) {
 	// Seed BM25 so keyword search finds this snippet
 	ts.SeedBM25(fmt.Sprintf("%d", snippet.ID()), "func SearchKeywords query string Result")
 
-	body := dto.KeywordSearchRequest{
-		Data: dto.KeywordSearchData{
-			Type: "keyword_search",
-			Attributes: dto.KeywordSearchAttributes{
-				Keywords: "SearchKeywords",
-			},
-		},
-	}
-
-	resp := ts.POST("/api/v1/search/keyword", body)
+	resp := ts.GET("/api/v1/search/keyword?keywords=SearchKeywords")
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+		body := ts.ReadBody(resp)
+		t.Fatalf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusOK, body)
 	}
 
-	var result dto.SearchResponse
-	ts.DecodeJSON(resp, &result)
+	// Check blob API links
+	var raw struct {
+		Data []struct {
+			Links *struct {
+				File string `json:"file"`
+			} `json:"links"`
+		} `json:"data"`
+	}
+	ts.DecodeJSON(resp, &raw)
 
-	if len(result.Data) == 0 {
+	if len(raw.Data) == 0 {
 		t.Fatal("expected at least one keyword search result")
 	}
 
 	found := false
-	for _, d := range result.Data {
-		for _, df := range d.Attributes.DerivesFrom {
-			if df.BlobSHA == file.BlobSHA() && df.Path == file.Path() {
-				found = true
-			}
+	expectedFile := fmt.Sprintf("/api/v1/repositories/%d/blob/%s/%s", repo.ID(), commit.SHA(), file.Path())
+	for _, d := range raw.Data {
+		if d.Links != nil && d.Links.File == expectedFile {
+			found = true
 		}
 	}
 
 	if !found {
-		t.Errorf("derives_from did not contain expected file (blob_sha=%s, path=%s)", file.BlobSHA(), file.Path())
+		t.Errorf("links.file did not contain expected blob link %s", expectedFile)
 	}
 }
 
-func TestKeywordSearch_POST_WithLanguageFilter(t *testing.T) {
+func TestKeywordSearch_GET_WithLanguageFilter(t *testing.T) {
 	ts := NewTestServer(t)
 
 	repo := ts.CreateRepository("https://github.com/test/language-filter-repo")
@@ -373,24 +283,14 @@ func TestKeywordSearch_POST_WithLanguageFilter(t *testing.T) {
 	ts.SeedBM25(fmt.Sprintf("%d", snippet.ID()), "func HandleRequest http ResponseWriter")
 
 	// Search with language=py — should find nothing since the snippet is Go
-	lang := "py"
-	body := dto.KeywordSearchRequest{
-		Data: dto.KeywordSearchData{
-			Type: "keyword_search",
-			Attributes: dto.KeywordSearchAttributes{
-				Keywords: "HandleRequest",
-				Language: &lang,
-			},
-		},
-	}
-
-	resp := ts.POST("/api/v1/search/keyword", body)
+	resp := ts.GET("/api/v1/search/keyword?keywords=HandleRequest&language=py")
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+		body := ts.ReadBody(resp)
+		t.Fatalf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusOK, body)
 	}
 
 	var result dto.SearchResponse
