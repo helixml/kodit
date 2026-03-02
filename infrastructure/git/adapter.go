@@ -69,6 +69,16 @@ type Adapter interface {
 
 	// CommitDiff returns the diff for a specific commit.
 	CommitDiff(ctx context.Context, localPath string, commitSHA string) (string, error)
+
+	// Grep searches for a pattern in tracked files at a specific commit using git grep.
+	Grep(ctx context.Context, localPath string, commitSHA string, pattern string, pathspec string, maxMatches int) ([]GrepMatch, error)
+}
+
+// GrepMatch holds a single line match from git grep.
+type GrepMatch struct {
+	Path    string
+	Line    int
+	Content string
 }
 
 // CommitInfo holds commit metadata returned from the adapter.

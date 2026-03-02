@@ -69,6 +69,9 @@ func (f *fakeAdapter) AllTags(_ context.Context, _ string) ([]TagInfo, error) { 
 func (f *fakeAdapter) CommitDiff(_ context.Context, _ string, _ string) (string, error) {
 	return "", nil
 }
+func (f *fakeAdapter) Grep(_ context.Context, _ string, _ string, _ string, _ string, _ int) ([]GrepMatch, error) {
+	return nil, nil
+}
 
 func TestUpdate_MissingDirectory(t *testing.T) {
 	fake := &fakeAdapter{}

@@ -79,6 +79,7 @@ type Client struct {
 	Tasks        *service.Queue
 	Tracking     *service.Tracking
 	Search       *service.Search
+	Grep         *service.Grep
 
 	db         database.Database
 	repoStores handler.RepositoryStores
@@ -405,6 +406,7 @@ func New(opts ...Option) (*Client, error) {
 	client.Tasks = queue
 	client.Tracking = trackingSvc
 	client.Search = service.NewSearch(domainEmbedder, textEmbeddingStore, codeEmbeddingStore, bm25Store, enrichmentStore, &client.closed, logger)
+	client.Grep = service.NewGrep(repoStore, commitStore, gitAdapter)
 
 	// Register task handlers
 	if err := client.registerHandlers(); err != nil {

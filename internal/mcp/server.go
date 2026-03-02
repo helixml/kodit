@@ -68,6 +68,11 @@ type FileFinder interface {
 	Find(ctx context.Context, options ...repository.Option) ([]repository.File, error)
 }
 
+// Grepper provides git grep search over repositories.
+type Grepper interface {
+	Search(ctx context.Context, repoID int64, pattern string, pathspec string, maxFiles int) ([]service.GrepResult, error)
+}
+
 // Server wraps the MCP server with kodit-specific tools.
 type Server struct {
 	mcpServer          *server.MCPServer
@@ -79,6 +84,7 @@ type Server struct {
 	keywordSearch      KeywordSearcher
 	enrichmentResolver EnrichmentResolver
 	files              FileFinder
+	grepper            Grepper
 	version            string
 	logger             *slog.Logger
 }
@@ -98,7 +104,8 @@ const instructions = "This server provides access to code knowledge through mult
 	"- get_wiki() - Get the table of contents for a repository's wiki\n" +
 	"- get_wiki_page() - Get the content of a specific wiki page by slug\n" +
 	"- semantic_search() - Find files matching a natural language query (returns resource URIs)\n" +
-	"- keyword_search() - Find files matching keywords using BM25 search (returns resource URIs)\n\n" +
+	"- keyword_search() - Find files matching keywords using BM25 search (returns resource URIs)\n" +
+	"- grep() - Search file contents using git grep with regex patterns (returns resource URIs)\n\n" +
 	"**Reading file content:**\n" +
 	"Use the file resource template: file://{id}/{blob_name}/{+path}\n" +
 	"where id is the repository ID, blob_name is a commit SHA, tag, or branch name, " +
@@ -118,6 +125,7 @@ func NewServer(
 	keywordSearch KeywordSearcher,
 	enrichmentResolver EnrichmentResolver,
 	files FileFinder,
+	grepper Grepper,
 	version string,
 	logger *slog.Logger,
 ) *Server {
@@ -134,6 +142,7 @@ func NewServer(
 		keywordSearch:      keywordSearch,
 		enrichmentResolver: enrichmentResolver,
 		files:              files,
+		grepper:            grepper,
 		version:            version,
 		logger:             logger,
 	}
@@ -277,6 +286,24 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 			mcp.Description("Maximum number of results (default 10)"),
 		),
 	), s.handleKeywordSearch)
+
+	mcpServer.AddTool(mcp.NewTool("grep",
+		mcp.WithDescription("Search file contents in a repository using git grep with regex patterns. Returns matching file URIs with line numbers. Use for exact/regex matching; use keyword_search for fuzzy/semantic matching."),
+		mcp.WithString("repo_url",
+			mcp.Required(),
+			mcp.Description("The remote URL of the repository"),
+		),
+		mcp.WithString("pattern",
+			mcp.Required(),
+			mcp.Description("Regex pattern to search for (git grep syntax)"),
+		),
+		mcp.WithString("glob",
+			mcp.Description("File path filter (e.g. \"*.go\", \"src/**/*.ts\")"),
+		),
+		mcp.WithNumber("limit",
+			mcp.Description("Maximum number of file results (default 50)"),
+		),
+	), s.handleGrep)
 }
 
 // handleGetVersion returns the kodit server version.
@@ -820,6 +847,91 @@ func (s *Server) handleKeywordSearch(ctx context.Context, request mcp.CallToolRe
 	}
 
 	jsonBytes, err := json.Marshal(results)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("marshal results: %v", err)), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+// handleGrep handles the grep tool invocation.
+func (s *Server) handleGrep(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	repoURL, err := request.RequireString("repo_url")
+	if err != nil {
+		return mcp.NewToolResultError("repo_url is required"), nil
+	}
+
+	pattern, err := request.RequireString("pattern")
+	if err != nil {
+		return mcp.NewToolResultError("pattern is required"), nil
+	}
+	if strings.TrimSpace(pattern) == "" {
+		return mcp.NewToolResultError("pattern must not be empty"), nil
+	}
+
+	repos, err := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
+	if err != nil {
+		s.logger.Error("failed to find repository", slog.String("repo_url", repoURL), slog.Any("error", err))
+		return mcp.NewToolResultError(fmt.Sprintf("failed to find repository: %v", err)), nil
+	}
+	if len(repos) == 0 {
+		return mcp.NewToolResultError(fmt.Sprintf("repository not found: %s", repoURL)), nil
+	}
+
+	glob := request.GetString("glob", "")
+	limit := int(request.GetFloat("limit", 50))
+	if limit < 0 {
+		return mcp.NewToolResultError("limit must not be negative"), nil
+	}
+	if limit == 0 {
+		return mcp.NewToolResultText("[]"), nil
+	}
+	if limit > 200 {
+		limit = 200
+	}
+
+	results, err := s.grepper.Search(ctx, repos[0].ID(), pattern, glob, limit)
+	if err != nil {
+		s.logger.Error("grep failed", slog.Any("error", err))
+		return mcp.NewToolResultError(fmt.Sprintf("grep failed: %v", err)), nil
+	}
+
+	if len(results) == 0 {
+		return mcp.NewToolResultText("[]"), nil
+	}
+
+	fileResults := make([]fileResult, 0, len(results))
+	for _, r := range results {
+		if len(r.Matches) == 0 {
+			continue
+		}
+
+		firstLine := r.Matches[0].Line
+		lastLine := r.Matches[len(r.Matches)-1].Line
+
+		uri := NewFileURI(r.RepoID, r.CommitSHA, r.Path)
+		uri = uri.WithLineRange(firstLine, lastLine)
+
+		var preview strings.Builder
+		for i, m := range r.Matches {
+			if i >= 5 {
+				fmt.Fprintf(&preview, "... and %d more matches", len(r.Matches)-i)
+				break
+			}
+			fmt.Fprintf(&preview, "L%d: %s\n", m.Line, m.Content)
+		}
+
+		fileResults = append(fileResults, fileResult{
+			URI:      uri.String(),
+			Path:     r.Path,
+			Language: r.Language,
+			Lines:    fmt.Sprintf("L%d-L%d", firstLine, lastLine),
+			Score:    0,
+			Preview:  strings.TrimSpace(preview.String()),
+		})
+	}
+
+	jsonBytes, err := json.Marshal(fileResults)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("marshal results: %v", err)), nil
 	}

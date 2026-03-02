@@ -19,6 +19,7 @@ import (
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
+	"github.com/helixml/kodit/infrastructure/git"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -124,6 +125,15 @@ type fakeFileFinder struct {
 
 func (f *fakeFileFinder) Find(_ context.Context, _ ...repository.Option) ([]repository.File, error) {
 	return f.files, nil
+}
+
+// fakeGrepper implements Grepper with canned results.
+type fakeGrepper struct {
+	results []service.GrepResult
+}
+
+func (f *fakeGrepper) Search(_ context.Context, _ int64, _ string, _ string, _ int) ([]service.GrepResult, error) {
+	return f.results, nil
 }
 
 // sendMessage marshals a JSON-RPC request, sends it through HandleMessage,
@@ -234,6 +244,7 @@ func testServer() *Server {
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileFinder{},
+		&fakeGrepper{},
 		"1.0.0-test",
 		nil,
 	)
@@ -557,6 +568,7 @@ func semanticSearchServer() *Server {
 			repositoryIDs: map[string]int64{"99": 1},
 		},
 		&fakeFileFinder{files: []repository.File{testFile}},
+		&fakeGrepper{},
 		"1.0.0-test",
 		nil,
 	)
@@ -675,6 +687,7 @@ func TestServer_SemanticSearch_AbsolutePathNormalized(t *testing.T) {
 			repositoryIDs: map[string]int64{"77": 1},
 		},
 		&fakeFileFinder{files: []repository.File{testFile}},
+		&fakeGrepper{},
 		"1.0.0-test",
 		nil,
 	)
@@ -752,6 +765,7 @@ func TestServer_SemanticSearch_LanguageFilterDotPrefix(t *testing.T) {
 			repositoryIDs: map[string]int64{"55": 1},
 		},
 		&fakeFileFinder{files: []repository.File{testFile}},
+		&fakeGrepper{},
 		"1.0.0-test",
 		nil,
 	)
@@ -904,6 +918,7 @@ func TestServer_SemanticSearch_LimitCapsResults(t *testing.T) {
 			repositoryIDs: map[string]int64{"61": 1, "62": 1, "63": 1},
 		},
 		&fakeFileFinder{files: []repository.File{f1, f2, f3}},
+		&fakeGrepper{},
 		"1.0.0-test",
 		nil,
 	)
@@ -1002,6 +1017,7 @@ func TestServer_SemanticSearchThenReadFile(t *testing.T) {
 			repository.ReconstructFile(10, "abc123def456", "src/handler.go", "", "", ".go", ".go", 512,
 				time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
 		}},
+		&fakeGrepper{},
 		"1.0.0-test",
 		nil,
 	)
@@ -1085,6 +1101,7 @@ func TestServer_SemanticSearchThenReadFile_AbsolutePath(t *testing.T) {
 			repository.ReconstructFile(20, "def456abc789", "/root/.kodit/clones/my-repo/bigquery/main.py",
 				"", "", ".py", ".py", 256, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
 		}},
+		&fakeGrepper{},
 		"1.0.0-test",
 		nil,
 	)
@@ -1162,6 +1179,7 @@ func TestServer_SemanticSearchThenReadFile_WithLineRange(t *testing.T) {
 			repository.ReconstructFile(15, "aaa111bbb222", "pkg/core.go", "", "", ".go", ".go", 100,
 				time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
 		}},
+		&fakeGrepper{},
 		"1.0.0-test",
 		nil,
 	)
@@ -1219,6 +1237,7 @@ func TestServer_SemanticSearchNoResults(t *testing.T) {
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileFinder{},
+		&fakeGrepper{},
 		"1.0.0-test",
 		nil,
 	)
@@ -1275,6 +1294,7 @@ func keywordSearchServer() *Server {
 			repositoryIDs: map[string]int64{"99": 1},
 		},
 		&fakeFileFinder{files: []repository.File{testFile}},
+		&fakeGrepper{},
 		"1.0.0-test",
 		nil,
 	)
@@ -1490,6 +1510,7 @@ func TestServer_KeywordSearch_NoResults(t *testing.T) {
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileFinder{},
+		&fakeGrepper{},
 		"1.0.0-test",
 		nil,
 	)
@@ -1602,6 +1623,7 @@ func TestServer_KeywordSearchThenReadFile(t *testing.T) {
 			repositoryIDs: map[string]int64{"99": 1},
 		},
 		&fakeFileFinder{files: []repository.File{testFile}},
+		&fakeGrepper{},
 		"1.0.0-test",
 		nil,
 	)
@@ -1718,6 +1740,7 @@ func wikiServer() *Server {
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileFinder{},
+		&fakeGrepper{},
 		"1.0.0-test",
 		nil,
 	)
@@ -1794,6 +1817,7 @@ func TestServer_GetWiki_NoWiki(t *testing.T) {
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileFinder{},
+		&fakeGrepper{},
 		"1.0.0-test",
 		nil,
 	)
@@ -1995,5 +2019,213 @@ func TestServer_KeywordSearch_HTTP(t *testing.T) {
 	}
 	if text == "" {
 		t.Fatal("keyword_search via HTTP returned empty result")
+	}
+}
+
+func grepServer() *Server {
+	return NewServer(
+		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{},
+		&fakeFileContentReader{content: []byte("placeholder"), commitSHA: "abc1234567890"},
+		&fakeSemanticSearcher{},
+		&fakeKeywordSearcher{},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{},
+			lineRanges:    map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{},
+		},
+		&fakeFileFinder{},
+		&fakeGrepper{
+			results: []service.GrepResult{
+				{
+					Path:      "src/main.go",
+					Language:  ".go",
+					CommitSHA: "abc1234567890",
+					RepoID:    1,
+					Matches: []git.GrepMatch{
+						{Path: "src/main.go", Line: 10, Content: "func main() {"},
+						{Path: "src/main.go", Line: 25, Content: "func helper() {"},
+					},
+				},
+				{
+					Path:      "src/util.go",
+					Language:  ".go",
+					CommitSHA: "abc1234567890",
+					RepoID:    1,
+					Matches: []git.GrepMatch{
+						{Path: "src/util.go", Line: 5, Content: "func parse() {"},
+					},
+				},
+			},
+		},
+		"1.0.0-test",
+		nil,
+	)
+}
+
+func TestServer_Grep(t *testing.T) {
+	srv := grepServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "grep",
+		"arguments": map[string]any{
+			"repo_url": "https://github.com/example/repo",
+			"pattern":  "func.*\\(",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+
+	var items []fileResult
+	if err := json.Unmarshal([]byte(text), &items); err != nil {
+		t.Fatalf("unmarshal grep results: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(items))
+	}
+
+	item := items[0]
+	if item.Path != "src/main.go" {
+		t.Errorf("expected path src/main.go, got %s", item.Path)
+	}
+	if item.Language != ".go" {
+		t.Errorf("expected language .go, got %s", item.Language)
+	}
+	if item.Lines != "L10-L25" {
+		t.Errorf("expected lines L10-L25, got %s", item.Lines)
+	}
+	if item.URI != "file://1/abc1234567890/src/main.go?lines=L10-L25&line_numbers=true" {
+		t.Errorf("expected URI with line range, got %s", item.URI)
+	}
+	if item.Preview == "" {
+		t.Error("expected non-empty preview")
+	}
+
+	item2 := items[1]
+	if item2.Path != "src/util.go" {
+		t.Errorf("expected path src/util.go, got %s", item2.Path)
+	}
+	if item2.Lines != "L5-L5" {
+		t.Errorf("expected lines L5-L5, got %s", item2.Lines)
+	}
+}
+
+func TestServer_Grep_MissingPattern(t *testing.T) {
+	srv := grepServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "grep",
+		"arguments": map[string]any{
+			"repo_url": "https://github.com/example/repo",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if !result.IsError {
+		t.Fatal("expected error response")
+	}
+	text := textFromContent(t, result)
+	if !containsStr(text, "pattern is required") {
+		t.Errorf("expected 'pattern is required' error, got: %s", text)
+	}
+}
+
+func TestServer_Grep_EmptyPattern(t *testing.T) {
+	srv := grepServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "grep",
+		"arguments": map[string]any{
+			"repo_url": "https://github.com/example/repo",
+			"pattern":  "   ",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if !result.IsError {
+		t.Fatal("expected error for whitespace-only pattern")
+	}
+	text := textFromContent(t, result)
+	if !containsStr(text, "pattern must not be empty") {
+		t.Errorf("expected 'pattern must not be empty' error, got: %s", text)
+	}
+}
+
+func TestServer_Grep_NoResults(t *testing.T) {
+	srv := NewServer(
+		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{},
+		&fakeFileContentReader{content: []byte("placeholder"), commitSHA: "abc1234567890"},
+		&fakeSemanticSearcher{},
+		&fakeKeywordSearcher{},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{},
+			lineRanges:    map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{},
+		},
+		&fakeFileFinder{},
+		&fakeGrepper{},
+		"1.0.0-test",
+		nil,
+	)
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "grep",
+		"arguments": map[string]any{
+			"repo_url": "https://github.com/example/repo",
+			"pattern":  "nonexistent",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+	text := textFromContent(t, result)
+	if text != "[]" {
+		t.Errorf("expected empty array, got: %s", text)
+	}
+}
+
+func TestServer_Grep_RepoNotFound(t *testing.T) {
+	srv := grepServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "grep",
+		"arguments": map[string]any{
+			"repo_url": "https://github.com/nonexistent/repo",
+			"pattern":  "test",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if !result.IsError {
+		t.Fatal("expected error for unknown repo")
+	}
+	text := textFromContent(t, result)
+	if !containsStr(text, "repository not found") {
+		t.Errorf("expected 'repository not found' error, got: %s", text)
 	}
 }

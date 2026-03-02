@@ -628,5 +628,46 @@ func guessMimeType(_ string) string {
 	return "application/octet-stream"
 }
 
+// Grep searches for a pattern in tracked files at a specific commit using
+// Gitea's native GrepSearch API (which wraps git grep internally).
+func (g *GiteaAdapter) Grep(ctx context.Context, localPath string, commitSHA string, pattern string, pathspec string, maxMatches int) ([]GrepMatch, error) {
+	repo, err := giteagit.OpenRepository(ctx, localPath)
+	if err != nil {
+		return nil, fmt.Errorf("open repository: %w", err)
+	}
+	defer func() { _ = repo.Close() }()
+
+	opts := giteagit.GrepOptions{
+		RefName:        commitSHA,
+		MaxResultLimit: maxMatches,
+		GrepMode:       giteagit.GrepModeRegexp,
+	}
+	if pathspec != "" {
+		opts.PathspecList = []string{pathspec}
+	}
+
+	results, err := giteagit.GrepSearch(ctx, repo, pattern, opts)
+	if err != nil {
+		return nil, fmt.Errorf("git grep: %w", err)
+	}
+
+	var matches []GrepMatch
+	for _, r := range results {
+		for i, lineNum := range r.LineNumbers {
+			content := ""
+			if i < len(r.LineCodes) {
+				content = r.LineCodes[i]
+			}
+			matches = append(matches, GrepMatch{
+				Path:    r.Filename,
+				Line:    lineNum,
+				Content: content,
+			})
+		}
+	}
+
+	return matches, nil
+}
+
 // Ensure GiteaAdapter implements Adapter.
 var _ Adapter = (*GiteaAdapter)(nil)

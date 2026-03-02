@@ -69,6 +69,7 @@ func (r *RepositoriesRouter) Routes() chi.Router {
 	router.Get("/{id}/tracking-config", r.GetTrackingConfig)
 	router.Put("/{id}/tracking-config", r.UpdateTrackingConfig)
 	router.Get("/{id}/blob/{blob_name}/*", r.GetBlob)
+	router.Get("/{id}/grep", r.Grep)
 
 	return router
 }
@@ -1672,4 +1673,60 @@ func (r *RepositoriesRouter) GetBlob(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", contentType)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(result.Content())
+}
+
+// Grep searches file contents in a repository using git grep.
+func (r *RepositoriesRouter) Grep(w http.ResponseWriter, req *http.Request) {
+	repoID, err := r.repositoryID(req)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	pattern := req.URL.Query().Get("pattern")
+	if pattern == "" {
+		middleware.WriteError(w, req, fmt.Errorf("pattern query parameter is required: %w", middleware.ErrValidation), r.logger)
+		return
+	}
+
+	glob := req.URL.Query().Get("glob")
+
+	limit := 50
+	if limitStr := req.URL.Query().Get("limit"); limitStr != "" {
+		parsed, parseErr := strconv.Atoi(limitStr)
+		if parseErr != nil || parsed < 0 {
+			middleware.WriteError(w, req, fmt.Errorf("invalid limit: %w", middleware.ErrValidation), r.logger)
+			return
+		}
+		limit = parsed
+	}
+	if limit > 200 {
+		limit = 200
+	}
+
+	results, err := r.client.Grep.Search(req.Context(), repoID, pattern, glob, limit)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	response := dto.GrepResponse{Data: make([]dto.GrepFileSchema, 0, len(results))}
+	for _, result := range results {
+		matches := make([]dto.GrepMatchSchema, 0, len(result.Matches))
+		for _, m := range result.Matches {
+			matches = append(matches, dto.GrepMatchSchema{
+				Line:    m.Line,
+				Content: m.Content,
+			})
+		}
+		response.Data = append(response.Data, dto.GrepFileSchema{
+			Path:     result.Path,
+			Language: result.Language,
+			Matches:  matches,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(response)
 }
