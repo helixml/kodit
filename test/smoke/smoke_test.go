@@ -628,6 +628,44 @@ func TestSmoke(t *testing.T) {
 		validateSearchResults(t, *resp.JSON200.Data, "mixed")
 	})
 
+	t.Run("search_semantic", func(t *testing.T) {
+		body := `{"data":{"type":"semantic_search","attributes":{"query":"HTTP server orders JSON"}}}`
+		resp := postJSON(t, baseURL+"/search/semantic", body)
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		var result struct {
+			Data []json.RawMessage `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if len(result.Data) == 0 {
+			t.Fatal("expected at least one semantic search result")
+		}
+		t.Logf("semantic search: %d results", len(result.Data))
+	})
+
+	t.Run("search_keyword", func(t *testing.T) {
+		body := `{"data":{"type":"keyword_search","attributes":{"keywords":"orders GET json"}}}`
+		resp := postJSON(t, baseURL+"/search/keyword", body)
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		var result struct {
+			Data []json.RawMessage `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if len(result.Data) == 0 {
+			t.Fatal("expected at least one keyword search result")
+		}
+		t.Logf("keyword search: %d results", len(result.Data))
+	})
+
 	// MCP tool smoke tests — initialize a session once and reuse it.
 	mcpSessionID := initMCPSession(t)
 
@@ -1028,6 +1066,17 @@ func validateMCPFileResults(t *testing.T, results []mcpFileResult, mode string) 
 		t.Logf("%s result %d: path=%s, language=%s, score=%.4f, lines=%s",
 			mode, i, r.Path, r.Language, r.Score, r.Lines)
 	}
+}
+
+// postJSON sends a POST request with a JSON body and returns the response.
+func postJSON(t *testing.T, url, body string) *http.Response {
+	t.Helper()
+	httpClient := &http.Client{Timeout: 30 * time.Second}
+	resp, err := httpClient.Post(url, "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST %s failed: %v", url, err)
+	}
+	return resp
 }
 
 // verifyHealth checks the /healthz endpoint.

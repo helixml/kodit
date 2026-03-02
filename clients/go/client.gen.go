@@ -198,6 +198,16 @@ type ClientInterface interface {
 	PostSearchWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	PostSearch(ctx context.Context, body PostSearchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostSearchKeywordWithBody request with any body
+	PostSearchKeywordWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostSearchKeyword(ctx context.Context, body PostSearchKeywordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostSearchSemanticWithBody request with any body
+	PostSearchSemanticWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostSearchSemantic(ctx context.Context, body PostSearchSemanticJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) GetEnrichments(ctx context.Context, params *GetEnrichmentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -646,6 +656,54 @@ func (c *Client) PostSearchWithBody(ctx context.Context, contentType string, bod
 
 func (c *Client) PostSearch(ctx context.Context, body PostSearchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostSearchRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostSearchKeywordWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostSearchKeywordRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostSearchKeyword(ctx context.Context, body PostSearchKeywordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostSearchKeywordRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostSearchSemanticWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostSearchSemanticRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostSearchSemantic(ctx context.Context, body PostSearchSemanticJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostSearchSemanticRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2440,6 +2498,86 @@ func NewPostSearchRequestWithBody(server string, contentType string, body io.Rea
 	return req, nil
 }
 
+// NewPostSearchKeywordRequest calls the generic PostSearchKeyword builder with application/json body
+func NewPostSearchKeywordRequest(server string, body PostSearchKeywordJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostSearchKeywordRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostSearchKeywordRequestWithBody generates requests for PostSearchKeyword with any type of body
+func NewPostSearchKeywordRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/search/keyword")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPostSearchSemanticRequest calls the generic PostSearchSemantic builder with application/json body
+func NewPostSearchSemanticRequest(server string, body PostSearchSemanticJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostSearchSemanticRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostSearchSemanticRequestWithBody generates requests for PostSearchSemantic with any type of body
+func NewPostSearchSemanticRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/search/semantic")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -2592,6 +2730,16 @@ type ClientWithResponsesInterface interface {
 	PostSearchWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSearchResponse, error)
 
 	PostSearchWithResponse(ctx context.Context, body PostSearchJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSearchResponse, error)
+
+	// PostSearchKeywordWithBodyWithResponse request with any body
+	PostSearchKeywordWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSearchKeywordResponse, error)
+
+	PostSearchKeywordWithResponse(ctx context.Context, body PostSearchKeywordJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSearchKeywordResponse, error)
+
+	// PostSearchSemanticWithBodyWithResponse request with any body
+	PostSearchSemanticWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSearchSemanticResponse, error)
+
+	PostSearchSemanticWithResponse(ctx context.Context, body PostSearchSemanticJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSearchSemanticResponse, error)
 }
 
 type GetEnrichmentsResponse struct {
@@ -3394,6 +3542,54 @@ func (r PostSearchResponse) StatusCode() int {
 	return 0
 }
 
+type PostSearchKeywordResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DtoSearchResponse
+	JSON400      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r PostSearchKeywordResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostSearchKeywordResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PostSearchSemanticResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DtoSearchResponse
+	JSON400      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r PostSearchSemanticResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostSearchSemanticResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 // GetEnrichmentsWithResponse request returning *GetEnrichmentsResponse
 func (c *ClientWithResponses) GetEnrichmentsWithResponse(ctx context.Context, params *GetEnrichmentsParams, reqEditors ...RequestEditorFn) (*GetEnrichmentsResponse, error) {
 	rsp, err := c.GetEnrichments(ctx, params, reqEditors...)
@@ -3730,6 +3926,40 @@ func (c *ClientWithResponses) PostSearchWithResponse(ctx context.Context, body P
 		return nil, err
 	}
 	return ParsePostSearchResponse(rsp)
+}
+
+// PostSearchKeywordWithBodyWithResponse request with arbitrary body returning *PostSearchKeywordResponse
+func (c *ClientWithResponses) PostSearchKeywordWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSearchKeywordResponse, error) {
+	rsp, err := c.PostSearchKeywordWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostSearchKeywordResponse(rsp)
+}
+
+func (c *ClientWithResponses) PostSearchKeywordWithResponse(ctx context.Context, body PostSearchKeywordJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSearchKeywordResponse, error) {
+	rsp, err := c.PostSearchKeyword(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostSearchKeywordResponse(rsp)
+}
+
+// PostSearchSemanticWithBodyWithResponse request with arbitrary body returning *PostSearchSemanticResponse
+func (c *ClientWithResponses) PostSearchSemanticWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSearchSemanticResponse, error) {
+	rsp, err := c.PostSearchSemanticWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostSearchSemanticResponse(rsp)
+}
+
+func (c *ClientWithResponses) PostSearchSemanticWithResponse(ctx context.Context, body PostSearchSemanticJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSearchSemanticResponse, error) {
+	rsp, err := c.PostSearchSemantic(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostSearchSemanticResponse(rsp)
 }
 
 // ParseGetEnrichmentsResponse parses an HTTP response from a GetEnrichmentsWithResponse call
@@ -4943,6 +5173,86 @@ func ParsePostSearchResponse(rsp *http.Response) (*PostSearchResponse, error) {
 	}
 
 	response := &PostSearchResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DtoSearchResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostSearchKeywordResponse parses an HTTP response from a PostSearchKeywordWithResponse call
+func ParsePostSearchKeywordResponse(rsp *http.Response) (*PostSearchKeywordResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostSearchKeywordResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DtoSearchResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostSearchSemanticResponse parses an HTTP response from a PostSearchSemanticWithResponse call
+func ParsePostSearchSemanticResponse(rsp *http.Response) (*PostSearchSemanticResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostSearchSemanticResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
