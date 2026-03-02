@@ -504,7 +504,7 @@ func (s Search) SearchCode(ctx context.Context, query string, topK int) ([]enric
 
 // SearchCodeWithScores performs code vector search and returns enrichments
 // together with their similarity scores (keyed by enrichment ID string).
-func (s Search) SearchCodeWithScores(ctx context.Context, query string, topK int) ([]enrichment.Enrichment, map[string]float64, error) {
+func (s Search) SearchCodeWithScores(ctx context.Context, query string, topK int, filters search.Filters) ([]enrichment.Enrichment, map[string]float64, error) {
 	if s.codeVectorStore == nil || s.embedder == nil {
 		return nil, nil, nil
 	}
@@ -523,6 +523,7 @@ func (s Search) SearchCodeWithScores(ctx context.Context, query string, topK int
 
 	results, err := s.codeVectorStore.Search(ctx,
 		search.WithEmbedding(embeddings[0]),
+		search.WithFilters(filters),
 		repository.WithLimit(topK),
 	)
 	if err != nil {

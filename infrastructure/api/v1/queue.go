@@ -55,7 +55,11 @@ func (r *QueueRouter) Routes() chi.Router {
 //	@Router			/queue [get]
 func (r *QueueRouter) ListTasks(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	pagination := ParsePagination(req)
+	pagination, err := ParsePagination(req)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
 
 	params := &service.TaskListParams{
 		Limit:  pagination.Limit(),

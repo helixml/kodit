@@ -77,7 +77,11 @@ func (r *EnrichmentsRouter) List(w http.ResponseWriter, req *http.Request) {
 		params.Subtype = &s
 	}
 
-	pagination := ParsePagination(req)
+	pagination, err := ParsePagination(req)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
 	params.Limit = pagination.Limit()
 	params.Offset = pagination.Offset()
 

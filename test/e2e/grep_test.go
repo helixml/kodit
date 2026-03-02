@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"testing"
 )
 
@@ -77,6 +78,61 @@ func TestSearchGrep_MissingPattern(t *testing.T) {
 	ts := NewTestServer(t)
 
 	resp := ts.GET("/api/v1/search/grep?repository_id=1")
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		body := ts.ReadBody(resp)
+		t.Errorf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusBadRequest, body)
+	}
+}
+
+func TestSearchGrep_InvalidRegex_Returns400(t *testing.T) {
+	ts := NewTestServer(t)
+	repoDir, commitSHA := initGitRepo(t)
+
+	repoURL := "https://github.com/test/grep-invalid-regex.git"
+	repo := ts.CreateRepositoryWithRealWorkingCopy(repoURL, repoDir)
+	ts.CreateCommit(repo, commitSHA, "initial commit")
+
+	// "[invalid" is a malformed regex (unclosed bracket).
+	resp := ts.GET(fmt.Sprintf("/api/v1/search/grep?repository_id=%d&pattern=%s",
+		repo.ID(), url.QueryEscape("[invalid")))
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		body := ts.ReadBody(resp)
+		t.Errorf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusBadRequest, body)
+	}
+}
+
+func TestSearchGrep_PathTraversalGlob_Returns400(t *testing.T) {
+	ts := NewTestServer(t)
+	repoDir, commitSHA := initGitRepo(t)
+
+	repoURL := "https://github.com/test/grep-path-traversal.git"
+	repo := ts.CreateRepositoryWithRealWorkingCopy(repoURL, repoDir)
+	ts.CreateCommit(repo, commitSHA, "initial commit")
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/search/grep?repository_id=%d&pattern=test&glob=%s",
+		repo.ID(), url.QueryEscape("../../etc/*")))
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		body := ts.ReadBody(resp)
+		t.Errorf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusBadRequest, body)
+	}
+}
+
+func TestSearchGrep_LimitZero_Returns400(t *testing.T) {
+	ts := NewTestServer(t)
+	repoDir, commitSHA := initGitRepo(t)
+
+	repoURL := "https://github.com/test/grep-limit-zero.git"
+	repo := ts.CreateRepositoryWithRealWorkingCopy(repoURL, repoDir)
+	ts.CreateCommit(repo, commitSHA, "initial commit")
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/search/grep?repository_id=%d&pattern=func&limit=0",
+		repo.ID()))
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusBadRequest {

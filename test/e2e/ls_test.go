@@ -123,6 +123,78 @@ func TestLs_NoMatches(t *testing.T) {
 	}
 }
 
+func TestLs_PageZero_Returns400(t *testing.T) {
+	ts := NewTestServer(t)
+	repoDir, commitSHA := initGitRepo(t)
+
+	repoURL := "https://github.com/test/ls-page-zero.git"
+	repo := ts.CreateRepositoryWithRealWorkingCopy(repoURL, repoDir)
+	ts.CreateCommit(repo, commitSHA, "initial commit")
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/search/ls?repository_id=%d&pattern=*&page=0",
+		repo.ID()))
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		body := ts.ReadBody(resp)
+		t.Errorf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusBadRequest, body)
+	}
+}
+
+func TestLs_PageNegative_Returns400(t *testing.T) {
+	ts := NewTestServer(t)
+	repoDir, commitSHA := initGitRepo(t)
+
+	repoURL := "https://github.com/test/ls-page-negative.git"
+	repo := ts.CreateRepositoryWithRealWorkingCopy(repoURL, repoDir)
+	ts.CreateCommit(repo, commitSHA, "initial commit")
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/search/ls?repository_id=%d&pattern=*&page=-1",
+		repo.ID()))
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		body := ts.ReadBody(resp)
+		t.Errorf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusBadRequest, body)
+	}
+}
+
+func TestLs_PageSizeZero_Returns400(t *testing.T) {
+	ts := NewTestServer(t)
+	repoDir, commitSHA := initGitRepo(t)
+
+	repoURL := "https://github.com/test/ls-pagesize-zero.git"
+	repo := ts.CreateRepositoryWithRealWorkingCopy(repoURL, repoDir)
+	ts.CreateCommit(repo, commitSHA, "initial commit")
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/search/ls?repository_id=%d&pattern=*&page_size=0",
+		repo.ID()))
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		body := ts.ReadBody(resp)
+		t.Errorf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusBadRequest, body)
+	}
+}
+
+func TestLs_PageSizeNegative_Returns400(t *testing.T) {
+	ts := NewTestServer(t)
+	repoDir, commitSHA := initGitRepo(t)
+
+	repoURL := "https://github.com/test/ls-pagesize-negative.git"
+	repo := ts.CreateRepositoryWithRealWorkingCopy(repoURL, repoDir)
+	ts.CreateCommit(repo, commitSHA, "initial commit")
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/search/ls?repository_id=%d&pattern=*&page_size=-1",
+		repo.ID()))
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		body := ts.ReadBody(resp)
+		t.Errorf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusBadRequest, body)
+	}
+}
+
 func TestLs_AllFiles(t *testing.T) {
 	ts := NewTestServer(t)
 	repoDir, commitSHA := initGitRepo(t)

@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"regexp/syntax"
 	"strconv"
 	"strings"
 
@@ -64,6 +66,10 @@ func (r *SearchRouter) Search(w http.ResponseWriter, req *http.Request) {
 
 	var body dto.SearchRequest
 	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		if err == io.EOF {
+			middleware.WriteError(w, req, fmt.Errorf("request body is required: %w", middleware.ErrValidation), r.logger)
+			return
+		}
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
@@ -102,7 +108,7 @@ func (r *SearchRouter) Search(w http.ResponseWriter, req *http.Request) {
 //	@Failure		500				{object}	middleware.JSONAPIErrorResponse
 //	@Router			/search/semantic [get]
 func (r *SearchRouter) SemanticSearch(w http.ResponseWriter, req *http.Request) {
-	query := req.URL.Query().Get("query")
+	query := strings.TrimSpace(req.URL.Query().Get("query"))
 	if query == "" {
 		middleware.WriteError(w, req, fmt.Errorf("query is required: %w", middleware.ErrValidation), r.logger)
 		return
@@ -116,7 +122,7 @@ func (r *SearchRouter) SemanticSearch(w http.ResponseWriter, req *http.Request) 
 	var repositoryID *int64
 	if s := req.URL.Query().Get("repository_id"); s != "" {
 		parsed, parseErr := strconv.ParseInt(s, 10, 64)
-		if parseErr != nil {
+		if parseErr != nil || parsed < 1 {
 			middleware.WriteError(w, req, fmt.Errorf("invalid repository_id: %w", middleware.ErrValidation), r.logger)
 			return
 		}
@@ -126,8 +132,8 @@ func (r *SearchRouter) SemanticSearch(w http.ResponseWriter, req *http.Request) 
 	var limit *int
 	if limitStr := req.URL.Query().Get("limit"); limitStr != "" {
 		parsed, parseErr := strconv.Atoi(limitStr)
-		if parseErr != nil || parsed < 0 {
-			middleware.WriteError(w, req, fmt.Errorf("invalid limit: %w", middleware.ErrValidation), r.logger)
+		if parseErr != nil || parsed < 1 {
+			middleware.WriteError(w, req, fmt.Errorf("limit must be at least 1: %w", middleware.ErrValidation), r.logger)
 			return
 		}
 		limit = &parsed
@@ -144,24 +150,28 @@ func (r *SearchRouter) handleSemanticSearch(w http.ResponseWriter, req *http.Req
 		limit = *limitPtr
 	}
 
-	language := normalizeExtension(languagePtr)
-
-	enrichments, scores, err := r.client.Search.SearchCodeWithScores(ctx, query, limit)
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	if language != "" {
-		enrichments = filterByLanguage(enrichments, language)
-	}
-
 	if repositoryID != nil {
-		enrichments, err = r.filterByRepository(ctx, enrichments, *repositoryID)
-		if err != nil {
+		if _, err := r.client.Repositories.Get(ctx, repository.WithID(*repositoryID)); err != nil {
 			middleware.WriteError(w, req, err, r.logger)
 			return
 		}
+	}
+
+	language := normalizeExtension(languagePtr)
+
+	var filterOpts []search.FiltersOption
+	if language != "" {
+		filterOpts = append(filterOpts, search.WithLanguages([]string{language}))
+	}
+	if repositoryID != nil {
+		filterOpts = append(filterOpts, search.WithSourceRepos([]int64{*repositoryID}))
+	}
+	filters := search.NewFilters(filterOpts...)
+
+	enrichments, scores, err := r.client.Search.SearchCodeWithScores(ctx, query, limit, filters)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
 	}
 
 	if len(enrichments) > limit {
@@ -206,7 +216,7 @@ func (r *SearchRouter) KeywordSearch(w http.ResponseWriter, req *http.Request) {
 	var repositoryID *int64
 	if s := req.URL.Query().Get("repository_id"); s != "" {
 		parsed, parseErr := strconv.ParseInt(s, 10, 64)
-		if parseErr != nil {
+		if parseErr != nil || parsed < 1 {
 			middleware.WriteError(w, req, fmt.Errorf("invalid repository_id: %w", middleware.ErrValidation), r.logger)
 			return
 		}
@@ -216,8 +226,8 @@ func (r *SearchRouter) KeywordSearch(w http.ResponseWriter, req *http.Request) {
 	var limit *int
 	if limitStr := req.URL.Query().Get("limit"); limitStr != "" {
 		parsed, parseErr := strconv.Atoi(limitStr)
-		if parseErr != nil || parsed < 0 {
-			middleware.WriteError(w, req, fmt.Errorf("invalid limit: %w", middleware.ErrValidation), r.logger)
+		if parseErr != nil || parsed < 1 {
+			middleware.WriteError(w, req, fmt.Errorf("limit must be at least 1: %w", middleware.ErrValidation), r.logger)
 			return
 		}
 		limit = &parsed
@@ -232,6 +242,13 @@ func (r *SearchRouter) handleKeywordSearch(w http.ResponseWriter, req *http.Requ
 	limit := 10
 	if limitPtr != nil && *limitPtr > 0 {
 		limit = *limitPtr
+	}
+
+	if repositoryID != nil {
+		if _, err := r.client.Repositories.Get(ctx, repository.WithID(*repositoryID)); err != nil {
+			middleware.WriteError(w, req, err, r.logger)
+			return
+		}
 	}
 
 	language := normalizeExtension(languagePtr)
@@ -286,7 +303,11 @@ func (r *SearchRouter) handleKeywordSearch(w http.ResponseWriter, req *http.Requ
 //	@Router			/search/ls [get]
 func (r *SearchRouter) Ls(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	pagination := ParsePagination(req)
+	pagination, err := ParsePagination(req)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
 
 	repoIDStr := req.URL.Query().Get("repository_id")
 	if repoIDStr == "" {
@@ -406,13 +427,22 @@ func (r *SearchRouter) Grep(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	if _, err := syntax.Parse(pattern, syntax.Perl); err != nil {
+		middleware.WriteError(w, req, fmt.Errorf("invalid regex pattern: %w", middleware.ErrValidation), r.logger)
+		return
+	}
+
 	glob := req.URL.Query().Get("glob")
+	if strings.Contains(glob, "..") {
+		middleware.WriteError(w, req, fmt.Errorf("glob must not contain path traversal: %w", middleware.ErrValidation), r.logger)
+		return
+	}
 
 	limit := 10
 	if limitStr := req.URL.Query().Get("limit"); limitStr != "" {
 		parsed, parseErr := strconv.Atoi(limitStr)
-		if parseErr != nil || parsed < 0 {
-			middleware.WriteError(w, req, fmt.Errorf("invalid limit: %w", middleware.ErrValidation), r.logger)
+		if parseErr != nil || parsed < 1 {
+			middleware.WriteError(w, req, fmt.Errorf("limit must be at least 1: %w", middleware.ErrValidation), r.logger)
 			return
 		}
 		limit = parsed
@@ -573,32 +603,6 @@ func (r *SearchRouter) resolveAndBuildResponse(
 	}
 
 	return dto.SearchResponse{Data: data}, nil
-}
-
-// filterByRepository returns only enrichments belonging to the given repository.
-func (r *SearchRouter) filterByRepository(ctx context.Context, enrichments []enrichment.Enrichment, repoID int64) ([]enrichment.Enrichment, error) {
-	if len(enrichments) == 0 {
-		return enrichments, nil
-	}
-
-	ids := make([]int64, len(enrichments))
-	for i, e := range enrichments {
-		ids[i] = e.ID()
-	}
-
-	repoIDs, err := r.client.Enrichments.RepositoryIDs(ctx, ids)
-	if err != nil {
-		return nil, fmt.Errorf("resolve repository IDs: %w", err)
-	}
-
-	filtered := make([]enrichment.Enrichment, 0, len(enrichments))
-	for _, e := range enrichments {
-		idStr := strconv.FormatInt(e.ID(), 10)
-		if repoIDs[idStr] == repoID {
-			filtered = append(filtered, e)
-		}
-	}
-	return filtered, nil
 }
 
 // normalizeExtension strips a leading dot so that ".py" and "py" compare equal.

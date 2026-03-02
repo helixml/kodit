@@ -48,7 +48,7 @@ type FileContentReader interface {
 
 // SemanticSearcher provides code vector search with scores.
 type SemanticSearcher interface {
-	SearchCodeWithScores(ctx context.Context, query string, topK int) ([]enrichment.Enrichment, map[string]float64, error)
+	SearchCodeWithScores(ctx context.Context, query string, topK int, filters search.Filters) ([]enrichment.Enrichment, map[string]float64, error)
 }
 
 // KeywordSearcher provides BM25 keyword search with scores.
@@ -751,21 +751,19 @@ func (s *Server) handleSemanticSearch(ctx context.Context, request mcp.CallToolR
 		sourceRepoID = repos[0].ID()
 	}
 
-	enrichments, scores, err := s.semanticSearch.SearchCodeWithScores(ctx, query, limit)
+	var filterOpts []search.FiltersOption
+	if language != "" {
+		filterOpts = append(filterOpts, search.WithLanguages([]string{language}))
+	}
+	if sourceRepoID > 0 {
+		filterOpts = append(filterOpts, search.WithSourceRepos([]int64{sourceRepoID}))
+	}
+	filters := search.NewFilters(filterOpts...)
+
+	enrichments, scores, err := s.semanticSearch.SearchCodeWithScores(ctx, query, limit, filters)
 	if err != nil {
 		s.logger.Error("semantic search failed", slog.Any("error", err))
 		return mcp.NewToolResultError(fmt.Sprintf("semantic search failed: %v", err)), nil
-	}
-
-	// Post-filter by language if specified.
-	if language != "" {
-		filtered := make([]enrichment.Enrichment, 0, len(enrichments))
-		for _, e := range enrichments {
-			if normalizeExtension(e.Language()) == language {
-				filtered = append(filtered, e)
-			}
-		}
-		enrichments = filtered
 	}
 
 	// Cap results to the requested limit.
