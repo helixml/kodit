@@ -1999,11 +1999,53 @@ func TestServer_Ls(t *testing.T) {
 	if len(results) != 3 {
 		t.Fatalf("expected 3 results, got %d", len(results))
 	}
-	if results[0].Path != "README.md" {
-		t.Errorf("expected README.md, got %s", results[0].Path)
+	if results[0].URI != "file://1/abc1234567890/README.md" {
+		t.Errorf("expected file://1/abc1234567890/README.md, got %s", results[0].URI)
 	}
-	if results[1].Extension != ".go" {
-		t.Errorf("expected .go extension, got %s", results[1].Extension)
+	if results[1].URI != "file://1/abc1234567890/src/main.go" {
+		t.Errorf("expected file://1/abc1234567890/src/main.go, got %s", results[1].URI)
+	}
+}
+
+func TestServer_Ls_ReturnsFileURIs(t *testing.T) {
+	files := []service.FileEntry{
+		{Path: "README.md", Size: 100},
+		{Path: "src/main.go", Size: 200},
+	}
+	srv := lsServer(files)
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "ls",
+		"arguments": map[string]any{
+			"repo_url": "https://github.com/example/repo",
+			"pattern":  "**/*",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+	var results []lsResult
+	if err := json.Unmarshal([]byte(text), &results); err != nil {
+		t.Fatalf("unmarshal results: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+
+	// testRepo() has ID 1, testCommit() has SHA "abc1234567890".
+	if results[0].URI != "file://1/abc1234567890/README.md" {
+		t.Errorf("expected file://1/abc1234567890/README.md, got %s", results[0].URI)
+	}
+	if results[1].URI != "file://1/abc1234567890/src/main.go" {
+		t.Errorf("expected file://1/abc1234567890/src/main.go, got %s", results[1].URI)
 	}
 }
 

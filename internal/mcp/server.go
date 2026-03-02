@@ -962,9 +962,8 @@ func (s *Server) handleGrep(ctx context.Context, request mcp.CallToolRequest) (*
 
 // lsResult holds the resolved file information for an ls match.
 type lsResult struct {
-	Path      string `json:"path"`
-	Extension string `json:"extension"`
-	Size      int64  `json:"size"`
+	URI  string `json:"uri"`
+	Size int64  `json:"size"`
 }
 
 // handleLs handles the ls tool invocation.
@@ -991,6 +990,20 @@ func (s *Server) handleLs(ctx context.Context, request mcp.CallToolRequest) (*mc
 		return mcp.NewToolResultError(fmt.Sprintf("repository not found: %s", repoURL)), nil
 	}
 
+	commits, err := s.commits.Find(ctx,
+		repository.WithRepoID(repos[0].ID()),
+		repository.WithOrderDesc("date"),
+		repository.WithLimit(1),
+	)
+	if err != nil {
+		s.logger.Error("failed to find latest commit", slog.Any("error", err))
+		return mcp.NewToolResultError(fmt.Sprintf("failed to find latest commit: %v", err)), nil
+	}
+	if len(commits) == 0 {
+		return mcp.NewToolResultError("no commits found for repository"), nil
+	}
+	commitSHA := commits[0].SHA()
+
 	files, err := s.fileLister.ListFiles(ctx, repos[0].ID(), pattern)
 	if err != nil {
 		s.logger.Error("list files failed", slog.Any("error", err))
@@ -999,10 +1012,10 @@ func (s *Server) handleLs(ctx context.Context, request mcp.CallToolRequest) (*mc
 
 	results := make([]lsResult, 0, len(files))
 	for _, f := range files {
+		uri := NewFileURI(repos[0].ID(), commitSHA, f.Path)
 		results = append(results, lsResult{
-			Path:      f.Path,
-			Extension: filepath.Ext(f.Path),
-			Size:      f.Size,
+			URI:  uri.String(),
+			Size: f.Size,
 		})
 	}
 
