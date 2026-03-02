@@ -143,6 +143,19 @@ func TestSearch_POST_WithKeywords(t *testing.T) {
 	}
 }
 
+func TestSearch_POST_EmptyBody_Returns400(t *testing.T) {
+	ts := NewTestServer(t)
+
+	// Send an empty body with Content-Type: application/json.
+	resp := ts.POSTRaw("/api/v1/search", "")
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		body := ts.ReadBody(resp)
+		t.Errorf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusBadRequest, body)
+	}
+}
+
 func TestSearch_POST_LinksUseBlobAPI(t *testing.T) {
 	ts := NewTestServer(t)
 

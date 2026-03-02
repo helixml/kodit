@@ -85,7 +85,7 @@ type fakeSemanticSearcher struct {
 	scores      map[string]float64
 }
 
-func (f *fakeSemanticSearcher) SearchCodeWithScores(_ context.Context, _ string, _ int) ([]enrichment.Enrichment, map[string]float64, error) {
+func (f *fakeSemanticSearcher) SearchCodeWithScores(_ context.Context, _ string, _ int, _ search.Filters) ([]enrichment.Enrichment, map[string]float64, error) {
 	return f.enrichments, f.scores, nil
 }
 

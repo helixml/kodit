@@ -710,7 +710,7 @@ func TestSmoke(t *testing.T) {
 	})
 
 	t.Run("ls", func(t *testing.T) {
-		lsURL := fmt.Sprintf("%s/search/ls?repo_url=%s&pattern=%s", baseURL, url.QueryEscape(targetURI), url.QueryEscape("**/*.py"))
+		lsURL := fmt.Sprintf("%s/search/ls?repository_id=%d&pattern=%s", baseURL, repoID, url.QueryEscape("**/*.py"))
 		resp := getJSON(t, lsURL)
 		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {

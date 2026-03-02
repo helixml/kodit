@@ -7,6 +7,7 @@ import (
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/infrastructure/api/jsonapi"
+	"github.com/helixml/kodit/infrastructure/api/middleware"
 )
 
 // PaginationParams holds pagination parameters parsed from query strings.
@@ -32,27 +33,32 @@ func NewPaginationParams() PaginationParams {
 // ParsePagination parses pagination parameters from an HTTP request.
 // Default: page=1, page_size=20
 // Max page_size: 100
-func ParsePagination(r *http.Request) PaginationParams {
+// Returns an error if page or page_size is explicitly provided but less than 1.
+func ParsePagination(r *http.Request) (PaginationParams, error) {
 	params := NewPaginationParams()
 
 	// Parse page parameter
 	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if page, err := strconv.Atoi(pageStr); err == nil && page >= 1 {
-			params.page = page
+		page, err := strconv.Atoi(pageStr)
+		if err != nil || page < 1 {
+			return params, fmt.Errorf("page must be at least 1: %w", middleware.ErrValidation)
 		}
+		params.page = page
 	}
 
 	// Parse page_size parameter
 	if sizeStr := r.URL.Query().Get("page_size"); sizeStr != "" {
-		if size, err := strconv.Atoi(sizeStr); err == nil && size >= 1 {
-			params.pageSize = size
-			if params.pageSize > MaxPageSize {
-				params.pageSize = MaxPageSize
-			}
+		size, err := strconv.Atoi(sizeStr)
+		if err != nil || size < 1 {
+			return params, fmt.Errorf("page_size must be at least 1: %w", middleware.ErrValidation)
+		}
+		params.pageSize = size
+		if params.pageSize > MaxPageSize {
+			params.pageSize = MaxPageSize
 		}
 	}
 
-	return params
+	return params, nil
 }
 
 // Page returns the page number (1-indexed).

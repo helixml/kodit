@@ -105,7 +105,11 @@ func (r *RepositoriesRouter) repositoryID(req *http.Request) (int64, error) {
 //	@Router			/repositories [get]
 func (r *RepositoriesRouter) List(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	pagination := ParsePagination(req)
+	pagination, err := ParsePagination(req)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
 
 	repos, err := r.client.Repositories.Find(ctx, pagination.Options()...)
 	if err != nil {
@@ -399,7 +403,11 @@ func (r *RepositoriesRouter) GetStatusSummary(w http.ResponseWriter, req *http.R
 //	@Router			/repositories/{id}/commits [get]
 func (r *RepositoriesRouter) ListCommits(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	pagination := ParsePagination(req)
+	pagination, err := ParsePagination(req)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
 
 	id, err := r.repositoryID(req)
 	if err != nil {
@@ -506,7 +514,11 @@ func (r *RepositoriesRouter) GetCommit(w http.ResponseWriter, req *http.Request)
 //	@Router			/repositories/{id}/commits/{commit_sha}/files [get]
 func (r *RepositoriesRouter) ListCommitFiles(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	pagination := ParsePagination(req)
+	pagination, err := ParsePagination(req)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
 
 	id, err := r.repositoryID(req)
 	if err != nil {
@@ -633,7 +645,11 @@ func (r *RepositoriesRouter) GetCommitFile(w http.ResponseWriter, req *http.Requ
 //	@Router			/repositories/{id}/commits/{commit_sha}/enrichments [get]
 func (r *RepositoriesRouter) ListCommitEnrichments(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	pagination := ParsePagination(req)
+	pagination, err := ParsePagination(req)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
 
 	id, err := r.repositoryID(req)
 	if err != nil {
@@ -868,7 +884,11 @@ func (r *RepositoriesRouter) DeleteCommitEnrichment(w http.ResponseWriter, req *
 //	@Router			/repositories/{id}/commits/{commit_sha}/snippets [get]
 func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	pagination := ParsePagination(req)
+	pagination, err := ParsePagination(req)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
 
 	id, err := r.repositoryID(req)
 	if err != nil {
@@ -1066,7 +1086,11 @@ func (r *RepositoriesRouter) Sync(w http.ResponseWriter, req *http.Request) {
 //	@Router			/repositories/{id}/enrichments [get]
 func (r *RepositoriesRouter) ListRepositoryEnrichments(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	pagination := ParsePagination(req)
+	pagination, err := ParsePagination(req)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
 
 	id, err := r.repositoryID(req)
 	if err != nil {
@@ -1343,7 +1367,11 @@ func wikiTreeNode(p wiki.Page, pathIndex map[string]string) dto.WikiTreeNode {
 //	@Router			/repositories/{id}/tags [get]
 func (r *RepositoriesRouter) ListTags(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	pagination := ParsePagination(req)
+	pagination, err := ParsePagination(req)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
 
 	id, err := r.repositoryID(req)
 	if err != nil {
