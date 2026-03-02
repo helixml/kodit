@@ -653,39 +653,6 @@ List recent enrichments across commits for a repository
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
-### GET /repositories/{id}/files
-
-Returns files from the repository working copy matching a glob pattern
-
-
-#### Parameters
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| id | integer | True | Repository ID |
-| glob | string | True | Glob/pathspec pattern (e.g. **/*.go, src/*.py) |
-| page | integer |  | Page number (default: 1) |
-| page_size | integer |  | Results per page (default: 20, max: 100) |
-
-
-#### Responses
-
-- 200: OK
-
-[dto.FileJSONAPIListResponse](#dto.filejsonapilistresponse)
-
-- 400: Bad Request
-
-[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
-
-- 404: Not Found
-
-[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
-
-- 500: Internal Server Error
-
-[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
-
 ### GET /repositories/{id}/status
 
 Get indexing task status for a repository
@@ -999,6 +966,39 @@ Search code snippets using BM25 keyword matching
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+### GET /search/ls
+
+Returns files from a repository working copy matching a glob pattern, with file:// URIs
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| repo_url | string | True | Repository remote URL |
+| pattern | string | True | Glob/pathspec pattern (e.g. **/*.go, src/*.py) |
+| page | integer |  | Page number (default: 1) |
+| page_size | integer |  | Results per page (default: 20, max: 100) |
+
+
+#### Responses
+
+- 200: OK
+
+[dto.LsResponse](#dto.lsresponse)
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 ### POST /search/semantic
 
 Search code snippets using semantic similarity
@@ -1240,6 +1240,48 @@ Search code snippets using semantic similarity
 | Field | Type | Description |
 |-------|------|-------------|
 | data |  |  |
+
+
+### dto.LsFileAttributes
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| path | string |  |
+| size | integer |  |
+
+
+### dto.LsFileData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| id | string |  |
+| links |  |  |
+| type | string |  |
+
+
+### dto.LsFileLinks
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| self | string |  |
+
+
+### dto.LsResponse
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data | array |  |
+| links |  |  |
+| meta |  |  |
 
 
 ### dto.RepositoryAttributes

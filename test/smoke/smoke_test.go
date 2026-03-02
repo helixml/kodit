@@ -709,27 +709,40 @@ func TestSmoke(t *testing.T) {
 	})
 
 	t.Run("glob_files", func(t *testing.T) {
-		resp, err := client.GetRepositoriesIdFilesWithResponse(ctx, repoID, &kodit.GetRepositoriesIdFilesParams{
-			Glob: "**/*.py",
-		})
-		if err != nil {
-			t.Fatalf("request failed: %v", err)
+		lsURL := fmt.Sprintf("%s/search/ls?repo_url=%s&pattern=**/*.py", baseURL, targetURI)
+		resp := getJSON(t, lsURL)
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
 		}
-		if resp.StatusCode() != http.StatusOK {
-			t.Fatalf("expected 200, got %d: %s", resp.StatusCode(), string(resp.Body))
+		var result struct {
+			Data []struct {
+				Attributes struct {
+					Path string `json:"path"`
+				} `json:"attributes"`
+				Links struct {
+					Self string `json:"self"`
+				} `json:"links"`
+			} `json:"data"`
 		}
-		if resp.JSON200 == nil || resp.JSON200.Data == nil || len(*resp.JSON200.Data) == 0 {
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if len(result.Data) == 0 {
 			t.Fatal("expected at least one file")
 		}
-		for _, f := range *resp.JSON200.Data {
-			if f.Attributes == nil || f.Attributes.Path == nil || *f.Attributes.Path == "" {
+		for _, f := range result.Data {
+			if f.Attributes.Path == "" {
 				t.Fatal("expected file path")
 			}
-			if !strings.HasSuffix(*f.Attributes.Path, ".py") {
-				t.Fatalf("expected .py file, got %s", *f.Attributes.Path)
+			if !strings.HasSuffix(f.Attributes.Path, ".py") {
+				t.Fatalf("expected .py file, got %s", f.Attributes.Path)
+			}
+			if !strings.HasPrefix(f.Links.Self, "file://") {
+				t.Fatalf("expected file:// URI, got %s", f.Links.Self)
 			}
 		}
-		t.Logf("ls: %d matches", len(*resp.JSON200.Data))
+		t.Logf("ls: %d matches", len(result.Data))
 	})
 
 	t.Run("queue", func(t *testing.T) {
@@ -1168,6 +1181,17 @@ func validateMCPFileResults(t *testing.T, results []mcpFileResult, mode string) 
 		t.Logf("%s result %d: path=%s, language=%s, score=%.4f, lines=%s",
 			mode, i, r.Path, r.Language, r.Score, r.Lines)
 	}
+}
+
+// getJSON sends a GET request and returns the response.
+func getJSON(t *testing.T, url string) *http.Response {
+	t.Helper()
+	httpClient := &http.Client{Timeout: 30 * time.Second}
+	resp, err := httpClient.Get(url)
+	if err != nil {
+		t.Fatalf("GET %s failed: %v", url, err)
+	}
+	return resp
 }
 
 // postJSON sends a POST request with a JSON body and returns the response.

@@ -176,6 +176,40 @@ definitions:
       data:
         $ref: '#/definitions/dto.KeywordSearchData'
     type: object
+  dto.LsFileAttributes:
+    properties:
+      path:
+        type: string
+      size:
+        type: integer
+    type: object
+  dto.LsFileData:
+    properties:
+      attributes:
+        $ref: '#/definitions/dto.LsFileAttributes'
+      id:
+        type: string
+      links:
+        $ref: '#/definitions/dto.LsFileLinks'
+      type:
+        type: string
+    type: object
+  dto.LsFileLinks:
+    properties:
+      self:
+        type: string
+    type: object
+  dto.LsResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/dto.LsFileData'
+        type: array
+      links:
+        $ref: '#/definitions/jsonapi.Links'
+      meta:
+        $ref: '#/definitions/jsonapi.Meta'
+    type: object
   dto.RepositoryAttributes:
     properties:
       cloned_path:
@@ -1521,55 +1555,6 @@ paths:
       summary: List repository enrichments
       tags:
       - repositories
-  /repositories/{id}/files:
-    get:
-      consumes:
-      - application/json
-      description: Returns files from the repository working copy matching a glob
-        pattern
-      parameters:
-      - description: Repository ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Glob/pathspec pattern (e.g. **/*.go, src/*.py)
-        in: query
-        name: glob
-        required: true
-        type: string
-      - description: 'Page number (default: 1)'
-        in: query
-        name: page
-        type: integer
-      - description: 'Results per page (default: 20, max: 100)'
-        in: query
-        name: page_size
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/dto.FileJSONAPIListResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
-      security:
-      - APIKeyAuth: []
-      summary: List files matching a glob pattern
-      tags:
-      - repositories
   /repositories/{id}/status:
     get:
       consumes:
@@ -1960,6 +1945,55 @@ paths:
       security:
       - APIKeyAuth: []
       summary: Keyword code search
+      tags:
+      - search
+  /search/ls:
+    get:
+      consumes:
+      - application/json
+      description: Returns files from a repository working copy matching a glob pattern,
+        with file:// URIs
+      parameters:
+      - description: Repository remote URL
+        in: query
+        name: repo_url
+        required: true
+        type: string
+      - description: Glob/pathspec pattern (e.g. **/*.go, src/*.py)
+        in: query
+        name: pattern
+        required: true
+        type: string
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Results per page (default: 20, max: 100)'
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.LsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: List files matching a glob pattern
       tags:
       - search
   /search/semantic:

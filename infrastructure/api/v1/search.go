@@ -17,6 +17,7 @@ import (
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
+	"github.com/helixml/kodit/internal/database"
 )
 
 // SearchRouter handles search API endpoints.
@@ -40,6 +41,7 @@ func (r *SearchRouter) Routes() chi.Router {
 	router.Post("/", r.Search)
 	router.Post("/semantic", r.SemanticSearch)
 	router.Post("/keyword", r.KeywordSearch)
+	router.Get("/ls", r.Ls)
 
 	return router
 }
@@ -205,6 +207,102 @@ func (r *SearchRouter) KeywordSearch(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	middleware.WriteJSON(w, http.StatusOK, response)
+}
+
+// Ls handles GET /api/v1/search/ls.
+//
+//	@Summary		List files matching a glob pattern
+//	@Description	Returns files from a repository working copy matching a glob pattern, with file:// URIs
+//	@Tags			search
+//	@Accept			json
+//	@Produce		json
+//	@Param			repo_url	query		string	true	"Repository remote URL"
+//	@Param			pattern		query		string	true	"Glob/pathspec pattern (e.g. **/*.go, src/*.py)"
+//	@Param			page		query		int		false	"Page number (default: 1)"
+//	@Param			page_size	query		int		false	"Results per page (default: 20, max: 100)"
+//	@Success		200			{object}	dto.LsResponse
+//	@Failure		400			{object}	middleware.JSONAPIErrorResponse
+//	@Failure		404			{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500			{object}	middleware.JSONAPIErrorResponse
+//	@Security		APIKeyAuth
+//	@Router			/search/ls [get]
+func (r *SearchRouter) Ls(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+	pagination := ParsePagination(req)
+
+	repoURL := req.URL.Query().Get("repo_url")
+	if repoURL == "" {
+		middleware.WriteError(w, req, fmt.Errorf("repo_url query parameter is required: %w", middleware.ErrValidation), r.logger)
+		return
+	}
+
+	pattern := req.URL.Query().Get("pattern")
+	if pattern == "" {
+		middleware.WriteError(w, req, fmt.Errorf("pattern query parameter is required: %w", middleware.ErrValidation), r.logger)
+		return
+	}
+
+	repos, err := r.client.Repositories.Find(ctx, repository.WithRemoteURL(repoURL))
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+	if len(repos) == 0 {
+		middleware.WriteError(w, req, fmt.Errorf("repository not found: %w", database.ErrNotFound), r.logger)
+		return
+	}
+	repo := repos[0]
+	repoID := repo.ID()
+
+	commits, err := r.client.Commits.Find(ctx, repository.WithRepoID(repoID), repository.WithOrderDesc("date"), repository.WithLimit(1))
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+	commitSHA := ""
+	if len(commits) > 0 {
+		commitSHA = commits[0].SHA()
+	}
+
+	files, err := r.client.Blobs.ListFiles(ctx, repoID, pattern)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Paginate.
+	total := int64(len(files))
+	start := pagination.Offset()
+	end := start + pagination.Limit()
+	if start > len(files) {
+		start = len(files)
+	}
+	if end > len(files) {
+		end = len(files)
+	}
+	page := files[start:end]
+
+	data := make([]dto.LsFileData, 0, len(page))
+	for _, f := range page {
+		uri := fmt.Sprintf("file://%d/%s/%s", repoID, commitSHA, f.Path)
+		data = append(data, dto.LsFileData{
+			Type: "file",
+			ID:   f.Path,
+			Attributes: dto.LsFileAttributes{
+				Path: f.Path,
+				Size: f.Size,
+			},
+			Links: dto.LsFileLinks{
+				Self: uri,
+			},
+		})
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, dto.LsResponse{
+		Data:  data,
+		Meta:  PaginationMeta(pagination, total),
+		Links: PaginationLinks(req, pagination, total),
+	})
 }
 
 func buildSearchRequest(body dto.SearchRequest) (search.MultiRequest, error) {

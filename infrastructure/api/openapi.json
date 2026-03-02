@@ -275,6 +275,59 @@
                 },
                 "type": "object"
             },
+            "dto.LsFileAttributes": {
+                "properties": {
+                    "path": {
+                        "type": "string"
+                    },
+                    "size": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.LsFileData": {
+                "properties": {
+                    "attributes": {
+                        "$ref": "#/components/schemas/dto.LsFileAttributes"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/dto.LsFileLinks"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.LsFileLinks": {
+                "properties": {
+                    "self": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.LsResponse": {
+                "properties": {
+                    "data": {
+                        "items": {
+                            "$ref": "#/components/schemas/dto.LsFileData"
+                        },
+                        "type": "array"
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/jsonapi.Links"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/jsonapi.Meta"
+                    }
+                },
+                "type": "object"
+            },
             "dto.RepositoryAttributes": {
                 "properties": {
                     "cloned_path": {
@@ -2608,98 +2661,6 @@
                 ]
             }
         },
-        "/repositories/{id}/files": {
-            "get": {
-                "description": "Returns files from the repository working copy matching a glob pattern",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "in": "path",
-                        "name": "id",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Glob/pathspec pattern (e.g. **/*.go, src/*.py)",
-                        "in": "query",
-                        "name": "glob",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Page number (default: 1)",
-                        "in": "query",
-                        "name": "page",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Results per page (default: 20, max: 100)",
-                        "in": "query",
-                        "name": "page_size",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.FileJSONAPIListResponse"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    },
-                    "400": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        },
-                        "description": "Bad Request"
-                    },
-                    "404": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        },
-                        "description": "Not Found"
-                    },
-                    "500": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
-                                }
-                            }
-                        },
-                        "description": "Internal Server Error"
-                    }
-                },
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "summary": "List files matching a glob pattern",
-                "tags": [
-                    "repositories"
-                ]
-            }
-        },
         "/repositories/{id}/status": {
             "get": {
                 "description": "Get indexing task status for a repository",
@@ -3411,6 +3372,98 @@
                     }
                 ],
                 "summary": "Keyword code search",
+                "tags": [
+                    "search"
+                ]
+            }
+        },
+        "/search/ls": {
+            "get": {
+                "description": "Returns files from a repository working copy matching a glob pattern, with file:// URIs",
+                "parameters": [
+                    {
+                        "description": "Repository remote URL",
+                        "in": "query",
+                        "name": "repo_url",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Glob/pathspec pattern (e.g. **/*.go, src/*.py)",
+                        "in": "query",
+                        "name": "pattern",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Page number (default: 1)",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Results per page (default: 20, max: 100)",
+                        "in": "query",
+                        "name": "page_size",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.LsResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "List files matching a glob pattern",
                 "tags": [
                     "search"
                 ]

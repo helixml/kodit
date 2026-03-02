@@ -70,7 +70,6 @@ func (r *RepositoriesRouter) Routes() chi.Router {
 	router.Put("/{id}/tracking-config", r.UpdateTrackingConfig)
 	router.Get("/{id}/blob/{blob_name}/*", r.GetBlob)
 	router.Get("/{id}/grep", r.Grep)
-	router.Get("/{id}/files", r.GlobFiles)
 
 	return router
 }
@@ -1730,79 +1729,4 @@ func (r *RepositoriesRouter) Grep(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(response)
-}
-
-// GlobFiles handles GET /api/v1/repositories/{id}/files.
-//
-//	@Summary		List files matching a glob pattern
-//	@Description	Returns files from the repository working copy matching a glob pattern
-//	@Tags			repositories
-//	@Accept			json
-//	@Produce		json
-//	@Param			id			path		int		true	"Repository ID"
-//	@Param			glob		query		string	true	"Glob/pathspec pattern (e.g. **/*.go, src/*.py)"
-//	@Param			page		query		int		false	"Page number (default: 1)"
-//	@Param			page_size	query		int		false	"Results per page (default: 20, max: 100)"
-//	@Success		200			{object}	dto.FileJSONAPIListResponse
-//	@Failure		400			{object}	middleware.JSONAPIErrorResponse
-//	@Failure		404			{object}	middleware.JSONAPIErrorResponse
-//	@Failure		500			{object}	middleware.JSONAPIErrorResponse
-//	@Security		APIKeyAuth
-//	@Router			/repositories/{id}/files [get]
-func (r *RepositoriesRouter) GlobFiles(w http.ResponseWriter, req *http.Request) {
-	ctx := req.Context()
-	pagination := ParsePagination(req)
-
-	repoID, err := r.repositoryID(req)
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	glob := req.URL.Query().Get("glob")
-	if glob == "" {
-		middleware.WriteError(w, req, fmt.Errorf("glob query parameter is required: %w", middleware.ErrValidation), r.logger)
-		return
-	}
-
-	files, err := r.client.Blobs.ListFiles(ctx, repoID, glob)
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	// Paginate.
-	total := int64(len(files))
-	start := pagination.Offset()
-	end := start + pagination.Limit()
-	if start > len(files) {
-		start = len(files)
-	}
-	if end > len(files) {
-		end = len(files)
-	}
-	page := files[start:end]
-
-	data := make([]dto.FileData, 0, len(page))
-	for _, f := range page {
-		ext := ""
-		if idx := strings.LastIndex(f.Path, "."); idx >= 0 {
-			ext = f.Path[idx:]
-		}
-		data = append(data, dto.FileData{
-			Type: "file",
-			ID:   f.Path,
-			Attributes: dto.FileAttributes{
-				Path:      f.Path,
-				Size:      f.Size,
-				Extension: ext,
-			},
-		})
-	}
-
-	middleware.WriteJSON(w, http.StatusOK, dto.FileJSONAPIListResponse{
-		Data:  data,
-		Meta:  PaginationMeta(pagination, total),
-		Links: PaginationLinks(req, pagination, total),
-	})
 }

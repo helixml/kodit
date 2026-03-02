@@ -162,9 +162,6 @@ type ClientInterface interface {
 	// GetRepositoriesIdEnrichments request
 	GetRepositoriesIdEnrichments(ctx context.Context, id int, params *GetRepositoriesIdEnrichmentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetRepositoriesIdFiles request
-	GetRepositoriesIdFiles(ctx context.Context, id int, params *GetRepositoriesIdFilesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// GetRepositoriesIdStatus request
 	GetRepositoriesIdStatus(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -206,6 +203,9 @@ type ClientInterface interface {
 	PostSearchKeywordWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	PostSearchKeyword(ctx context.Context, body PostSearchKeywordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetSearchLs request
+	GetSearchLs(ctx context.Context, params *GetSearchLsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostSearchSemanticWithBody request with any body
 	PostSearchSemanticWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -513,18 +513,6 @@ func (c *Client) GetRepositoriesIdEnrichments(ctx context.Context, id int, param
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetRepositoriesIdFiles(ctx context.Context, id int, params *GetRepositoriesIdFilesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetRepositoriesIdFilesRequest(c.Server, id, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) GetRepositoriesIdStatus(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetRepositoriesIdStatusRequest(c.Server, id)
 	if err != nil {
@@ -695,6 +683,18 @@ func (c *Client) PostSearchKeywordWithBody(ctx context.Context, contentType stri
 
 func (c *Client) PostSearchKeyword(ctx context.Context, body PostSearchKeywordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostSearchKeywordRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetSearchLs(ctx context.Context, params *GetSearchLsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSearchLsRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -2068,90 +2068,6 @@ func NewGetRepositoriesIdEnrichmentsRequest(server string, id int, params *GetRe
 	return req, nil
 }
 
-// NewGetRepositoriesIdFilesRequest generates requests for GetRepositoriesIdFiles
-func NewGetRepositoriesIdFilesRequest(server string, id int, params *GetRepositoriesIdFilesParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/repositories/%s/files", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "glob", runtime.ParamLocationQuery, params.Glob); err != nil {
-			return nil, err
-		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-			return nil, err
-		} else {
-			for k, v := range parsed {
-				for _, v2 := range v {
-					queryValues.Add(k, v2)
-				}
-			}
-		}
-
-		if params.Page != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.PageSize != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_size", runtime.ParamLocationQuery, *params.PageSize); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewGetRepositoriesIdStatusRequest generates requests for GetRepositoriesIdStatus
 func NewGetRepositoriesIdStatusRequest(server string, id int) (*http.Request, error) {
 	var err error
@@ -2637,6 +2553,95 @@ func NewPostSearchKeywordRequestWithBody(server string, contentType string, body
 	return req, nil
 }
 
+// NewGetSearchLsRequest generates requests for GetSearchLs
+func NewGetSearchLsRequest(server string, params *GetSearchLsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/search/ls")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "repo_url", runtime.ParamLocationQuery, params.RepoUrl); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "pattern", runtime.ParamLocationQuery, params.Pattern); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_size", runtime.ParamLocationQuery, *params.PageSize); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewPostSearchSemanticRequest calls the generic PostSearchSemantic builder with application/json body
 func NewPostSearchSemanticRequest(server string, body PostSearchSemanticJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -2793,9 +2798,6 @@ type ClientWithResponsesInterface interface {
 	// GetRepositoriesIdEnrichmentsWithResponse request
 	GetRepositoriesIdEnrichmentsWithResponse(ctx context.Context, id int, params *GetRepositoriesIdEnrichmentsParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdEnrichmentsResponse, error)
 
-	// GetRepositoriesIdFilesWithResponse request
-	GetRepositoriesIdFilesWithResponse(ctx context.Context, id int, params *GetRepositoriesIdFilesParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdFilesResponse, error)
-
 	// GetRepositoriesIdStatusWithResponse request
 	GetRepositoriesIdStatusWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdStatusResponse, error)
 
@@ -2837,6 +2839,9 @@ type ClientWithResponsesInterface interface {
 	PostSearchKeywordWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSearchKeywordResponse, error)
 
 	PostSearchKeywordWithResponse(ctx context.Context, body PostSearchKeywordJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSearchKeywordResponse, error)
+
+	// GetSearchLsWithResponse request
+	GetSearchLsWithResponse(ctx context.Context, params *GetSearchLsParams, reqEditors ...RequestEditorFn) (*GetSearchLsResponse, error)
 
 	// PostSearchSemanticWithBodyWithResponse request with any body
 	PostSearchSemanticWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSearchSemanticResponse, error)
@@ -3385,31 +3390,6 @@ func (r GetRepositoriesIdEnrichmentsResponse) StatusCode() int {
 	return 0
 }
 
-type GetRepositoriesIdFilesResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *DtoFileJSONAPIListResponse
-	JSON400      *MiddlewareJSONAPIErrorResponse
-	JSON404      *MiddlewareJSONAPIErrorResponse
-	JSON500      *MiddlewareJSONAPIErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r GetRepositoriesIdFilesResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetRepositoriesIdFilesResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type GetRepositoriesIdStatusResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3693,6 +3673,31 @@ func (r PostSearchKeywordResponse) StatusCode() int {
 	return 0
 }
 
+type GetSearchLsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DtoLsResponse
+	JSON400      *MiddlewareJSONAPIErrorResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSearchLsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSearchLsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type PostSearchSemanticResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3940,15 +3945,6 @@ func (c *ClientWithResponses) GetRepositoriesIdEnrichmentsWithResponse(ctx conte
 	return ParseGetRepositoriesIdEnrichmentsResponse(rsp)
 }
 
-// GetRepositoriesIdFilesWithResponse request returning *GetRepositoriesIdFilesResponse
-func (c *ClientWithResponses) GetRepositoriesIdFilesWithResponse(ctx context.Context, id int, params *GetRepositoriesIdFilesParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdFilesResponse, error) {
-	rsp, err := c.GetRepositoriesIdFiles(ctx, id, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetRepositoriesIdFilesResponse(rsp)
-}
-
 // GetRepositoriesIdStatusWithResponse request returning *GetRepositoriesIdStatusResponse
 func (c *ClientWithResponses) GetRepositoriesIdStatusWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdStatusResponse, error) {
 	rsp, err := c.GetRepositoriesIdStatus(ctx, id, reqEditors...)
@@ -4079,6 +4075,15 @@ func (c *ClientWithResponses) PostSearchKeywordWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParsePostSearchKeywordResponse(rsp)
+}
+
+// GetSearchLsWithResponse request returning *GetSearchLsResponse
+func (c *ClientWithResponses) GetSearchLsWithResponse(ctx context.Context, params *GetSearchLsParams, reqEditors ...RequestEditorFn) (*GetSearchLsResponse, error) {
+	rsp, err := c.GetSearchLs(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSearchLsResponse(rsp)
 }
 
 // PostSearchSemanticWithBodyWithResponse request with arbitrary body returning *PostSearchSemanticResponse
@@ -4938,53 +4943,6 @@ func ParseGetRepositoriesIdEnrichmentsResponse(rsp *http.Response) (*GetReposito
 	return response, nil
 }
 
-// ParseGetRepositoriesIdFilesResponse parses an HTTP response from a GetRepositoriesIdFilesWithResponse call
-func ParseGetRepositoriesIdFilesResponse(rsp *http.Response) (*GetRepositoriesIdFilesResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetRepositoriesIdFilesResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest DtoFileJSONAPIListResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest MiddlewareJSONAPIErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest MiddlewareJSONAPIErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest MiddlewareJSONAPIErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseGetRepositoriesIdStatusResponse parses an HTTP response from a GetRepositoriesIdStatusWithResponse call
 func ParseGetRepositoriesIdStatusResponse(rsp *http.Response) (*GetRepositoriesIdStatusResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -5414,6 +5372,53 @@ func ParsePostSearchKeywordResponse(rsp *http.Response) (*PostSearchKeywordRespo
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetSearchLsResponse parses an HTTP response from a GetSearchLsWithResponse call
+func ParseGetSearchLsResponse(rsp *http.Response) (*GetSearchLsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSearchLsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DtoLsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest MiddlewareJSONAPIErrorResponse
