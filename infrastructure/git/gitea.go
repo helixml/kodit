@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -626,6 +627,81 @@ func giteaCommitToInfo(c *giteagit.Commit) CommitInfo {
 
 func guessMimeType(_ string) string {
 	return "application/octet-stream"
+}
+
+// Grep searches for a pattern in tracked files at a specific commit using git grep.
+func (g *GiteaAdapter) Grep(ctx context.Context, localPath string, commitSHA string, pattern string, pathspec string, maxMatches int) ([]GrepMatch, error) {
+	cmd := gitcmd.NewCommand("grep", "-n", "--no-color", "-I").
+		AddOptionFormat("-m%d", maxMatches).
+		AddArguments("-e").
+		AddDynamicArguments(pattern).
+		AddDynamicArguments(commitSHA).
+		AddArguments("--")
+	if pathspec != "" {
+		cmd = cmd.AddDynamicArguments(pathspec)
+	}
+
+	stdout, _, err := cmd.RunStdString(ctx, &gitcmd.RunOpts{Dir: localPath})
+	if err != nil {
+		// git grep exits 1 when no matches are found — treat as empty result.
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("git grep: %w", err)
+	}
+
+	return parseGrepOutput(stdout, commitSHA), nil
+}
+
+// parseGrepOutput parses git grep output lines in the format:
+// <commitSHA>:<path>:<linenum>:<content>
+func parseGrepOutput(stdout string, commitSHA string) []GrepMatch {
+	stdout = strings.TrimSpace(stdout)
+	if stdout == "" {
+		return nil
+	}
+
+	prefix := commitSHA + ":"
+	lines := strings.Split(stdout, "\n")
+	matches := make([]GrepMatch, 0, len(lines))
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// Strip the commit SHA prefix if present.
+		line = strings.TrimPrefix(line, prefix)
+
+		// Format: <path>:<linenum>:<content>
+		// Split into at most 3 parts: path, linenum, content.
+		firstColon := strings.Index(line, ":")
+		if firstColon < 0 {
+			continue
+		}
+		rest := line[firstColon+1:]
+		secondColon := strings.Index(rest, ":")
+		if secondColon < 0 {
+			continue
+		}
+
+		path := line[:firstColon]
+		lineNum, err := strconv.Atoi(rest[:secondColon])
+		if err != nil {
+			continue
+		}
+		content := rest[secondColon+1:]
+
+		matches = append(matches, GrepMatch{
+			Path:    path,
+			Line:    lineNum,
+			Content: content,
+		})
+	}
+
+	return matches
 }
 
 // Ensure GiteaAdapter implements Adapter.

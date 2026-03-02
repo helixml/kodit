@@ -140,6 +140,10 @@ func (f *fakeGitAdapter) CommitDiff(_ context.Context, _, _ string) (string, err
 	return f.diff, nil
 }
 
+func (f *fakeGitAdapter) Grep(_ context.Context, _ string, _ string, _ string, _ string, _ int) ([]infraGit.GrepMatch, error) {
+	return nil, nil
+}
+
 func newEnrichmentContext(
 	enrichmentStore enrichment.EnrichmentStore,
 	associationStore enrichment.AssociationStore,

@@ -229,6 +229,9 @@ func (f *fakeBlobGitAdapter) AllTags(context.Context, string) ([]git.TagInfo, er
 func (f *fakeBlobGitAdapter) CommitDiff(context.Context, string, string) (string, error) {
 	return "", nil
 }
+func (f *fakeBlobGitAdapter) Grep(context.Context, string, string, string, string, int) ([]git.GrepMatch, error) {
+	return nil, nil
+}
 
 func newTestBlob() (*Blob, *fakeBlobGitAdapter) {
 	now := time.Now()
