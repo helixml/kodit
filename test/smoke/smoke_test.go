@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -698,18 +699,18 @@ func TestSmoke(t *testing.T) {
 			t.Fatal("expected at least one ls result")
 		}
 		for i, r := range results {
-			if r.Path == "" {
-				t.Fatalf("ls result %d: expected path", i)
+			if r.URI == "" {
+				t.Fatalf("ls result %d: expected uri", i)
 			}
-			if r.Extension != ".py" {
-				t.Fatalf("ls result %d: expected .py extension, got %s", i, r.Extension)
+			if !strings.HasPrefix(r.URI, "file://") {
+				t.Fatalf("ls result %d: expected file:// URI, got %s", i, r.URI)
 			}
-			t.Logf("ls result %d: path=%s, size=%d", i, r.Path, r.Size)
+			t.Logf("ls result %d: uri=%s, size=%d", i, r.URI, r.Size)
 		}
 	})
 
-	t.Run("glob_files", func(t *testing.T) {
-		lsURL := fmt.Sprintf("%s/search/ls?repo_url=%s&pattern=**/*.py", baseURL, targetURI)
+	t.Run("ls", func(t *testing.T) {
+		lsURL := fmt.Sprintf("%s/search/ls?repo_url=%s&pattern=%s", baseURL, url.QueryEscape(targetURI), url.QueryEscape("**/*.py"))
 		resp := getJSON(t, lsURL)
 		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
@@ -1105,9 +1106,8 @@ func callMCPTool(t *testing.T, sessionID string, toolName string, id int, args m
 
 // mcpLsResult represents a single result from ls.
 type mcpLsResult struct {
-	Path      string `json:"path"`
-	Extension string `json:"extension"`
-	Size      int64  `json:"size"`
+	URI  string `json:"uri"`
+	Size int64  `json:"size"`
 }
 
 // callMCPLs invokes the ls MCP tool and returns the parsed results.
