@@ -592,6 +592,21 @@ type GetRepositoriesIdEnrichmentsParams struct {
 	PageSize *int `form:"page_size,omitempty" json:"page_size,omitempty"`
 }
 
+// GetRepositoriesIdFilesParams defines parameters for GetRepositoriesIdFiles.
+type GetRepositoriesIdFilesParams struct {
+	// Glob Glob/pathspec pattern (e.g. **/*.go, src/*.py)
+	Glob string `form:"glob" json:"glob"`
+
+	// Filter Substring filter applied to matched paths
+	Filter *string `form:"filter,omitempty" json:"filter,omitempty"`
+
+	// Page Page number (default: 1)
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+
+	// PageSize Results per page (default: 20, max: 100)
+	PageSize *int `form:"page_size,omitempty" json:"page_size,omitempty"`
+}
+
 // GetRepositoriesIdTagsParams defines parameters for GetRepositoriesIdTags.
 type GetRepositoriesIdTagsParams struct {
 	// Page Page number (default: 1)

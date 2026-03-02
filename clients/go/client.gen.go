@@ -162,6 +162,9 @@ type ClientInterface interface {
 	// GetRepositoriesIdEnrichments request
 	GetRepositoriesIdEnrichments(ctx context.Context, id int, params *GetRepositoriesIdEnrichmentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetRepositoriesIdFiles request
+	GetRepositoriesIdFiles(ctx context.Context, id int, params *GetRepositoriesIdFilesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetRepositoriesIdStatus request
 	GetRepositoriesIdStatus(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -500,6 +503,18 @@ func (c *Client) GetRepositoriesIdCommitsCommitShaSnippets(ctx context.Context, 
 
 func (c *Client) GetRepositoriesIdEnrichments(ctx context.Context, id int, params *GetRepositoriesIdEnrichmentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetRepositoriesIdEnrichmentsRequest(c.Server, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetRepositoriesIdFiles(ctx context.Context, id int, params *GetRepositoriesIdFilesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdFilesRequest(c.Server, id, params)
 	if err != nil {
 		return nil, err
 	}
@@ -2053,6 +2068,106 @@ func NewGetRepositoriesIdEnrichmentsRequest(server string, id int, params *GetRe
 	return req, nil
 }
 
+// NewGetRepositoriesIdFilesRequest generates requests for GetRepositoriesIdFiles
+func NewGetRepositoriesIdFilesRequest(server string, id int, params *GetRepositoriesIdFilesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/repositories/%s/files", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "glob", runtime.ParamLocationQuery, params.Glob); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.Filter != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "filter", runtime.ParamLocationQuery, *params.Filter); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_size", runtime.ParamLocationQuery, *params.PageSize); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetRepositoriesIdStatusRequest generates requests for GetRepositoriesIdStatus
 func NewGetRepositoriesIdStatusRequest(server string, id int) (*http.Request, error) {
 	var err error
@@ -2694,6 +2809,9 @@ type ClientWithResponsesInterface interface {
 	// GetRepositoriesIdEnrichmentsWithResponse request
 	GetRepositoriesIdEnrichmentsWithResponse(ctx context.Context, id int, params *GetRepositoriesIdEnrichmentsParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdEnrichmentsResponse, error)
 
+	// GetRepositoriesIdFilesWithResponse request
+	GetRepositoriesIdFilesWithResponse(ctx context.Context, id int, params *GetRepositoriesIdFilesParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdFilesResponse, error)
+
 	// GetRepositoriesIdStatusWithResponse request
 	GetRepositoriesIdStatusWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdStatusResponse, error)
 
@@ -3283,6 +3401,31 @@ func (r GetRepositoriesIdEnrichmentsResponse) StatusCode() int {
 	return 0
 }
 
+type GetRepositoriesIdFilesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DtoFileJSONAPIListResponse
+	JSON400      *MiddlewareJSONAPIErrorResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetRepositoriesIdFilesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetRepositoriesIdFilesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetRepositoriesIdStatusResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3811,6 +3954,15 @@ func (c *ClientWithResponses) GetRepositoriesIdEnrichmentsWithResponse(ctx conte
 		return nil, err
 	}
 	return ParseGetRepositoriesIdEnrichmentsResponse(rsp)
+}
+
+// GetRepositoriesIdFilesWithResponse request returning *GetRepositoriesIdFilesResponse
+func (c *ClientWithResponses) GetRepositoriesIdFilesWithResponse(ctx context.Context, id int, params *GetRepositoriesIdFilesParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdFilesResponse, error) {
+	rsp, err := c.GetRepositoriesIdFiles(ctx, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetRepositoriesIdFilesResponse(rsp)
 }
 
 // GetRepositoriesIdStatusWithResponse request returning *GetRepositoriesIdStatusResponse
@@ -4782,6 +4934,53 @@ func ParseGetRepositoriesIdEnrichmentsResponse(rsp *http.Response) (*GetReposito
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetRepositoriesIdFilesResponse parses an HTTP response from a GetRepositoriesIdFilesWithResponse call
+func ParseGetRepositoriesIdFilesResponse(rsp *http.Response) (*GetRepositoriesIdFilesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetRepositoriesIdFilesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DtoFileJSONAPIListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest MiddlewareJSONAPIErrorResponse

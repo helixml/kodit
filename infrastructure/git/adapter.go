@@ -72,6 +72,9 @@ type Adapter interface {
 
 	// Grep searches for a pattern in tracked files at a specific commit using git grep.
 	Grep(ctx context.Context, localPath string, commitSHA string, pattern string, pathspec string, maxMatches int) ([]GrepMatch, error)
+
+	// TreeFiles lists files matching a pathspec in a commit's tree.
+	TreeFiles(ctx context.Context, localPath string, commitSHA string, pathspec string) ([]FileInfo, error)
 }
 
 // GrepMatch holds a single line match from git grep.

@@ -70,6 +70,7 @@ func (r *RepositoriesRouter) Routes() chi.Router {
 	router.Put("/{id}/tracking-config", r.UpdateTrackingConfig)
 	router.Get("/{id}/blob/{blob_name}/*", r.GetBlob)
 	router.Get("/{id}/grep", r.Grep)
+	router.Get("/{id}/files", r.GlobFiles)
 
 	return router
 }
@@ -1729,4 +1730,111 @@ func (r *RepositoriesRouter) Grep(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(response)
+}
+
+// GlobFiles handles GET /api/v1/repositories/{id}/files.
+//
+//	@Summary		List files matching a glob pattern
+//	@Description	Returns files from the repository's git tree matching a glob/pathspec pattern
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path		int		true	"Repository ID"
+//	@Param			glob		query		string	true	"Glob/pathspec pattern (e.g. **/*.go, src/*.py)"
+//	@Param			filter		query		string	false	"Substring filter applied to matched paths"
+//	@Param			page		query		int		false	"Page number (default: 1)"
+//	@Param			page_size	query		int		false	"Results per page (default: 20, max: 100)"
+//	@Success		200			{object}	dto.FileJSONAPIListResponse
+//	@Failure		400			{object}	middleware.JSONAPIErrorResponse
+//	@Failure		404			{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500			{object}	middleware.JSONAPIErrorResponse
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/files [get]
+func (r *RepositoriesRouter) GlobFiles(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+	pagination := ParsePagination(req)
+
+	repoID, err := r.repositoryID(req)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	glob := req.URL.Query().Get("glob")
+	if glob == "" {
+		middleware.WriteError(w, req, fmt.Errorf("glob query parameter is required: %w", middleware.ErrValidation), r.logger)
+		return
+	}
+
+	filter := req.URL.Query().Get("filter")
+
+	// Resolve the latest commit for the default branch.
+	commits, err := r.client.Commits.Find(ctx,
+		repository.WithRepoID(repoID),
+		repository.WithOrderDesc("date"),
+		repository.WithLimit(1),
+	)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+	if len(commits) == 0 {
+		middleware.WriteError(w, req, fmt.Errorf("no commits found for repository: %w", database.ErrNotFound), r.logger)
+		return
+	}
+	commitSHA := commits[0].SHA()
+
+	files, _, err := r.client.Blobs.TreeFiles(ctx, repoID, commitSHA, glob)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Apply substring filter.
+	if filter != "" {
+		filtered := files[:0]
+		for _, f := range files {
+			if strings.Contains(f.Path, filter) {
+				filtered = append(filtered, f)
+			}
+		}
+		files = filtered
+	}
+
+	// Paginate.
+	total := int64(len(files))
+	start := pagination.Offset()
+	end := start + pagination.Limit()
+	if start > len(files) {
+		start = len(files)
+	}
+	if end > len(files) {
+		end = len(files)
+	}
+	page := files[start:end]
+
+	data := make([]dto.FileData, 0, len(page))
+	for _, f := range page {
+		ext := ""
+		if idx := strings.LastIndex(f.Path, "."); idx >= 0 {
+			ext = f.Path[idx:]
+		}
+		data = append(data, dto.FileData{
+			Type: "file",
+			ID:   f.BlobSHA,
+			Attributes: dto.FileAttributes{
+				BlobSHA:   f.BlobSHA,
+				Path:      f.Path,
+				MimeType:  f.MimeType,
+				Size:      f.Size,
+				Extension: ext,
+			},
+		})
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, dto.FileJSONAPIListResponse{
+		Data:  data,
+		Meta:  PaginationMeta(pagination, total),
+		Links: PaginationLinks(req, pagination, total),
+	})
 }

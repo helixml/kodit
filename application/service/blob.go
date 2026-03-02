@@ -88,6 +88,30 @@ func (b *Blob) Resolve(ctx context.Context, repoID int64, blobName string) (stri
 	return "", fmt.Errorf("blob reference %q not found for repository %d", blobName, repoID)
 }
 
+// TreeFiles resolves the blob reference and returns files matching the pathspec.
+func (b *Blob) TreeFiles(ctx context.Context, repoID int64, blobName, pathspec string) ([]git.FileInfo, string, error) {
+	commitSHA, err := b.Resolve(ctx, repoID, blobName)
+	if err != nil {
+		return nil, "", err
+	}
+
+	repo, err := b.repositories.FindOne(ctx, repository.WithID(repoID))
+	if err != nil {
+		return nil, "", fmt.Errorf("find repository: %w", err)
+	}
+
+	if !repo.HasWorkingCopy() {
+		return nil, "", fmt.Errorf("repository %d has no working copy", repoID)
+	}
+
+	files, err := b.git.TreeFiles(ctx, repo.WorkingCopy().Path(), commitSHA, pathspec)
+	if err != nil {
+		return nil, "", fmt.Errorf("tree files: %w", err)
+	}
+
+	return files, commitSHA, nil
+}
+
 // Content resolves the blob reference and returns the file content at the given path.
 func (b *Blob) Content(ctx context.Context, repoID int64, blobName, filePath string) (BlobContent, error) {
 	commitSHA, err := b.Resolve(ctx, repoID, blobName)

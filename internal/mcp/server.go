@@ -17,6 +17,7 @@ import (
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/domain/wiki"
+	"github.com/helixml/kodit/infrastructure/git"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -63,6 +64,11 @@ type EnrichmentResolver interface {
 	RepositoryIDs(ctx context.Context, enrichmentIDs []int64) (map[string]int64, error)
 }
 
+// TreeFileLister provides glob-based file listing from Git repositories.
+type TreeFileLister interface {
+	TreeFiles(ctx context.Context, repoID int64, blobName, pathspec string) ([]git.FileInfo, string, error)
+}
+
 // FileFinder provides file lookups by options.
 type FileFinder interface {
 	Find(ctx context.Context, options ...repository.Option) ([]repository.File, error)
@@ -83,6 +89,7 @@ type Server struct {
 	semanticSearch     SemanticSearcher
 	keywordSearch      KeywordSearcher
 	enrichmentResolver EnrichmentResolver
+	treeFiles          TreeFileLister
 	files              FileFinder
 	grepper            Grepper
 	version            string
@@ -105,7 +112,8 @@ const instructions = "This server provides access to code knowledge through mult
 	"- get_wiki_page() - Get the content of a specific wiki page by slug\n" +
 	"- semantic_search() - Find files matching a natural language query (returns resource URIs)\n" +
 	"- keyword_search() - Find files matching keywords using BM25 search (returns resource URIs)\n" +
-	"- grep() - Search file contents using git grep with regex patterns (returns resource URIs)\n\n" +
+	"- grep() - Search file contents using git grep with regex patterns (returns resource URIs)\n" +
+	"- glob_files() - List files matching a glob pattern in a repository's file tree\n\n" +
 	"**Reading file content:**\n" +
 	"Use the file resource template: file://{id}/{blob_name}/{+path}\n" +
 	"where id is the repository ID, blob_name is a commit SHA, tag, or branch name, " +
@@ -124,6 +132,7 @@ func NewServer(
 	semanticSearch SemanticSearcher,
 	keywordSearch KeywordSearcher,
 	enrichmentResolver EnrichmentResolver,
+	treeFiles TreeFileLister,
 	files FileFinder,
 	grepper Grepper,
 	version string,
@@ -141,6 +150,7 @@ func NewServer(
 		semanticSearch:     semanticSearch,
 		keywordSearch:      keywordSearch,
 		enrichmentResolver: enrichmentResolver,
+		treeFiles:          treeFiles,
 		files:              files,
 		grepper:            grepper,
 		version:            version,
@@ -304,6 +314,24 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 			mcp.Description("Maximum number of file results (default 50)"),
 		),
 	), s.handleGrep)
+
+	mcpServer.AddTool(mcp.NewTool("glob_files",
+		mcp.WithDescription("List files matching a glob pattern in a repository"),
+		mcp.WithString("repo_url",
+			mcp.Required(),
+			mcp.Description("The remote URL of the repository"),
+		),
+		mcp.WithString("pattern",
+			mcp.Required(),
+			mcp.Description("Glob pattern to match files (e.g. **/*.go, src/*.py)"),
+		),
+		mcp.WithString("filter",
+			mcp.Description("Additional substring filter applied to file paths"),
+		),
+		mcp.WithString("commit_sha",
+			mcp.Description("Commit SHA, tag, or branch (defaults to latest)"),
+		),
+	), s.handleGlobFiles)
 }
 
 // handleGetVersion returns the kodit server version.
@@ -932,6 +960,86 @@ func (s *Server) handleGrep(ctx context.Context, request mcp.CallToolRequest) (*
 	}
 
 	jsonBytes, err := json.Marshal(fileResults)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("marshal results: %v", err)), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+// globFileResult holds the resolved file information for a glob match.
+type globFileResult struct {
+	Path      string `json:"path"`
+	Extension string `json:"extension"`
+	Size      int64  `json:"size"`
+}
+
+// handleGlobFiles handles the glob_files tool invocation.
+func (s *Server) handleGlobFiles(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	repoURL, err := request.RequireString("repo_url")
+	if err != nil {
+		return mcp.NewToolResultError("repo_url is required"), nil
+	}
+
+	pattern, err := request.RequireString("pattern")
+	if err != nil {
+		return mcp.NewToolResultError("pattern is required"), nil
+	}
+	if strings.TrimSpace(pattern) == "" {
+		return mcp.NewToolResultError("pattern must not be empty"), nil
+	}
+
+	filter := request.GetString("filter", "")
+
+	repos, err := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
+	if err != nil {
+		s.logger.Error("failed to find repository", slog.String("repo_url", repoURL), slog.Any("error", err))
+		return mcp.NewToolResultError(fmt.Sprintf("failed to find repository: %v", err)), nil
+	}
+	if len(repos) == 0 {
+		return mcp.NewToolResultError(fmt.Sprintf("repository not found: %s", repoURL)), nil
+	}
+
+	commitSHA := request.GetString("commit_sha", "")
+	if commitSHA == "" {
+		commits, commitErr := s.commits.Find(ctx,
+			repository.WithRepoID(repos[0].ID()),
+			repository.WithOrderDesc("date"),
+			repository.WithLimit(1),
+		)
+		if commitErr != nil {
+			s.logger.Error("failed to find latest commit", slog.Any("error", commitErr))
+			return mcp.NewToolResultError(fmt.Sprintf("failed to find latest commit: %v", commitErr)), nil
+		}
+		if len(commits) == 0 {
+			return mcp.NewToolResultError("no commits found for repository"), nil
+		}
+		commitSHA = commits[0].SHA()
+	}
+
+	files, _, err := s.treeFiles.TreeFiles(ctx, repos[0].ID(), commitSHA, pattern)
+	if err != nil {
+		s.logger.Error("tree files failed", slog.Any("error", err))
+		return mcp.NewToolResultError(fmt.Sprintf("glob files failed: %v", err)), nil
+	}
+
+	results := make([]globFileResult, 0, len(files))
+	for _, f := range files {
+		if filter != "" && !strings.Contains(f.Path, filter) {
+			continue
+		}
+		results = append(results, globFileResult{
+			Path:      f.Path,
+			Extension: filepath.Ext(f.Path),
+			Size:      f.Size,
+		})
+	}
+
+	if len(results) == 0 {
+		return mcp.NewToolResultText("[]"), nil
+	}
+
+	jsonBytes, err := json.Marshal(results)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("marshal results: %v", err)), nil
 	}

@@ -73,6 +73,10 @@ func (f *fakeAdapter) Grep(_ context.Context, _ string, _ string, _ string, _ st
 	return nil, nil
 }
 
+func (f *fakeAdapter) TreeFiles(_ context.Context, _ string, _ string, _ string) ([]FileInfo, error) {
+	return nil, nil
+}
+
 func TestUpdate_MissingDirectory(t *testing.T) {
 	fake := &fakeAdapter{}
 	cloneDir := t.TempDir()

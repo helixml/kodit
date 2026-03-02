@@ -689,6 +689,49 @@ func TestSmoke(t *testing.T) {
 		validateMCPFileResults(t, results, "keyword_search")
 	})
 
+	t.Run("mcp_glob_files", func(t *testing.T) {
+		results := callMCPGlobFiles(t, mcpSessionID, 4, map[string]any{
+			"repo_url": targetURI,
+			"pattern":  "**/*.py",
+		})
+		if len(results) == 0 {
+			t.Fatal("expected at least one glob_files result")
+		}
+		for i, r := range results {
+			if r.Path == "" {
+				t.Fatalf("glob_files result %d: expected path", i)
+			}
+			if r.Extension != ".py" {
+				t.Fatalf("glob_files result %d: expected .py extension, got %s", i, r.Extension)
+			}
+			t.Logf("glob_files result %d: path=%s, size=%d", i, r.Path, r.Size)
+		}
+	})
+
+	t.Run("glob_files", func(t *testing.T) {
+		resp, err := client.GetRepositoriesIdFilesWithResponse(ctx, repoID, &kodit.GetRepositoriesIdFilesParams{
+			Glob: "**/*.py",
+		})
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		if resp.StatusCode() != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", resp.StatusCode(), string(resp.Body))
+		}
+		if resp.JSON200 == nil || resp.JSON200.Data == nil || len(*resp.JSON200.Data) == 0 {
+			t.Fatal("expected at least one file")
+		}
+		for _, f := range *resp.JSON200.Data {
+			if f.Attributes == nil || f.Attributes.Path == nil || *f.Attributes.Path == "" {
+				t.Fatal("expected file path")
+			}
+			if !strings.HasSuffix(*f.Attributes.Path, ".py") {
+				t.Fatalf("expected .py file, got %s", *f.Attributes.Path)
+			}
+		}
+		t.Logf("glob_files: %d matches", len(*resp.JSON200.Data))
+	})
+
 	t.Run("queue", func(t *testing.T) {
 		resp, err := client.GetQueueWithResponse(ctx, nil)
 		if err != nil {
@@ -1043,6 +1086,65 @@ func callMCPTool(t *testing.T, sessionID string, toolName string, id int, args m
 	var results []mcpFileResult
 	if err := json.Unmarshal([]byte(rpcResp.Result.Content[0].Text), &results); err != nil {
 		t.Fatalf("unmarshal MCP %s results: %v", toolName, err)
+	}
+	return results
+}
+
+// mcpGlobFileResult represents a single result from glob_files.
+type mcpGlobFileResult struct {
+	Path      string `json:"path"`
+	Extension string `json:"extension"`
+	Size      int64  `json:"size"`
+}
+
+// callMCPGlobFiles invokes the glob_files MCP tool and returns the parsed results.
+func callMCPGlobFiles(t *testing.T, sessionID string, id int, args map[string]any) []mcpGlobFileResult {
+	t.Helper()
+	body := mcpJSONRPC("tools/call", id, map[string]any{
+		"name":      "glob_files",
+		"arguments": args,
+	})
+	httpClient := &http.Client{Timeout: 30 * time.Second}
+	req, err := http.NewRequest(http.MethodPost, rootURL+"/mcp", strings.NewReader(string(body)))
+	if err != nil {
+		t.Fatalf("create MCP request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Mcp-Session-Id", sessionID)
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		t.Fatalf("MCP glob_files failed: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("MCP glob_files: expected 200, got %d", resp.StatusCode)
+	}
+
+	var rpcResp struct {
+		Result struct {
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+			IsError bool `json:"isError"`
+		} `json:"result"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&rpcResp); err != nil {
+		t.Fatalf("decode MCP response: %v", err)
+	}
+	if rpcResp.Result.IsError {
+		text := ""
+		if len(rpcResp.Result.Content) > 0 {
+			text = rpcResp.Result.Content[0].Text
+		}
+		t.Fatalf("MCP glob_files returned error: %s", text)
+	}
+	if len(rpcResp.Result.Content) == 0 {
+		t.Fatalf("MCP glob_files returned no content")
+	}
+
+	var results []mcpGlobFileResult
+	if err := json.Unmarshal([]byte(rpcResp.Result.Content[0].Text), &results); err != nil {
+		t.Fatalf("unmarshal MCP glob_files results: %v", err)
 	}
 	return results
 }

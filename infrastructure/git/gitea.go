@@ -526,6 +526,124 @@ func (g *GiteaAdapter) CommitDiff(ctx context.Context, localPath string, commitS
 	return buf.String(), nil
 }
 
+// TreeFiles lists files matching a pathspec in a commit's tree.
+// It lists all files in the tree and filters them with a glob pattern
+// because git ls-tree does not support glob pathspecs like **/*.go.
+func (g *GiteaAdapter) TreeFiles(ctx context.Context, localPath string, commitSHA string, pathspec string) ([]FileInfo, error) {
+	cmd := gitcmd.NewCommand("ls-tree", "-r", "--long").
+		AddDynamicArguments(commitSHA)
+
+	stdout, _, err := cmd.RunStdString(ctx, &gitcmd.RunOpts{Dir: localPath})
+	if err != nil {
+		return nil, fmt.Errorf("ls-tree: %w", err)
+	}
+
+	all := parseLsTree(stdout)
+	if pathspec == "" || pathspec == "*" || pathspec == "**" {
+		return all, nil
+	}
+
+	matched := make([]FileInfo, 0, len(all))
+	for _, f := range all {
+		if matchGlob(pathspec, f.Path) {
+			matched = append(matched, f)
+		}
+	}
+	return matched, nil
+}
+
+// matchGlob matches a file path against a glob pattern supporting **
+// (matches zero or more path segments) and delegates to filepath.Match
+// for single-segment patterns.
+func matchGlob(pattern, path string) bool {
+	// Fast path: no ** in pattern, use filepath.Match directly.
+	if !strings.Contains(pattern, "**") {
+		ok, _ := filepath.Match(pattern, path)
+		return ok
+	}
+
+	// Split pattern on ** and match segments recursively.
+	parts := strings.SplitN(pattern, "**", 2)
+	prefix := parts[0]
+	suffix := strings.TrimLeft(parts[1], "/")
+
+	// The prefix must match the beginning of path.
+	if prefix != "" {
+		prefix = strings.TrimRight(prefix, "/")
+		if !strings.HasPrefix(path, prefix+"/") && path != prefix {
+			return false
+		}
+		path = strings.TrimPrefix(path, prefix+"/")
+	}
+
+	// If suffix is empty, ** matches everything remaining.
+	if suffix == "" {
+		return true
+	}
+
+	// Try matching suffix against every possible tail of path.
+	segments := strings.Split(path, "/")
+	for i := range segments {
+		tail := strings.Join(segments[i:], "/")
+		if matchGlob(suffix, tail) {
+			return true
+		}
+	}
+	return false
+}
+
+// parseLsTree parses the output of `git ls-tree -r --long`.
+// Each line: "<mode> <type> <sha>       <size>\t<path>"
+func parseLsTree(stdout string) []FileInfo {
+	stdout = strings.TrimSpace(stdout)
+	if stdout == "" {
+		return nil
+	}
+
+	lines := strings.Split(stdout, "\n")
+	files := make([]FileInfo, 0, len(lines))
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// Split on tab: left side has mode/type/sha/size, right side has path.
+		tabIdx := strings.IndexByte(line, '\t')
+		if tabIdx < 0 {
+			continue
+		}
+		path := line[tabIdx+1:]
+		meta := line[:tabIdx]
+
+		// meta fields are space-separated but size may have leading spaces.
+		fields := strings.Fields(meta)
+		if len(fields) < 4 {
+			continue
+		}
+
+		// fields[0]=mode, fields[1]=type, fields[2]=sha, fields[3]=size
+		if fields[1] != "blob" {
+			continue
+		}
+
+		var size int64
+		if fields[3] != "-" {
+			_, _ = fmt.Sscanf(fields[3], "%d", &size)
+		}
+
+		files = append(files, FileInfo{
+			Path:     path,
+			BlobSHA:  fields[2],
+			Size:     size,
+			MimeType: guessMimeType(path),
+		})
+	}
+
+	return files
+}
+
 // resolveBranch resolves a branch name to a ref that git log can use.
 // It checks local branches first, then remote branches.
 func (g *GiteaAdapter) resolveBranch(ctx context.Context, localPath string, branchName string) (string, error) {

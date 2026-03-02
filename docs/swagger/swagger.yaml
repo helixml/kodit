@@ -1521,6 +1521,59 @@ paths:
       summary: List repository enrichments
       tags:
       - repositories
+  /repositories/{id}/files:
+    get:
+      consumes:
+      - application/json
+      description: Returns files from the repository's git tree matching a glob/pathspec
+        pattern
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Glob/pathspec pattern (e.g. **/*.go, src/*.py)
+        in: query
+        name: glob
+        required: true
+        type: string
+      - description: Substring filter applied to matched paths
+        in: query
+        name: filter
+        type: string
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Results per page (default: 20, max: 100)'
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.FileJSONAPIListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: List files matching a glob pattern
+      tags:
+      - repositories
   /repositories/{id}/status:
     get:
       consumes:

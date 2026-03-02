@@ -233,6 +233,10 @@ func (f *fakeBlobGitAdapter) Grep(context.Context, string, string, string, strin
 	return nil, nil
 }
 
+func (f *fakeBlobGitAdapter) TreeFiles(context.Context, string, string, string) ([]git.FileInfo, error) {
+	return nil, nil
+}
+
 func newTestBlob() (*Blob, *fakeBlobGitAdapter) {
 	now := time.Now()
 	repo := repository.ReconstructRepository(
