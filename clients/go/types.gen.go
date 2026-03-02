@@ -129,6 +129,25 @@ type DtoGitFileSchema struct {
 	Size     *int    `json:"size,omitempty"`
 }
 
+// DtoKeywordSearchAttributes defines model for dto.KeywordSearchAttributes.
+type DtoKeywordSearchAttributes struct {
+	Keywords   *string `json:"keywords,omitempty"`
+	Language   *string `json:"language,omitempty"`
+	Limit      *int    `json:"limit,omitempty"`
+	SourceRepo *string `json:"source_repo,omitempty"`
+}
+
+// DtoKeywordSearchData defines model for dto.KeywordSearchData.
+type DtoKeywordSearchData struct {
+	Attributes *DtoKeywordSearchAttributes `json:"attributes,omitempty"`
+	Type       *string                     `json:"type,omitempty"`
+}
+
+// DtoKeywordSearchRequest defines model for dto.KeywordSearchRequest.
+type DtoKeywordSearchRequest struct {
+	Data *DtoKeywordSearchData `json:"data,omitempty"`
+}
+
 // DtoRepositoryAttributes defines model for dto.RepositoryAttributes.
 type DtoRepositoryAttributes struct {
 	ClonedPath     *string `json:"cloned_path,omitempty"`
@@ -254,6 +273,25 @@ type DtoSearchRequest struct {
 // DtoSearchResponse defines model for dto.SearchResponse.
 type DtoSearchResponse struct {
 	Data *[]DtoSnippetData `json:"data,omitempty"`
+}
+
+// DtoSemanticSearchAttributes defines model for dto.SemanticSearchAttributes.
+type DtoSemanticSearchAttributes struct {
+	Language   *string `json:"language,omitempty"`
+	Limit      *int    `json:"limit,omitempty"`
+	Query      *string `json:"query,omitempty"`
+	SourceRepo *string `json:"source_repo,omitempty"`
+}
+
+// DtoSemanticSearchData defines model for dto.SemanticSearchData.
+type DtoSemanticSearchData struct {
+	Attributes *DtoSemanticSearchAttributes `json:"attributes,omitempty"`
+	Type       *string                      `json:"type,omitempty"`
+}
+
+// DtoSemanticSearchRequest defines model for dto.SemanticSearchRequest.
+type DtoSemanticSearchRequest struct {
+	Data *DtoSemanticSearchData `json:"data,omitempty"`
 }
 
 // DtoSnippetAttributes defines model for dto.SnippetAttributes.
@@ -574,3 +612,9 @@ type PutRepositoriesIdTrackingConfigJSONRequestBody = DtoTrackingConfigUpdateReq
 
 // PostSearchJSONRequestBody defines body for PostSearch for application/json ContentType.
 type PostSearchJSONRequestBody = DtoSearchRequest
+
+// PostSearchKeywordJSONRequestBody defines body for PostSearchKeyword for application/json ContentType.
+type PostSearchKeywordJSONRequestBody = DtoKeywordSearchRequest
+
+// PostSearchSemanticJSONRequestBody defines body for PostSearchSemantic for application/json ContentType.
+type PostSearchSemanticJSONRequestBody = DtoSemanticSearchRequest

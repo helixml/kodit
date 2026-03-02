@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit"
-	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/chunk"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
@@ -38,6 +38,8 @@ func (r *SearchRouter) Routes() chi.Router {
 	router := chi.NewRouter()
 
 	router.Post("/", r.Search)
+	router.Post("/semantic", r.SemanticSearch)
+	router.Post("/keyword", r.KeywordSearch)
 
 	return router
 }
@@ -75,43 +77,133 @@ func (r *SearchRouter) Search(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Fetch related enrichments (e.g., summaries) for the search results
-	enrichments := result.Enrichments()
-	ids := make([]int64, len(enrichments))
-	for i, e := range enrichments {
-		ids[i] = e.ID()
-	}
-	related, err := r.client.Enrichments.RelatedEnrichments(ctx, ids)
+	response, err := r.resolveAndBuildResponse(ctx, result.Enrichments(), result.OriginalScores())
 	if err != nil {
-		r.logger.Warn("failed to fetch related enrichments", "error", err)
-		related = map[string][]enrichment.Enrichment{}
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+	middleware.WriteJSON(w, http.StatusOK, response)
+}
+
+// SemanticSearch handles POST /api/v1/search/semantic.
+//
+//	@Summary		Semantic code search
+//	@Description	Search code snippets using semantic similarity
+//	@Tags			search
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		dto.SemanticSearchRequest	true	"Semantic search request"
+//	@Success		200		{object}	dto.SearchResponse
+//	@Failure		400		{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500		{object}	middleware.JSONAPIErrorResponse
+//	@Security		APIKeyAuth
+//	@Router			/search/semantic [post]
+func (r *SearchRouter) SemanticSearch(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	var body dto.SemanticSearchRequest
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
 	}
 
-	fileMap, err := sourceFileMap(ctx, r.client, ids)
-	if err != nil {
-		r.logger.Warn("failed to fetch source files", "error", err)
-		fileMap = map[string][]repository.File{}
+	attrs := body.Data.Attributes
+	if attrs.Query == "" {
+		middleware.WriteError(w, req, fmt.Errorf("query is required: %w", middleware.ErrValidation), r.logger)
+		return
 	}
 
-	lineRanges, err := r.client.Enrichments.LineRanges(ctx, ids)
-	if err != nil {
-		r.logger.Warn("failed to fetch line ranges", "error", err)
-		lineRanges = map[string]chunk.LineRange{}
+	limit := 10
+	if attrs.Limit != nil && *attrs.Limit > 0 {
+		limit = *attrs.Limit
 	}
 
-	commits, err := r.commitMap(ctx, fileMap)
+	language := normalizeExtension(attrs.Language)
+
+	enrichments, scores, err := r.client.Search.SearchCodeWithScores(ctx, attrs.Query, limit)
 	if err != nil {
-		r.logger.Warn("failed to fetch commits", "error", err)
-		commits = map[string]repository.Commit{}
+		middleware.WriteError(w, req, err, r.logger)
+		return
 	}
 
-	repos, err := r.repositoryMap(ctx, commits)
-	if err != nil {
-		r.logger.Warn("failed to fetch repositories", "error", err)
-		repos = map[int64]repository.Repository{}
+	if language != "" {
+		enrichments = filterByLanguage(enrichments, language)
 	}
 
-	response := buildSearchResponse(result, related, fileMap, lineRanges, commits, repos)
+	if len(enrichments) > limit {
+		enrichments = enrichments[:limit]
+	}
+
+	scoreMap := enrichmentScoreMap(enrichments, scores)
+	response, err := r.resolveAndBuildResponse(ctx, enrichments, scoreMap)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+	middleware.WriteJSON(w, http.StatusOK, response)
+}
+
+// KeywordSearch handles POST /api/v1/search/keyword.
+//
+//	@Summary		Keyword code search
+//	@Description	Search code snippets using BM25 keyword matching
+//	@Tags			search
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		dto.KeywordSearchRequest	true	"Keyword search request"
+//	@Success		200		{object}	dto.SearchResponse
+//	@Failure		400		{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500		{object}	middleware.JSONAPIErrorResponse
+//	@Security		APIKeyAuth
+//	@Router			/search/keyword [post]
+func (r *SearchRouter) KeywordSearch(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	var body dto.KeywordSearchRequest
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	attrs := body.Data.Attributes
+	if attrs.Keywords == "" {
+		middleware.WriteError(w, req, fmt.Errorf("keywords is required: %w", middleware.ErrValidation), r.logger)
+		return
+	}
+
+	limit := 10
+	if attrs.Limit != nil && *attrs.Limit > 0 {
+		limit = *attrs.Limit
+	}
+
+	language := normalizeExtension(attrs.Language)
+
+	var filterOpts []search.FiltersOption
+	if language != "" {
+		filterOpts = append(filterOpts, search.WithLanguages([]string{language}))
+	}
+	filters := search.NewFilters(filterOpts...)
+
+	enrichments, scores, err := r.client.Search.SearchKeywordsWithScores(ctx, attrs.Keywords, limit, filters)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	if language != "" {
+		enrichments = filterByLanguage(enrichments, language)
+	}
+
+	if len(enrichments) > limit {
+		enrichments = enrichments[:limit]
+	}
+
+	scoreMap := enrichmentScoreMap(enrichments, scores)
+	response, err := r.resolveAndBuildResponse(ctx, enrichments, scoreMap)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
 	middleware.WriteJSON(w, http.StatusOK, response)
 }
 
@@ -179,16 +271,47 @@ func buildSearchRequest(body dto.SearchRequest) (search.MultiRequest, error) {
 	return search.NewMultiRequest(topK, textQuery, codeQuery, attrs.Keywords, filters), nil
 }
 
-func buildSearchResponse(
-	result service.MultiSearchResult,
-	related map[string][]enrichment.Enrichment,
-	fileMap map[string][]repository.File,
-	lineRanges map[string]chunk.LineRange,
-	commits map[string]repository.Commit,
-	repos map[int64]repository.Repository,
-) dto.SearchResponse {
-	enrichments := result.Enrichments()
-	originalScores := result.OriginalScores()
+// resolveAndBuildResponse resolves enrichment metadata (related enrichments,
+// source files, line ranges, commits, repos) and builds a SearchResponse.
+func (r *SearchRouter) resolveAndBuildResponse(
+	ctx context.Context,
+	enrichments []enrichment.Enrichment,
+	originalScores map[string][]float64,
+) (dto.SearchResponse, error) {
+	ids := make([]int64, len(enrichments))
+	for i, e := range enrichments {
+		ids[i] = e.ID()
+	}
+
+	related, err := r.client.Enrichments.RelatedEnrichments(ctx, ids)
+	if err != nil {
+		r.logger.Warn("failed to fetch related enrichments", "error", err)
+		related = map[string][]enrichment.Enrichment{}
+	}
+
+	fileMap, err := sourceFileMap(ctx, r.client, ids)
+	if err != nil {
+		r.logger.Warn("failed to fetch source files", "error", err)
+		fileMap = map[string][]repository.File{}
+	}
+
+	lineRanges, err := r.client.Enrichments.LineRanges(ctx, ids)
+	if err != nil {
+		r.logger.Warn("failed to fetch line ranges", "error", err)
+		lineRanges = map[string]chunk.LineRange{}
+	}
+
+	commits, err := r.commitMap(ctx, fileMap)
+	if err != nil {
+		r.logger.Warn("failed to fetch commits", "error", err)
+		commits = map[string]repository.Commit{}
+	}
+
+	repos, err := r.repositoryMap(ctx, commits)
+	if err != nil {
+		r.logger.Warn("failed to fetch repositories", "error", err)
+		repos = map[int64]repository.Repository{}
+	}
 
 	data := make([]dto.SnippetData, len(enrichments))
 	for i, e := range enrichments {
@@ -201,9 +324,40 @@ func buildSearchResponse(
 		data[i] = enrichmentToSearchResult(e, originalScores[idStr], related[idStr], fileMap[idStr], lrPtr, commits, repos)
 	}
 
-	return dto.SearchResponse{
-		Data: data,
+	return dto.SearchResponse{Data: data}, nil
+}
+
+// normalizeExtension strips a leading dot so that ".py" and "py" compare equal.
+// Returns empty string for nil input.
+func normalizeExtension(ext *string) string {
+	if ext == nil {
+		return ""
 	}
+	return strings.TrimPrefix(*ext, ".")
+}
+
+// filterByLanguage returns only enrichments whose language matches.
+func filterByLanguage(enrichments []enrichment.Enrichment, language string) []enrichment.Enrichment {
+	filtered := make([]enrichment.Enrichment, 0, len(enrichments))
+	for _, e := range enrichments {
+		if strings.TrimPrefix(e.Language(), ".") == language {
+			filtered = append(filtered, e)
+		}
+	}
+	return filtered
+}
+
+// enrichmentScoreMap converts a flat score map (id→score) into the per-enrichment
+// multi-score map (id→[]float64) expected by the response builder.
+func enrichmentScoreMap(enrichments []enrichment.Enrichment, scores map[string]float64) map[string][]float64 {
+	result := make(map[string][]float64, len(enrichments))
+	for _, e := range enrichments {
+		idStr := strconv.FormatInt(e.ID(), 10)
+		if s, ok := scores[idStr]; ok {
+			result[idStr] = []float64{s}
+		}
+	}
+	return result
 }
 
 func enrichmentToSearchResult(

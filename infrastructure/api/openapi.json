@@ -239,6 +239,42 @@
                 },
                 "type": "object"
             },
+            "dto.KeywordSearchAttributes": {
+                "properties": {
+                    "keywords": {
+                        "type": "string"
+                    },
+                    "language": {
+                        "type": "string"
+                    },
+                    "limit": {
+                        "type": "integer"
+                    },
+                    "source_repo": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.KeywordSearchData": {
+                "properties": {
+                    "attributes": {
+                        "$ref": "#/components/schemas/dto.KeywordSearchAttributes"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.KeywordSearchRequest": {
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/dto.KeywordSearchData"
+                    }
+                },
+                "type": "object"
+            },
             "dto.RepositoryAttributes": {
                 "properties": {
                     "cloned_path": {
@@ -526,6 +562,42 @@
                             "$ref": "#/components/schemas/dto.SnippetData"
                         },
                         "type": "array"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.SemanticSearchAttributes": {
+                "properties": {
+                    "language": {
+                        "type": "string"
+                    },
+                    "limit": {
+                        "type": "integer"
+                    },
+                    "query": {
+                        "type": "string"
+                    },
+                    "source_repo": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.SemanticSearchData": {
+                "properties": {
+                    "attributes": {
+                        "$ref": "#/components/schemas/dto.SemanticSearchAttributes"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.SemanticSearchRequest": {
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/dto.SemanticSearchData"
                     }
                 },
                 "type": "object"
@@ -3189,6 +3261,122 @@
                     }
                 ],
                 "summary": "Search code",
+                "tags": [
+                    "search"
+                ]
+            }
+        },
+        "/search/keyword": {
+            "post": {
+                "description": "Search code snippets using BM25 keyword matching",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/dto.KeywordSearchRequest"
+                            }
+                        }
+                    },
+                    "description": "Keyword search request",
+                    "required": true,
+                    "x-originalParamName": "body"
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.SearchResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Keyword code search",
+                "tags": [
+                    "search"
+                ]
+            }
+        },
+        "/search/semantic": {
+            "post": {
+                "description": "Search code snippets using semantic similarity",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/dto.SemanticSearchRequest"
+                            }
+                        }
+                    },
+                    "description": "Semantic search request",
+                    "required": true,
+                    "x-originalParamName": "body"
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.SearchResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Semantic code search",
                 "tags": [
                     "search"
                 ]

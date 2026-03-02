@@ -153,6 +153,29 @@ definitions:
       size:
         type: integer
     type: object
+  dto.KeywordSearchAttributes:
+    properties:
+      keywords:
+        type: string
+      language:
+        type: string
+      limit:
+        type: integer
+      source_repo:
+        type: string
+    type: object
+  dto.KeywordSearchData:
+    properties:
+      attributes:
+        $ref: '#/definitions/dto.KeywordSearchAttributes'
+      type:
+        type: string
+    type: object
+  dto.KeywordSearchRequest:
+    properties:
+      data:
+        $ref: '#/definitions/dto.KeywordSearchData'
+    type: object
   dto.RepositoryAttributes:
     properties:
       cloned_path:
@@ -340,6 +363,29 @@ definitions:
         items:
           $ref: '#/definitions/dto.SnippetData'
         type: array
+    type: object
+  dto.SemanticSearchAttributes:
+    properties:
+      language:
+        type: string
+      limit:
+        type: integer
+      query:
+        type: string
+      source_repo:
+        type: string
+    type: object
+  dto.SemanticSearchData:
+    properties:
+      attributes:
+        $ref: '#/definitions/dto.SemanticSearchAttributes'
+      type:
+        type: string
+    type: object
+  dto.SemanticSearchRequest:
+    properties:
+      data:
+        $ref: '#/definitions/dto.SemanticSearchData'
     type: object
   dto.SnippetAttributes:
     properties:
@@ -1833,6 +1879,70 @@ paths:
       security:
       - APIKeyAuth: []
       summary: Search code
+      tags:
+      - search
+  /search/keyword:
+    post:
+      consumes:
+      - application/json
+      description: Search code snippets using BM25 keyword matching
+      parameters:
+      - description: Keyword search request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.KeywordSearchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SearchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: Keyword code search
+      tags:
+      - search
+  /search/semantic:
+    post:
+      consumes:
+      - application/json
+      description: Search code snippets using semantic similarity
+      parameters:
+      - description: Semantic search request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SemanticSearchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SearchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: Semantic code search
       tags:
       - search
 securityDefinitions:

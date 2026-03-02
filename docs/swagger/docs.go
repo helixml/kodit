@@ -1900,6 +1900,108 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/search/keyword": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Search code snippets using BM25 keyword matching",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "search"
+                ],
+                "summary": "Keyword code search",
+                "parameters": [
+                    {
+                        "description": "Keyword search request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.KeywordSearchRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SearchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/search/semantic": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Search code snippets using semantic similarity",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "search"
+                ],
+                "summary": "Semantic code search",
+                "parameters": [
+                    {
+                        "description": "Semantic search request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.SemanticSearchRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SearchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -2138,6 +2240,42 @@ const docTemplate = `{
                 },
                 "size": {
                     "type": "integer"
+                }
+            }
+        },
+        "dto.KeywordSearchAttributes": {
+            "type": "object",
+            "properties": {
+                "keywords": {
+                    "type": "string"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "source_repo": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.KeywordSearchData": {
+            "type": "object",
+            "properties": {
+                "attributes": {
+                    "$ref": "#/definitions/dto.KeywordSearchAttributes"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.KeywordSearchRequest": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/dto.KeywordSearchData"
                 }
             }
         },
@@ -2429,6 +2567,42 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/dto.SnippetData"
                     }
+                }
+            }
+        },
+        "dto.SemanticSearchAttributes": {
+            "type": "object",
+            "properties": {
+                "language": {
+                    "type": "string"
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "query": {
+                    "type": "string"
+                },
+                "source_repo": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.SemanticSearchData": {
+            "type": "object",
+            "properties": {
+                "attributes": {
+                    "$ref": "#/definitions/dto.SemanticSearchAttributes"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.SemanticSearchRequest": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/dto.SemanticSearchData"
                 }
             }
         },
