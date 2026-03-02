@@ -1741,7 +1741,6 @@ func (r *RepositoriesRouter) Grep(w http.ResponseWriter, req *http.Request) {
 //	@Produce		json
 //	@Param			id			path		int		true	"Repository ID"
 //	@Param			glob		query		string	true	"Glob/pathspec pattern (e.g. **/*.go, src/*.py)"
-//	@Param			filter		query		string	false	"Substring filter applied to matched paths"
 //	@Param			page		query		int		false	"Page number (default: 1)"
 //	@Param			page_size	query		int		false	"Results per page (default: 20, max: 100)"
 //	@Success		200			{object}	dto.FileJSONAPIListResponse
@@ -1766,23 +1765,10 @@ func (r *RepositoriesRouter) GlobFiles(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	filter := req.URL.Query().Get("filter")
-
 	files, err := r.client.Blobs.ListFiles(ctx, repoID, glob)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
-	}
-
-	// Apply substring filter.
-	if filter != "" {
-		filtered := files[:0]
-		for _, f := range files {
-			if strings.Contains(f.Path, filter) {
-				filtered = append(filtered, f)
-			}
-		}
-		files = filtered
 	}
 
 	// Paginate.

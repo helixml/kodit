@@ -144,7 +144,6 @@ func (f *fakeGitAdapter) Grep(_ context.Context, _ string, _ string, _ string, _
 	return nil, nil
 }
 
-
 func newEnrichmentContext(
 	enrichmentStore enrichment.EnrichmentStore,
 	associationStore enrichment.AssociationStore,

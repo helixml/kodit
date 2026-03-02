@@ -653,6 +653,39 @@ List recent enrichments across commits for a repository
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+### GET /repositories/{id}/files
+
+Returns files from the repository working copy matching a glob pattern
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Repository ID |
+| glob | string | True | Glob/pathspec pattern (e.g. **/*.go, src/*.py) |
+| page | integer |  | Page number (default: 1) |
+| page_size | integer |  | Results per page (default: 20, max: 100) |
+
+
+#### Responses
+
+- 200: OK
+
+[dto.FileJSONAPIListResponse](#dto.filejsonapilistresponse)
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 ### GET /repositories/{id}/status
 
 Get indexing task status for a repository
@@ -942,6 +975,54 @@ Hybrid search across code snippets and enrichments
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+### POST /search/keyword
+
+Search code snippets using BM25 keyword matching
+
+
+#### Request Body
+
+[dto.KeywordSearchRequest](#dto.keywordsearchrequest)
+
+
+#### Responses
+
+- 200: OK
+
+[dto.SearchResponse](#dto.searchresponse)
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### POST /search/semantic
+
+Search code snippets using semantic similarity
+
+
+#### Request Body
+
+[dto.SemanticSearchRequest](#dto.semanticsearchrequest)
+
+
+#### Responses
+
+- 200: OK
+
+[dto.SearchResponse](#dto.searchresponse)
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 ## Components
 
 
@@ -1128,6 +1209,37 @@ Hybrid search across code snippets and enrichments
 | mime_type | string |  |
 | path | string |  |
 | size | integer |  |
+
+
+### dto.KeywordSearchAttributes
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| keywords | string |  |
+| language | string |  |
+| limit | integer |  |
+| source_repo | string |  |
+
+
+### dto.KeywordSearchData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| type | string |  |
+
+
+### dto.KeywordSearchRequest
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
 
 
 ### dto.RepositoryAttributes
@@ -1327,6 +1439,37 @@ Hybrid search across code snippets and enrichments
 | Field | Type | Description |
 |-------|------|-------------|
 | data | array |  |
+
+
+### dto.SemanticSearchAttributes
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| language | string |  |
+| limit | integer |  |
+| query | string |  |
+| source_repo | string |  |
+
+
+### dto.SemanticSearchData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| type | string |  |
+
+
+### dto.SemanticSearchRequest
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
 
 
 ### dto.SnippetAttributes

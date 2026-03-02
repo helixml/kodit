@@ -2007,47 +2007,6 @@ func TestServer_Ls(t *testing.T) {
 	}
 }
 
-func TestServer_Ls_WithFilter(t *testing.T) {
-	files := []service.FileEntry{
-		{Path: "README.md", Size: 100},
-		{Path: "src/main.go", Size: 200},
-		{Path: "src/util.go", Size: 150},
-	}
-	srv := lsServer(files)
-	sendMessage(t, srv, "initialize", 1, initializeParams())
-
-	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "ls",
-		"arguments": map[string]any{
-			"repo_url": "https://github.com/example/repo",
-			"pattern":  "*",
-			"filter":   "src",
-		},
-	})
-
-	var result mcp.CallToolResult
-	resultJSON(t, resp, &result)
-
-	if result.IsError {
-		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
-	}
-
-	text := textFromContent(t, result)
-	var results []lsResult
-	if err := json.Unmarshal([]byte(text), &results); err != nil {
-		t.Fatalf("unmarshal results: %v", err)
-	}
-
-	if len(results) != 2 {
-		t.Fatalf("expected 2 results with 'src' filter, got %d", len(results))
-	}
-	for _, r := range results {
-		if !containsStr(r.Path, "src") {
-			t.Errorf("expected path to contain 'src', got %s", r.Path)
-		}
-	}
-}
-
 func TestServer_Ls_NoMatches(t *testing.T) {
 	srv := lsServer(nil)
 	sendMessage(t, srv, "initialize", 1, initializeParams())

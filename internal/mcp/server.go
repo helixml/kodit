@@ -324,9 +324,6 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 			mcp.Required(),
 			mcp.Description("Glob pattern to match files (e.g. **/*.go, src/*.py)"),
 		),
-		mcp.WithString("filter",
-			mcp.Description("Additional substring filter applied to file paths"),
-		),
 	), s.handleLs)
 }
 
@@ -985,8 +982,6 @@ func (s *Server) handleLs(ctx context.Context, request mcp.CallToolRequest) (*mc
 		return mcp.NewToolResultError("pattern must not be empty"), nil
 	}
 
-	filter := request.GetString("filter", "")
-
 	repos, err := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
 	if err != nil {
 		s.logger.Error("failed to find repository", slog.String("repo_url", repoURL), slog.Any("error", err))
@@ -1004,9 +999,6 @@ func (s *Server) handleLs(ctx context.Context, request mcp.CallToolRequest) (*mc
 
 	results := make([]lsResult, 0, len(files))
 	for _, f := range files {
-		if filter != "" && !strings.Contains(f.Path, filter) {
-			continue
-		}
 		results = append(results, lsResult{
 			Path:      f.Path,
 			Extension: filepath.Ext(f.Path),

@@ -1343,7 +1343,7 @@ const docTemplate = `{
                         "APIKeyAuth": []
                     }
                 ],
-                "description": "Returns files from the repository's git tree matching a glob/pathspec pattern",
+                "description": "Returns files from the repository working copy matching a glob pattern",
                 "consumes": [
                     "application/json"
                 ],
@@ -1368,12 +1368,6 @@ const docTemplate = `{
                         "name": "glob",
                         "in": "query",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Substring filter applied to matched paths",
-                        "name": "filter",
-                        "in": "query"
                     },
                     {
                         "type": "integer",

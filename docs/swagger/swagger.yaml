@@ -1525,7 +1525,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: Returns files from the repository's git tree matching a glob/pathspec
+      description: Returns files from the repository working copy matching a glob
         pattern
       parameters:
       - description: Repository ID
@@ -1537,10 +1537,6 @@ paths:
         in: query
         name: glob
         required: true
-        type: string
-      - description: Substring filter applied to matched paths
-        in: query
-        name: filter
         type: string
       - description: 'Page number (default: 1)'
         in: query

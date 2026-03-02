@@ -2610,7 +2610,7 @@
         },
         "/repositories/{id}/files": {
             "get": {
-                "description": "Returns files from the repository's git tree matching a glob/pathspec pattern",
+                "description": "Returns files from the repository working copy matching a glob pattern",
                 "parameters": [
                     {
                         "description": "Repository ID",
@@ -2626,14 +2626,6 @@
                         "in": "query",
                         "name": "glob",
                         "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Substring filter applied to matched paths",
-                        "in": "query",
-                        "name": "filter",
                         "schema": {
                             "type": "string"
                         }
