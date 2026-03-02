@@ -17,7 +17,6 @@ import (
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/domain/wiki"
-	"github.com/helixml/kodit/infrastructure/git"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -64,9 +63,9 @@ type EnrichmentResolver interface {
 	RepositoryIDs(ctx context.Context, enrichmentIDs []int64) (map[string]int64, error)
 }
 
-// TreeFileLister provides glob-based file listing from Git repositories.
-type TreeFileLister interface {
-	TreeFiles(ctx context.Context, repoID int64, blobName, pathspec string) ([]git.FileInfo, string, error)
+// FileLister provides pattern-based file listing from repository working copies.
+type FileLister interface {
+	ListFiles(ctx context.Context, repoID int64, pattern string) ([]service.FileEntry, error)
 }
 
 // FileFinder provides file lookups by options.
@@ -89,7 +88,7 @@ type Server struct {
 	semanticSearch     SemanticSearcher
 	keywordSearch      KeywordSearcher
 	enrichmentResolver EnrichmentResolver
-	treeFiles          TreeFileLister
+	fileLister         FileLister
 	files              FileFinder
 	grepper            Grepper
 	version            string
@@ -113,7 +112,7 @@ const instructions = "This server provides access to code knowledge through mult
 	"- semantic_search() - Find files matching a natural language query (returns resource URIs)\n" +
 	"- keyword_search() - Find files matching keywords using BM25 search (returns resource URIs)\n" +
 	"- grep() - Search file contents using git grep with regex patterns (returns resource URIs)\n" +
-	"- glob_files() - List files matching a glob pattern in a repository's file tree\n\n" +
+	"- ls() - List files matching a glob pattern in a repository\n\n" +
 	"**Reading file content:**\n" +
 	"Use the file resource template: file://{id}/{blob_name}/{+path}\n" +
 	"where id is the repository ID, blob_name is a commit SHA, tag, or branch name, " +
@@ -132,7 +131,7 @@ func NewServer(
 	semanticSearch SemanticSearcher,
 	keywordSearch KeywordSearcher,
 	enrichmentResolver EnrichmentResolver,
-	treeFiles TreeFileLister,
+	fileLister FileLister,
 	files FileFinder,
 	grepper Grepper,
 	version string,
@@ -150,7 +149,7 @@ func NewServer(
 		semanticSearch:     semanticSearch,
 		keywordSearch:      keywordSearch,
 		enrichmentResolver: enrichmentResolver,
-		treeFiles:          treeFiles,
+		fileLister:         fileLister,
 		files:              files,
 		grepper:            grepper,
 		version:            version,
@@ -315,7 +314,7 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 		),
 	), s.handleGrep)
 
-	mcpServer.AddTool(mcp.NewTool("glob_files",
+	mcpServer.AddTool(mcp.NewTool("ls",
 		mcp.WithDescription("List files matching a glob pattern in a repository"),
 		mcp.WithString("repo_url",
 			mcp.Required(),
@@ -328,10 +327,7 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 		mcp.WithString("filter",
 			mcp.Description("Additional substring filter applied to file paths"),
 		),
-		mcp.WithString("commit_sha",
-			mcp.Description("Commit SHA, tag, or branch (defaults to latest)"),
-		),
-	), s.handleGlobFiles)
+	), s.handleLs)
 }
 
 // handleGetVersion returns the kodit server version.
@@ -967,15 +963,15 @@ func (s *Server) handleGrep(ctx context.Context, request mcp.CallToolRequest) (*
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-// globFileResult holds the resolved file information for a glob match.
-type globFileResult struct {
+// lsResult holds the resolved file information for an ls match.
+type lsResult struct {
 	Path      string `json:"path"`
 	Extension string `json:"extension"`
 	Size      int64  `json:"size"`
 }
 
-// handleGlobFiles handles the glob_files tool invocation.
-func (s *Server) handleGlobFiles(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+// handleLs handles the ls tool invocation.
+func (s *Server) handleLs(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	repoURL, err := request.RequireString("repo_url")
 	if err != nil {
 		return mcp.NewToolResultError("repo_url is required"), nil
@@ -1000,35 +996,18 @@ func (s *Server) handleGlobFiles(ctx context.Context, request mcp.CallToolReques
 		return mcp.NewToolResultError(fmt.Sprintf("repository not found: %s", repoURL)), nil
 	}
 
-	commitSHA := request.GetString("commit_sha", "")
-	if commitSHA == "" {
-		commits, commitErr := s.commits.Find(ctx,
-			repository.WithRepoID(repos[0].ID()),
-			repository.WithOrderDesc("date"),
-			repository.WithLimit(1),
-		)
-		if commitErr != nil {
-			s.logger.Error("failed to find latest commit", slog.Any("error", commitErr))
-			return mcp.NewToolResultError(fmt.Sprintf("failed to find latest commit: %v", commitErr)), nil
-		}
-		if len(commits) == 0 {
-			return mcp.NewToolResultError("no commits found for repository"), nil
-		}
-		commitSHA = commits[0].SHA()
-	}
-
-	files, _, err := s.treeFiles.TreeFiles(ctx, repos[0].ID(), commitSHA, pattern)
+	files, err := s.fileLister.ListFiles(ctx, repos[0].ID(), pattern)
 	if err != nil {
-		s.logger.Error("tree files failed", slog.Any("error", err))
-		return mcp.NewToolResultError(fmt.Sprintf("glob files failed: %v", err)), nil
+		s.logger.Error("list files failed", slog.Any("error", err))
+		return mcp.NewToolResultError(fmt.Sprintf("ls failed: %v", err)), nil
 	}
 
-	results := make([]globFileResult, 0, len(files))
+	results := make([]lsResult, 0, len(files))
 	for _, f := range files {
 		if filter != "" && !strings.Contains(f.Path, filter) {
 			continue
 		}
-		results = append(results, globFileResult{
+		results = append(results, lsResult{
 			Path:      f.Path,
 			Extension: filepath.Ext(f.Path),
 			Size:      f.Size,

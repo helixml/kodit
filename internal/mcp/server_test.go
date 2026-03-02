@@ -19,7 +19,6 @@ import (
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
-	"github.com/helixml/kodit/infrastructure/git"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -136,14 +135,13 @@ func (f *fakeGrepper) Search(_ context.Context, _ int64, _ string, _ string, _ i
 	return f.results, nil
 }
 
-// fakeTreeFileLister implements TreeFileLister with canned files.
-type fakeTreeFileLister struct {
-	files     []git.FileInfo
-	commitSHA string
+// fakeFileLister implements FileLister with canned files.
+type fakeFileLister struct {
+	files []service.FileEntry
 }
 
-func (f *fakeTreeFileLister) TreeFiles(_ context.Context, _ int64, _ string, _ string) ([]git.FileInfo, string, error) {
-	return f.files, f.commitSHA, nil
+func (f *fakeFileLister) ListFiles(_ context.Context, _ int64, _ string) ([]service.FileEntry, error) {
+	return f.files, nil
 }
 
 // sendMessage marshals a JSON-RPC request, sends it through HandleMessage,
@@ -253,7 +251,7 @@ func testServer() *Server {
 			lineRanges:    map[string]chunk.LineRange{},
 			repositoryIDs: map[string]int64{},
 		},
-		&fakeTreeFileLister{},
+		&fakeFileLister{},
 		&fakeFileFinder{},
 		&fakeGrepper{},
 		"1.0.0-test",
@@ -578,7 +576,7 @@ func semanticSearchServer() *Server {
 			lineRanges:    map[string]chunk.LineRange{"99": chunk.ReconstructLineRange(1, 99, 10, 25)},
 			repositoryIDs: map[string]int64{"99": 1},
 		},
-		&fakeTreeFileLister{},
+		&fakeFileLister{},
 		&fakeFileFinder{files: []repository.File{testFile}},
 		&fakeGrepper{},
 		"1.0.0-test",
@@ -698,7 +696,7 @@ func TestServer_SemanticSearch_AbsolutePathNormalized(t *testing.T) {
 			lineRanges:    map[string]chunk.LineRange{},
 			repositoryIDs: map[string]int64{"77": 1},
 		},
-		&fakeTreeFileLister{},
+		&fakeFileLister{},
 		&fakeFileFinder{files: []repository.File{testFile}},
 		&fakeGrepper{},
 		"1.0.0-test",
@@ -777,7 +775,7 @@ func TestServer_SemanticSearch_LanguageFilterDotPrefix(t *testing.T) {
 			lineRanges:    map[string]chunk.LineRange{},
 			repositoryIDs: map[string]int64{"55": 1},
 		},
-		&fakeTreeFileLister{},
+		&fakeFileLister{},
 		&fakeFileFinder{files: []repository.File{testFile}},
 		&fakeGrepper{},
 		"1.0.0-test",
@@ -931,7 +929,7 @@ func TestServer_SemanticSearch_LimitCapsResults(t *testing.T) {
 			lineRanges:    map[string]chunk.LineRange{},
 			repositoryIDs: map[string]int64{"61": 1, "62": 1, "63": 1},
 		},
-		&fakeTreeFileLister{},
+		&fakeFileLister{},
 		&fakeFileFinder{files: []repository.File{f1, f2, f3}},
 		&fakeGrepper{},
 		"1.0.0-test",
@@ -1028,7 +1026,7 @@ func TestServer_SemanticSearchThenReadFile(t *testing.T) {
 			lineRanges:    map[string]chunk.LineRange{},
 			repositoryIDs: map[string]int64{"42": 1},
 		},
-		&fakeTreeFileLister{},
+		&fakeFileLister{},
 		&fakeFileFinder{files: []repository.File{
 			repository.ReconstructFile(10, "abc123def456", "src/handler.go", "", "", ".go", ".go", 512,
 				time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
@@ -1112,7 +1110,7 @@ func TestServer_SemanticSearchThenReadFile_AbsolutePath(t *testing.T) {
 			lineRanges:    map[string]chunk.LineRange{},
 			repositoryIDs: map[string]int64{"77": 1},
 		},
-		&fakeTreeFileLister{},
+		&fakeFileLister{},
 		&fakeFileFinder{files: []repository.File{
 			// Legacy absolute clone path in the database.
 			repository.ReconstructFile(20, "def456abc789", "/root/.kodit/clones/my-repo/bigquery/main.py",
@@ -1192,7 +1190,7 @@ func TestServer_SemanticSearchThenReadFile_WithLineRange(t *testing.T) {
 			lineRanges:    map[string]chunk.LineRange{"88": chunk.ReconstructLineRange(1, 88, 3, 5)},
 			repositoryIDs: map[string]int64{"88": 1},
 		},
-		&fakeTreeFileLister{},
+		&fakeFileLister{},
 		&fakeFileFinder{files: []repository.File{
 			repository.ReconstructFile(15, "aaa111bbb222", "pkg/core.go", "", "", ".go", ".go", 100,
 				time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
@@ -1254,7 +1252,7 @@ func TestServer_SemanticSearchNoResults(t *testing.T) {
 			lineRanges:    map[string]chunk.LineRange{},
 			repositoryIDs: map[string]int64{},
 		},
-		&fakeTreeFileLister{},
+		&fakeFileLister{},
 		&fakeFileFinder{},
 		&fakeGrepper{},
 		"1.0.0-test",
@@ -1312,7 +1310,7 @@ func keywordSearchServer() *Server {
 			lineRanges:    map[string]chunk.LineRange{"99": chunk.ReconstructLineRange(1, 99, 10, 25)},
 			repositoryIDs: map[string]int64{"99": 1},
 		},
-		&fakeTreeFileLister{},
+		&fakeFileLister{},
 		&fakeFileFinder{files: []repository.File{testFile}},
 		&fakeGrepper{},
 		"1.0.0-test",
@@ -1529,7 +1527,7 @@ func TestServer_KeywordSearch_NoResults(t *testing.T) {
 			lineRanges:    map[string]chunk.LineRange{},
 			repositoryIDs: map[string]int64{},
 		},
-		&fakeTreeFileLister{},
+		&fakeFileLister{},
 		&fakeFileFinder{},
 		&fakeGrepper{},
 		"1.0.0-test",
@@ -1643,7 +1641,7 @@ func TestServer_KeywordSearchThenReadFile(t *testing.T) {
 			lineRanges:    map[string]chunk.LineRange{},
 			repositoryIDs: map[string]int64{"99": 1},
 		},
-		&fakeTreeFileLister{},
+		&fakeFileLister{},
 		&fakeFileFinder{files: []repository.File{testFile}},
 		&fakeGrepper{},
 		"1.0.0-test",
@@ -1761,7 +1759,7 @@ func wikiServer() *Server {
 			lineRanges:    map[string]chunk.LineRange{},
 			repositoryIDs: map[string]int64{},
 		},
-		&fakeTreeFileLister{},
+		&fakeFileLister{},
 		&fakeFileFinder{},
 		&fakeGrepper{},
 		"1.0.0-test",
@@ -1839,7 +1837,7 @@ func TestServer_GetWiki_NoWiki(t *testing.T) {
 			lineRanges:    map[string]chunk.LineRange{},
 			repositoryIDs: map[string]int64{},
 		},
-		&fakeTreeFileLister{},
+		&fakeFileLister{},
 		&fakeFileFinder{},
 		&fakeGrepper{},
 		"1.0.0-test",
@@ -1944,7 +1942,7 @@ func TestServer_GetWikiPage_MissingSlug(t *testing.T) {
 	}
 }
 
-func globFilesServer(files []git.FileInfo) *Server {
+func lsServer(files []service.FileEntry) *Server {
 	return NewServer(
 		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
 		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
@@ -1957,24 +1955,24 @@ func globFilesServer(files []git.FileInfo) *Server {
 			lineRanges:    map[string]chunk.LineRange{},
 			repositoryIDs: map[string]int64{},
 		},
-		&fakeTreeFileLister{files: files, commitSHA: "abc1234567890"},
+		&fakeFileLister{files: files},
 		&fakeFileFinder{},
 		"1.0.0-test",
 		nil,
 	)
 }
 
-func TestServer_GlobFiles(t *testing.T) {
-	files := []git.FileInfo{
-		{Path: "README.md", BlobSHA: "aaa", Size: 100},
-		{Path: "src/main.go", BlobSHA: "bbb", Size: 200},
-		{Path: "src/util.go", BlobSHA: "ccc", Size: 150},
+func TestServer_Ls(t *testing.T) {
+	files := []service.FileEntry{
+		{Path: "README.md", Size: 100},
+		{Path: "src/main.go", Size: 200},
+		{Path: "src/util.go", Size: 150},
 	}
-	srv := globFilesServer(files)
+	srv := lsServer(files)
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "glob_files",
+		"name": "ls",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/example/repo",
 			"pattern":  "**/*.go",
@@ -1989,12 +1987,12 @@ func TestServer_GlobFiles(t *testing.T) {
 	}
 
 	text := textFromContent(t, result)
-	var results []globFileResult
+	var results []lsResult
 	if err := json.Unmarshal([]byte(text), &results); err != nil {
 		t.Fatalf("unmarshal results: %v", err)
 	}
 
-	// fakeTreeFileLister returns all files regardless of pattern,
+	// fakeFileLister returns all files regardless of pattern,
 	// so we expect all 3 files.
 	if len(results) != 3 {
 		t.Fatalf("expected 3 results, got %d", len(results))
@@ -2007,17 +2005,17 @@ func TestServer_GlobFiles(t *testing.T) {
 	}
 }
 
-func TestServer_GlobFiles_WithFilter(t *testing.T) {
-	files := []git.FileInfo{
-		{Path: "README.md", BlobSHA: "aaa", Size: 100},
-		{Path: "src/main.go", BlobSHA: "bbb", Size: 200},
-		{Path: "src/util.go", BlobSHA: "ccc", Size: 150},
+func TestServer_Ls_WithFilter(t *testing.T) {
+	files := []service.FileEntry{
+		{Path: "README.md", Size: 100},
+		{Path: "src/main.go", Size: 200},
+		{Path: "src/util.go", Size: 150},
 	}
-	srv := globFilesServer(files)
+	srv := lsServer(files)
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "glob_files",
+		"name": "ls",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/example/repo",
 			"pattern":  "*",
@@ -2033,7 +2031,7 @@ func TestServer_GlobFiles_WithFilter(t *testing.T) {
 	}
 
 	text := textFromContent(t, result)
-	var results []globFileResult
+	var results []lsResult
 	if err := json.Unmarshal([]byte(text), &results); err != nil {
 		t.Fatalf("unmarshal results: %v", err)
 	}
@@ -2048,12 +2046,12 @@ func TestServer_GlobFiles_WithFilter(t *testing.T) {
 	}
 }
 
-func TestServer_GlobFiles_NoMatches(t *testing.T) {
-	srv := globFilesServer(nil)
+func TestServer_Ls_NoMatches(t *testing.T) {
+	srv := lsServer(nil)
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "glob_files",
+		"name": "ls",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/example/repo",
 			"pattern":  "**/*.rs",
@@ -2073,12 +2071,12 @@ func TestServer_GlobFiles_NoMatches(t *testing.T) {
 	}
 }
 
-func TestServer_GlobFiles_MissingPattern(t *testing.T) {
-	srv := globFilesServer(nil)
+func TestServer_Ls_MissingPattern(t *testing.T) {
+	srv := lsServer(nil)
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "glob_files",
+		"name": "ls",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/example/repo",
 		},
@@ -2097,12 +2095,12 @@ func TestServer_GlobFiles_MissingPattern(t *testing.T) {
 	}
 }
 
-func TestServer_GlobFiles_EmptyPattern(t *testing.T) {
-	srv := globFilesServer(nil)
+func TestServer_Ls_EmptyPattern(t *testing.T) {
+	srv := lsServer(nil)
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "glob_files",
+		"name": "ls",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/example/repo",
 			"pattern":  "   ",
@@ -2122,7 +2120,7 @@ func TestServer_GlobFiles_EmptyPattern(t *testing.T) {
 	}
 }
 
-func TestServer_GlobFiles_RepoNotFound(t *testing.T) {
+func TestServer_Ls_RepoNotFound(t *testing.T) {
 	srv := NewServer(
 		&fakeRepositoryLister{}, // no repos
 		&fakeCommitFinder{},
@@ -2135,7 +2133,7 @@ func TestServer_GlobFiles_RepoNotFound(t *testing.T) {
 			lineRanges:    map[string]chunk.LineRange{},
 			repositoryIDs: map[string]int64{},
 		},
-		&fakeTreeFileLister{},
+		&fakeFileLister{},
 		&fakeFileFinder{},
 		"1.0.0-test",
 		nil,
@@ -2143,7 +2141,7 @@ func TestServer_GlobFiles_RepoNotFound(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "glob_files",
+		"name": "ls",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/unknown/repo",
 			"pattern":  "*.go",
@@ -2163,47 +2161,6 @@ func TestServer_GlobFiles_RepoNotFound(t *testing.T) {
 	}
 }
 
-func TestServer_GlobFiles_NoCommits(t *testing.T) {
-	srv := NewServer(
-		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
-		&fakeCommitFinder{}, // no commits
-		&fakeEnrichmentQuery{},
-		&fakeFileContentReader{},
-		&fakeSemanticSearcher{},
-		&fakeKeywordSearcher{},
-		&fakeEnrichmentResolver{
-			sourceFiles:   map[string][]int64{},
-			lineRanges:    map[string]chunk.LineRange{},
-			repositoryIDs: map[string]int64{},
-		},
-		&fakeTreeFileLister{},
-		&fakeFileFinder{},
-		"1.0.0-test",
-		nil,
-	)
-	sendMessage(t, srv, "initialize", 1, initializeParams())
-
-	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "glob_files",
-		"arguments": map[string]any{
-			"repo_url": "https://github.com/example/repo",
-			"pattern":  "*.go",
-		},
-	})
-
-	var result mcp.CallToolResult
-	resultJSON(t, resp, &result)
-
-	if !result.IsError {
-		t.Fatal("expected error for no commits")
-	}
-
-	text := textFromContent(t, result)
-	if !containsStr(text, "no commits") {
-		t.Errorf("expected 'no commits' error, got: %s", text)
-	}
-}
-
 // Ensure fakes satisfy interfaces at compile time.
 var (
 	_ RepositoryLister   = (*fakeRepositoryLister)(nil)
@@ -2213,7 +2170,7 @@ var (
 	_ SemanticSearcher   = (*fakeSemanticSearcher)(nil)
 	_ KeywordSearcher    = (*fakeKeywordSearcher)(nil)
 	_ EnrichmentResolver = (*fakeEnrichmentResolver)(nil)
-	_ TreeFileLister     = (*fakeTreeFileLister)(nil)
+	_ FileLister         = (*fakeFileLister)(nil)
 	_ FileFinder         = (*fakeFileFinder)(nil)
 )
 

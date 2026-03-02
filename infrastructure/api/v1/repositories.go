@@ -1735,7 +1735,7 @@ func (r *RepositoriesRouter) Grep(w http.ResponseWriter, req *http.Request) {
 // GlobFiles handles GET /api/v1/repositories/{id}/files.
 //
 //	@Summary		List files matching a glob pattern
-//	@Description	Returns files from the repository's git tree matching a glob/pathspec pattern
+//	@Description	Returns files from the repository working copy matching a glob pattern
 //	@Tags			repositories
 //	@Accept			json
 //	@Produce		json
@@ -1768,23 +1768,7 @@ func (r *RepositoriesRouter) GlobFiles(w http.ResponseWriter, req *http.Request)
 
 	filter := req.URL.Query().Get("filter")
 
-	// Resolve the latest commit for the default branch.
-	commits, err := r.client.Commits.Find(ctx,
-		repository.WithRepoID(repoID),
-		repository.WithOrderDesc("date"),
-		repository.WithLimit(1),
-	)
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-	if len(commits) == 0 {
-		middleware.WriteError(w, req, fmt.Errorf("no commits found for repository: %w", database.ErrNotFound), r.logger)
-		return
-	}
-	commitSHA := commits[0].SHA()
-
-	files, _, err := r.client.Blobs.TreeFiles(ctx, repoID, commitSHA, glob)
+	files, err := r.client.Blobs.ListFiles(ctx, repoID, glob)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -1821,11 +1805,9 @@ func (r *RepositoriesRouter) GlobFiles(w http.ResponseWriter, req *http.Request)
 		}
 		data = append(data, dto.FileData{
 			Type: "file",
-			ID:   f.BlobSHA,
+			ID:   f.Path,
 			Attributes: dto.FileAttributes{
-				BlobSHA:   f.BlobSHA,
 				Path:      f.Path,
-				MimeType:  f.MimeType,
 				Size:      f.Size,
 				Extension: ext,
 			},

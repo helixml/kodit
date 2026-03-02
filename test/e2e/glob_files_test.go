@@ -9,10 +9,9 @@ import (
 
 func TestGlobFiles_MatchesPattern(t *testing.T) {
 	ts := NewTestServer(t)
-	repoDir, commitSHA := initGitRepo(t)
+	repoDir, _ := initGitRepo(t)
 
 	repo := ts.CreateRepositoryWithRealWorkingCopy("https://github.com/test/glob-repo.git", repoDir)
-	ts.CreateCommit(repo, commitSHA, "initial commit")
 
 	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/files?glob=**/*.go", repo.ID()))
 	defer func() { _ = resp.Body.Close() }()
@@ -42,10 +41,9 @@ func TestGlobFiles_MatchesPattern(t *testing.T) {
 
 func TestGlobFiles_WithFilter(t *testing.T) {
 	ts := NewTestServer(t)
-	repoDir, commitSHA := initGitRepo(t)
+	repoDir, _ := initGitRepo(t)
 
 	repo := ts.CreateRepositoryWithRealWorkingCopy("https://github.com/test/glob-filter-repo.git", repoDir)
-	ts.CreateCommit(repo, commitSHA, "initial commit")
 
 	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/files?glob=*&filter=src", repo.ID()))
 	defer func() { _ = resp.Body.Close() }()
@@ -74,10 +72,9 @@ func TestGlobFiles_WithFilter(t *testing.T) {
 
 func TestGlobFiles_MissingGlob(t *testing.T) {
 	ts := NewTestServer(t)
-	repoDir, commitSHA := initGitRepo(t)
+	repoDir, _ := initGitRepo(t)
 
 	repo := ts.CreateRepositoryWithRealWorkingCopy("https://github.com/test/glob-missing-repo.git", repoDir)
-	ts.CreateCommit(repo, commitSHA, "initial commit")
 
 	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/files", repo.ID()))
 	defer func() { _ = resp.Body.Close() }()
@@ -101,10 +98,9 @@ func TestGlobFiles_RepoNotFound(t *testing.T) {
 
 func TestGlobFiles_NoMatches(t *testing.T) {
 	ts := NewTestServer(t)
-	repoDir, commitSHA := initGitRepo(t)
+	repoDir, _ := initGitRepo(t)
 
 	repo := ts.CreateRepositoryWithRealWorkingCopy("https://github.com/test/glob-empty-repo.git", repoDir)
-	ts.CreateCommit(repo, commitSHA, "initial commit")
 
 	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/files?glob=**/*.rs", repo.ID()))
 	defer func() { _ = resp.Body.Close() }()
@@ -126,10 +122,9 @@ func TestGlobFiles_NoMatches(t *testing.T) {
 
 func TestGlobFiles_AllFiles(t *testing.T) {
 	ts := NewTestServer(t)
-	repoDir, commitSHA := initGitRepo(t)
+	repoDir, _ := initGitRepo(t)
 
 	repo := ts.CreateRepositoryWithRealWorkingCopy("https://github.com/test/glob-all-repo.git", repoDir)
-	ts.CreateCommit(repo, commitSHA, "initial commit")
 
 	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/files?glob=*", repo.ID()))
 	defer func() { _ = resp.Body.Close() }()

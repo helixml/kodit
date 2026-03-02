@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"regexp"
 
 	"github.com/helixml/kodit/domain/repository"
@@ -88,28 +91,73 @@ func (b *Blob) Resolve(ctx context.Context, repoID int64, blobName string) (stri
 	return "", fmt.Errorf("blob reference %q not found for repository %d", blobName, repoID)
 }
 
-// TreeFiles resolves the blob reference and returns files matching the pathspec.
-func (b *Blob) TreeFiles(ctx context.Context, repoID int64, blobName, pathspec string) ([]git.FileInfo, string, error) {
-	commitSHA, err := b.Resolve(ctx, repoID, blobName)
-	if err != nil {
-		return nil, "", err
-	}
-
+// ListFiles walks the repository working copy on disk and returns files matching the pattern.
+func (b *Blob) ListFiles(ctx context.Context, repoID int64, pattern string) ([]FileEntry, error) {
 	repo, err := b.repositories.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
-		return nil, "", fmt.Errorf("find repository: %w", err)
+		return nil, fmt.Errorf("find repository: %w", err)
 	}
 
 	if !repo.HasWorkingCopy() {
-		return nil, "", fmt.Errorf("repository %d has no working copy", repoID)
+		return nil, fmt.Errorf("repository %d has no working copy", repoID)
 	}
 
-	files, err := b.git.TreeFiles(ctx, repo.WorkingCopy().Path(), commitSHA, pathspec)
+	wc := repo.WorkingCopy()
+	exists, err := b.git.RepositoryExists(ctx, wc.Path())
 	if err != nil {
-		return nil, "", fmt.Errorf("tree files: %w", err)
+		return nil, fmt.Errorf("check repository: %w", err)
+	}
+	if !exists {
+		if err := b.git.CloneRepository(ctx, wc.URI(), wc.Path()); err != nil {
+			return nil, fmt.Errorf("clone repository: %w", err)
+		}
 	}
 
-	return files, commitSHA, nil
+	root := wc.Path()
+	matchAll := pattern == "" || pattern == "*" || pattern == "**"
+
+	var entries []FileEntry
+	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			if d.Name() == ".git" {
+				return fs.SkipDir
+			}
+			return nil
+		}
+
+		rel, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			return relErr
+		}
+		// Normalize to forward slashes for consistent glob matching.
+		rel = filepath.ToSlash(rel)
+
+		if !matchAll && !matchGlob(pattern, rel) {
+			return nil
+		}
+
+		info, infoErr := d.Info()
+		if infoErr != nil {
+			if os.IsNotExist(infoErr) {
+				return nil
+			}
+			return infoErr
+		}
+
+		entries = append(entries, FileEntry{
+			Path: rel,
+			Size: info.Size(),
+		})
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("walk directory: %w", err)
+	}
+
+	return entries, nil
 }
 
 // Content resolves the blob reference and returns the file content at the given path.

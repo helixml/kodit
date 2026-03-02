@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -175,7 +177,9 @@ func (f *fakeBlobRepoStore) Exists(_ context.Context, _ ...repository.Option) (b
 }
 
 type fakeBlobGitAdapter struct {
-	content map[string][]byte
+	content     map[string][]byte
+	cloneFn     func(remoteURI, localPath string) error
+	cloneCalled bool
 }
 
 func (f *fakeBlobGitAdapter) FileContent(_ context.Context, _, commitSHA, filePath string) ([]byte, error) {
@@ -187,11 +191,17 @@ func (f *fakeBlobGitAdapter) FileContent(_ context.Context, _, commitSHA, filePa
 	return content, nil
 }
 
-func (f *fakeBlobGitAdapter) CloneRepository(context.Context, string, string) error { return nil }
-func (f *fakeBlobGitAdapter) CheckoutCommit(context.Context, string, string) error  { return nil }
-func (f *fakeBlobGitAdapter) CheckoutBranch(context.Context, string, string) error  { return nil }
-func (f *fakeBlobGitAdapter) FetchRepository(context.Context, string) error         { return nil }
-func (f *fakeBlobGitAdapter) PullRepository(context.Context, string) error          { return nil }
+func (f *fakeBlobGitAdapter) CloneRepository(_ context.Context, remoteURI, localPath string) error {
+	f.cloneCalled = true
+	if f.cloneFn != nil {
+		return f.cloneFn(remoteURI, localPath)
+	}
+	return nil
+}
+func (f *fakeBlobGitAdapter) CheckoutCommit(context.Context, string, string) error { return nil }
+func (f *fakeBlobGitAdapter) CheckoutBranch(context.Context, string, string) error { return nil }
+func (f *fakeBlobGitAdapter) FetchRepository(context.Context, string) error        { return nil }
+func (f *fakeBlobGitAdapter) PullRepository(context.Context, string) error         { return nil }
 func (f *fakeBlobGitAdapter) AllBranches(context.Context, string) ([]git.BranchInfo, error) {
 	return nil, nil
 }
@@ -210,8 +220,12 @@ func (f *fakeBlobGitAdapter) AllBranchHeadSHAs(context.Context, string, []string
 func (f *fakeBlobGitAdapter) CommitFiles(context.Context, string, string) ([]git.FileInfo, error) {
 	return nil, nil
 }
-func (f *fakeBlobGitAdapter) RepositoryExists(context.Context, string) (bool, error) {
-	return false, nil
+func (f *fakeBlobGitAdapter) RepositoryExists(_ context.Context, localPath string) (bool, error) {
+	_, err := os.Stat(localPath)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return err == nil, err
 }
 func (f *fakeBlobGitAdapter) CommitDetails(context.Context, string, string) (git.CommitInfo, error) {
 	return git.CommitInfo{}, nil
@@ -230,10 +244,6 @@ func (f *fakeBlobGitAdapter) CommitDiff(context.Context, string, string) (string
 	return "", nil
 }
 func (f *fakeBlobGitAdapter) Grep(context.Context, string, string, string, string, int) ([]git.GrepMatch, error) {
-	return nil, nil
-}
-
-func (f *fakeBlobGitAdapter) TreeFiles(context.Context, string, string, string) ([]git.FileInfo, error) {
 	return nil, nil
 }
 
@@ -364,6 +374,131 @@ func TestBlob_ContentByBranch(t *testing.T) {
 	}
 	if string(result.Content()) != "# Branch\nContent" {
 		t.Errorf("unexpected content: %q", string(result.Content()))
+	}
+}
+
+func TestBlob_ListFiles(t *testing.T) {
+	// Create a temp directory with sample files to walk.
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "src", "main.go"), []byte("package main"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".git", "config"), []byte("[core]"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now()
+	repo := repository.ReconstructRepository(
+		1, "https://github.com/example/repo",
+		repository.NewWorkingCopy(dir, "https://github.com/example/repo"),
+		repository.NewTrackingConfigForBranch("main"),
+		now, now, time.Time{},
+	)
+
+	blob := NewBlob(
+		&fakeBlobRepoStore{repo: repo},
+		&fakeBlobCommitStore{},
+		&fakeBlobTagStore{},
+		&fakeBlobBranchStore{},
+		&fakeBlobGitAdapter{content: map[string][]byte{}},
+	)
+
+	t.Run("all files", func(t *testing.T) {
+		entries, err := blob.ListFiles(context.Background(), 1, "**")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(entries) != 2 {
+			t.Fatalf("expected 2 entries, got %d", len(entries))
+		}
+	})
+
+	t.Run("glob pattern", func(t *testing.T) {
+		entries, err := blob.ListFiles(context.Background(), 1, "**/*.go")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(entries) != 1 {
+			t.Fatalf("expected 1 entry, got %d", len(entries))
+		}
+		if entries[0].Path != "src/main.go" {
+			t.Errorf("expected src/main.go, got %s", entries[0].Path)
+		}
+	})
+
+	t.Run("skips .git", func(t *testing.T) {
+		entries, err := blob.ListFiles(context.Background(), 1, "*")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		for _, e := range entries {
+			if filepath.Base(e.Path) == "config" {
+				t.Error("expected .git directory to be skipped")
+			}
+		}
+	})
+}
+
+func TestBlob_ListFiles_ClonesWhenMissing(t *testing.T) {
+	// The working copy directory does NOT exist on disk yet.
+	// ListFiles should clone the repository before walking.
+	dir := filepath.Join(t.TempDir(), "nonexistent")
+
+	now := time.Now()
+	remoteURL := "https://github.com/example/repo"
+	repo := repository.ReconstructRepository(
+		1, remoteURL,
+		repository.NewWorkingCopy(dir, remoteURL),
+		repository.NewTrackingConfigForBranch("main"),
+		now, now, time.Time{},
+	)
+
+	// The fake adapter's CloneRepository creates sample files, simulating
+	// what a real clone would do.
+	gitAdapter := &fakeBlobGitAdapter{
+		content: map[string][]byte{},
+		cloneFn: func(_, localPath string) error {
+			if err := os.MkdirAll(filepath.Join(localPath, "src"), 0o755); err != nil {
+				return err
+			}
+			if err := os.WriteFile(filepath.Join(localPath, "README.md"), []byte("# Hello"), 0o644); err != nil {
+				return err
+			}
+			return os.WriteFile(filepath.Join(localPath, "src", "main.go"), []byte("package main"), 0o644)
+		},
+	}
+
+	blob := NewBlob(
+		&fakeBlobRepoStore{repo: repo},
+		&fakeBlobCommitStore{},
+		&fakeBlobTagStore{},
+		&fakeBlobBranchStore{},
+		gitAdapter,
+	)
+
+	entries, err := blob.ListFiles(context.Background(), 1, "**/*.go")
+	if err != nil {
+		t.Fatalf("expected ListFiles to succeed after cloning, got: %v", err)
+	}
+
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+	if entries[0].Path != "src/main.go" {
+		t.Errorf("expected src/main.go, got %s", entries[0].Path)
+	}
+
+	if !gitAdapter.cloneCalled {
+		t.Error("expected CloneRepository to be called")
 	}
 }
 
