@@ -19,6 +19,7 @@ import (
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
+	"github.com/helixml/kodit/infrastructure/git"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -1957,6 +1958,7 @@ func lsServer(files []service.FileEntry) *Server {
 		},
 		&fakeFileLister{files: files},
 		&fakeFileFinder{},
+		&fakeGrepper{},
 		"1.0.0-test",
 		nil,
 	)
@@ -2135,6 +2137,7 @@ func TestServer_Ls_RepoNotFound(t *testing.T) {
 		},
 		&fakeFileLister{},
 		&fakeFileFinder{},
+		&fakeGrepper{},
 		"1.0.0-test",
 		nil,
 	)
@@ -2172,6 +2175,7 @@ var (
 	_ EnrichmentResolver = (*fakeEnrichmentResolver)(nil)
 	_ FileLister         = (*fakeFileLister)(nil)
 	_ FileFinder         = (*fakeFileFinder)(nil)
+	_ Grepper            = (*fakeGrepper)(nil)
 )
 
 // TestServer_KeywordSearch_HTTP exercises keyword_search through the full HTTP
@@ -2277,6 +2281,7 @@ func grepServer() *Server {
 			lineRanges:    map[string]chunk.LineRange{},
 			repositoryIDs: map[string]int64{},
 		},
+		&fakeFileLister{},
 		&fakeFileFinder{},
 		&fakeGrepper{
 			results: []service.GrepResult{
@@ -2421,6 +2426,7 @@ func TestServer_Grep_NoResults(t *testing.T) {
 			lineRanges:    map[string]chunk.LineRange{},
 			repositoryIDs: map[string]int64{},
 		},
+		&fakeFileLister{},
 		&fakeFileFinder{},
 		&fakeGrepper{},
 		"1.0.0-test",
