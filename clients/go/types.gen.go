@@ -148,6 +148,32 @@ type DtoKeywordSearchRequest struct {
 	Data *DtoKeywordSearchData `json:"data,omitempty"`
 }
 
+// DtoLsFileAttributes defines model for dto.LsFileAttributes.
+type DtoLsFileAttributes struct {
+	Path *string `json:"path,omitempty"`
+	Size *int    `json:"size,omitempty"`
+}
+
+// DtoLsFileData defines model for dto.LsFileData.
+type DtoLsFileData struct {
+	Attributes *DtoLsFileAttributes `json:"attributes,omitempty"`
+	Id         *string              `json:"id,omitempty"`
+	Links      *DtoLsFileLinks      `json:"links,omitempty"`
+	Type       *string              `json:"type,omitempty"`
+}
+
+// DtoLsFileLinks defines model for dto.LsFileLinks.
+type DtoLsFileLinks struct {
+	Self *string `json:"self,omitempty"`
+}
+
+// DtoLsResponse defines model for dto.LsResponse.
+type DtoLsResponse struct {
+	Data  *[]DtoLsFileData `json:"data,omitempty"`
+	Links *JsonapiLinks    `json:"links,omitempty"`
+	Meta  *JsonapiMeta     `json:"meta,omitempty"`
+}
+
 // DtoRepositoryAttributes defines model for dto.RepositoryAttributes.
 type DtoRepositoryAttributes struct {
 	ClonedPath     *string `json:"cloned_path,omitempty"`
@@ -594,6 +620,21 @@ type GetRepositoriesIdEnrichmentsParams struct {
 
 // GetRepositoriesIdTagsParams defines parameters for GetRepositoriesIdTags.
 type GetRepositoriesIdTagsParams struct {
+	// Page Page number (default: 1)
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+
+	// PageSize Results per page (default: 20, max: 100)
+	PageSize *int `form:"page_size,omitempty" json:"page_size,omitempty"`
+}
+
+// GetSearchLsParams defines parameters for GetSearchLs.
+type GetSearchLsParams struct {
+	// RepoUrl Repository remote URL
+	RepoUrl string `form:"repo_url" json:"repo_url"`
+
+	// Pattern Glob/pathspec pattern (e.g. **/*.go, src/*.py)
+	Pattern string `form:"pattern" json:"pattern"`
+
 	// Page Page number (default: 1)
 	Page *int `form:"page,omitempty" json:"page,omitempty"`
 

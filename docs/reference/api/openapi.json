@@ -239,6 +239,95 @@
                 },
                 "type": "object"
             },
+            "dto.KeywordSearchAttributes": {
+                "properties": {
+                    "keywords": {
+                        "type": "string"
+                    },
+                    "language": {
+                        "type": "string"
+                    },
+                    "limit": {
+                        "type": "integer"
+                    },
+                    "source_repo": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.KeywordSearchData": {
+                "properties": {
+                    "attributes": {
+                        "$ref": "#/components/schemas/dto.KeywordSearchAttributes"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.KeywordSearchRequest": {
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/dto.KeywordSearchData"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.LsFileAttributes": {
+                "properties": {
+                    "path": {
+                        "type": "string"
+                    },
+                    "size": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.LsFileData": {
+                "properties": {
+                    "attributes": {
+                        "$ref": "#/components/schemas/dto.LsFileAttributes"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/dto.LsFileLinks"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.LsFileLinks": {
+                "properties": {
+                    "self": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.LsResponse": {
+                "properties": {
+                    "data": {
+                        "items": {
+                            "$ref": "#/components/schemas/dto.LsFileData"
+                        },
+                        "type": "array"
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/jsonapi.Links"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/jsonapi.Meta"
+                    }
+                },
+                "type": "object"
+            },
             "dto.RepositoryAttributes": {
                 "properties": {
                     "cloned_path": {
@@ -526,6 +615,42 @@
                             "$ref": "#/components/schemas/dto.SnippetData"
                         },
                         "type": "array"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.SemanticSearchAttributes": {
+                "properties": {
+                    "language": {
+                        "type": "string"
+                    },
+                    "limit": {
+                        "type": "integer"
+                    },
+                    "query": {
+                        "type": "string"
+                    },
+                    "source_repo": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.SemanticSearchData": {
+                "properties": {
+                    "attributes": {
+                        "$ref": "#/components/schemas/dto.SemanticSearchAttributes"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.SemanticSearchRequest": {
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/dto.SemanticSearchData"
                     }
                 },
                 "type": "object"
@@ -3189,6 +3314,214 @@
                     }
                 ],
                 "summary": "Search code",
+                "tags": [
+                    "search"
+                ]
+            }
+        },
+        "/search/keyword": {
+            "post": {
+                "description": "Search code snippets using BM25 keyword matching",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/dto.KeywordSearchRequest"
+                            }
+                        }
+                    },
+                    "description": "Keyword search request",
+                    "required": true,
+                    "x-originalParamName": "body"
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.SearchResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Keyword code search",
+                "tags": [
+                    "search"
+                ]
+            }
+        },
+        "/search/ls": {
+            "get": {
+                "description": "Returns files from a repository working copy matching a glob pattern, with file:// URIs",
+                "parameters": [
+                    {
+                        "description": "Repository remote URL",
+                        "in": "query",
+                        "name": "repo_url",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Glob/pathspec pattern (e.g. **/*.go, src/*.py)",
+                        "in": "query",
+                        "name": "pattern",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Page number (default: 1)",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Results per page (default: 20, max: 100)",
+                        "in": "query",
+                        "name": "page_size",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.LsResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "List files matching a glob pattern",
+                "tags": [
+                    "search"
+                ]
+            }
+        },
+        "/search/semantic": {
+            "post": {
+                "description": "Search code snippets using semantic similarity",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/dto.SemanticSearchRequest"
+                            }
+                        }
+                    },
+                    "description": "Semantic search request",
+                    "required": true,
+                    "x-originalParamName": "body"
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.SearchResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Semantic code search",
                 "tags": [
                     "search"
                 ]

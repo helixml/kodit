@@ -942,6 +942,87 @@ Hybrid search across code snippets and enrichments
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+### POST /search/keyword
+
+Search code snippets using BM25 keyword matching
+
+
+#### Request Body
+
+[dto.KeywordSearchRequest](#dto.keywordsearchrequest)
+
+
+#### Responses
+
+- 200: OK
+
+[dto.SearchResponse](#dto.searchresponse)
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### GET /search/ls
+
+Returns files from a repository working copy matching a glob pattern, with file:// URIs
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| repo_url | string | True | Repository remote URL |
+| pattern | string | True | Glob/pathspec pattern (e.g. **/*.go, src/*.py) |
+| page | integer |  | Page number (default: 1) |
+| page_size | integer |  | Results per page (default: 20, max: 100) |
+
+
+#### Responses
+
+- 200: OK
+
+[dto.LsResponse](#dto.lsresponse)
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### POST /search/semantic
+
+Search code snippets using semantic similarity
+
+
+#### Request Body
+
+[dto.SemanticSearchRequest](#dto.semanticsearchrequest)
+
+
+#### Responses
+
+- 200: OK
+
+[dto.SearchResponse](#dto.searchresponse)
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 ## Components
 
 
@@ -1128,6 +1209,79 @@ Hybrid search across code snippets and enrichments
 | mime_type | string |  |
 | path | string |  |
 | size | integer |  |
+
+
+### dto.KeywordSearchAttributes
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| keywords | string |  |
+| language | string |  |
+| limit | integer |  |
+| source_repo | string |  |
+
+
+### dto.KeywordSearchData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| type | string |  |
+
+
+### dto.KeywordSearchRequest
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+
+
+### dto.LsFileAttributes
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| path | string |  |
+| size | integer |  |
+
+
+### dto.LsFileData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| id | string |  |
+| links |  |  |
+| type | string |  |
+
+
+### dto.LsFileLinks
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| self | string |  |
+
+
+### dto.LsResponse
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data | array |  |
+| links |  |  |
+| meta |  |  |
 
 
 ### dto.RepositoryAttributes
@@ -1327,6 +1481,37 @@ Hybrid search across code snippets and enrichments
 | Field | Type | Description |
 |-------|------|-------------|
 | data | array |  |
+
+
+### dto.SemanticSearchAttributes
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| language | string |  |
+| limit | integer |  |
+| query | string |  |
+| source_repo | string |  |
+
+
+### dto.SemanticSearchData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| type | string |  |
+
+
+### dto.SemanticSearchRequest
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
 
 
 ### dto.SnippetAttributes

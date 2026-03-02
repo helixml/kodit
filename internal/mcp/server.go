@@ -63,6 +63,11 @@ type EnrichmentResolver interface {
 	RepositoryIDs(ctx context.Context, enrichmentIDs []int64) (map[string]int64, error)
 }
 
+// FileLister provides pattern-based file listing from repository working copies.
+type FileLister interface {
+	ListFiles(ctx context.Context, repoID int64, pattern string) ([]service.FileEntry, error)
+}
+
 // FileFinder provides file lookups by options.
 type FileFinder interface {
 	Find(ctx context.Context, options ...repository.Option) ([]repository.File, error)
@@ -83,6 +88,7 @@ type Server struct {
 	semanticSearch     SemanticSearcher
 	keywordSearch      KeywordSearcher
 	enrichmentResolver EnrichmentResolver
+	fileLister         FileLister
 	files              FileFinder
 	grepper            Grepper
 	version            string
@@ -105,7 +111,8 @@ const instructions = "This server provides access to code knowledge through mult
 	"- get_wiki_page() - Get the content of a specific wiki page by slug\n" +
 	"- semantic_search() - Find files matching a natural language query (returns resource URIs)\n" +
 	"- keyword_search() - Find files matching keywords using BM25 search (returns resource URIs)\n" +
-	"- grep() - Search file contents using git grep with regex patterns (returns resource URIs)\n\n" +
+	"- grep() - Search file contents using git grep with regex patterns (returns resource URIs)\n" +
+	"- ls() - List files matching a glob pattern in a repository\n\n" +
 	"**Reading file content:**\n" +
 	"Use the file resource template: file://{id}/{blob_name}/{+path}\n" +
 	"where id is the repository ID, blob_name is a commit SHA, tag, or branch name, " +
@@ -124,6 +131,7 @@ func NewServer(
 	semanticSearch SemanticSearcher,
 	keywordSearch KeywordSearcher,
 	enrichmentResolver EnrichmentResolver,
+	fileLister FileLister,
 	files FileFinder,
 	grepper Grepper,
 	version string,
@@ -141,6 +149,7 @@ func NewServer(
 		semanticSearch:     semanticSearch,
 		keywordSearch:      keywordSearch,
 		enrichmentResolver: enrichmentResolver,
+		fileLister:         fileLister,
 		files:              files,
 		grepper:            grepper,
 		version:            version,
@@ -304,6 +313,18 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 			mcp.Description("Maximum number of file results (default 50)"),
 		),
 	), s.handleGrep)
+
+	mcpServer.AddTool(mcp.NewTool("ls",
+		mcp.WithDescription("List files matching a glob pattern in a repository"),
+		mcp.WithString("repo_url",
+			mcp.Required(),
+			mcp.Description("The remote URL of the repository"),
+		),
+		mcp.WithString("pattern",
+			mcp.Required(),
+			mcp.Description("Glob pattern to match files (e.g. **/*.go, src/*.py)"),
+		),
+	), s.handleLs)
 }
 
 // handleGetVersion returns the kodit server version.
@@ -932,6 +953,77 @@ func (s *Server) handleGrep(ctx context.Context, request mcp.CallToolRequest) (*
 	}
 
 	jsonBytes, err := json.Marshal(fileResults)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("marshal results: %v", err)), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+// lsResult holds the resolved file information for an ls match.
+type lsResult struct {
+	URI  string `json:"uri"`
+	Size int64  `json:"size"`
+}
+
+// handleLs handles the ls tool invocation.
+func (s *Server) handleLs(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	repoURL, err := request.RequireString("repo_url")
+	if err != nil {
+		return mcp.NewToolResultError("repo_url is required"), nil
+	}
+
+	pattern, err := request.RequireString("pattern")
+	if err != nil {
+		return mcp.NewToolResultError("pattern is required"), nil
+	}
+	if strings.TrimSpace(pattern) == "" {
+		return mcp.NewToolResultError("pattern must not be empty"), nil
+	}
+
+	repos, err := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
+	if err != nil {
+		s.logger.Error("failed to find repository", slog.String("repo_url", repoURL), slog.Any("error", err))
+		return mcp.NewToolResultError(fmt.Sprintf("failed to find repository: %v", err)), nil
+	}
+	if len(repos) == 0 {
+		return mcp.NewToolResultError(fmt.Sprintf("repository not found: %s", repoURL)), nil
+	}
+
+	commits, err := s.commits.Find(ctx,
+		repository.WithRepoID(repos[0].ID()),
+		repository.WithOrderDesc("date"),
+		repository.WithLimit(1),
+	)
+	if err != nil {
+		s.logger.Error("failed to find latest commit", slog.Any("error", err))
+		return mcp.NewToolResultError(fmt.Sprintf("failed to find latest commit: %v", err)), nil
+	}
+	if len(commits) == 0 {
+		return mcp.NewToolResultError("no commits found for repository"), nil
+	}
+	commitSHA := commits[0].SHA()
+
+	files, err := s.fileLister.ListFiles(ctx, repos[0].ID(), pattern)
+	if err != nil {
+		s.logger.Error("list files failed", slog.Any("error", err))
+		return mcp.NewToolResultError(fmt.Sprintf("ls failed: %v", err)), nil
+	}
+
+	results := make([]lsResult, 0, len(files))
+	for _, f := range files {
+		uri := NewFileURI(repos[0].ID(), commitSHA, f.Path)
+		results = append(results, lsResult{
+			URI:  uri.String(),
+			Size: f.Size,
+		})
+	}
+
+	if len(results) == 0 {
+		return mcp.NewToolResultText("[]"), nil
+	}
+
+	jsonBytes, err := json.Marshal(results)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("marshal results: %v", err)), nil
 	}
