@@ -31,7 +31,7 @@ BUILD_DIR=./build
 COVERAGE_FILE=coverage.out
 
 # Version info (can be overridden via environment or make args)
-VERSION?=1.0.0
+VERSION?=v1.0.0
 COMMIT?=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME?=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 
@@ -234,11 +234,12 @@ release: ## Create a GitHub release (BUMP=patch|minor|major, RELEASE=1 for full 
 		echo "ERROR: BUMP must be patch, minor, or major (got '$(BUMP)')"; \
 		exit 1; \
 	fi; \
-	LATEST=$$(git tag --list '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -v '\-' | head -1); \
+	LATEST=$$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -v '\-' | head -1); \
 	if [ -z "$$LATEST" ]; then \
 		echo "ERROR: no semver tags found"; \
 		exit 1; \
 	fi; \
+	LATEST=$$(echo "$$LATEST" | sed 's/^v//'); \
 	MAJOR=$$(echo "$$LATEST" | cut -d. -f1); \
 	MINOR=$$(echo "$$LATEST" | cut -d. -f2); \
 	PATCH=$$(echo "$$LATEST" | cut -d. -f3); \
@@ -249,11 +250,11 @@ release: ## Create a GitHub release (BUMP=patch|minor|major, RELEASE=1 for full 
 	esac; \
 	BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
 	if [ "$(RELEASE)" = "1" ]; then \
-		TAG="$$MAJOR.$$MINOR.$$PATCH"; \
+		TAG="v$$MAJOR.$$MINOR.$$PATCH"; \
 		echo "Creating release $$TAG on branch $$BRANCH..."; \
 		gh release create "$$TAG" --title "$$TAG" --generate-notes --target "$$BRANCH"; \
 	else \
-		TAG="$$MAJOR.$$MINOR.$$PATCH-rc.$(COMMIT)"; \
+		TAG="v$$MAJOR.$$MINOR.$$PATCH-rc.$(COMMIT)"; \
 		echo "Creating pre-release $$TAG on branch $$BRANCH..."; \
 		gh release create "$$TAG" --title "$$TAG" --generate-notes --prerelease --target "$$BRANCH"; \
 	fi
