@@ -329,6 +329,7 @@ func (h *Wiki) planWiki(ctx context.Context, wikiCtx wikiGatheredContext) (wikiO
 		return wikiOutline{}, fmt.Errorf("wiki plan: LLM returned empty response")
 	}
 	text = extractJSON(text)
+	text = repairJSON(text)
 
 	var outline wikiOutline
 	if err := json.Unmarshal([]byte(text), &outline); err != nil {
@@ -522,6 +523,56 @@ func extractJSON(text string) string {
 		}
 	}
 	return text[start:]
+}
+
+// repairJSON fixes common LLM JSON mistakes such as missing commas between
+// adjacent objects or arrays (e.g. `}{` → `},{`). It walks the string
+// respecting quoted regions so it won't mangle values inside strings.
+func repairJSON(text string) string {
+	var buf strings.Builder
+	buf.Grow(len(text))
+
+	inString := false
+	// lastSignificant is the last non-whitespace character written.
+	var lastSignificant byte
+
+	for i := 0; i < len(text); i++ {
+		ch := text[i]
+
+		if inString {
+			buf.WriteByte(ch)
+			switch ch {
+			case '\\':
+				if i+1 < len(text) {
+					i++
+					buf.WriteByte(text[i])
+				}
+			case '"':
+				inString = false
+				lastSignificant = ch
+			}
+			continue
+		}
+
+		// Insert a missing comma when a closing bracket/brace is
+		// immediately followed (ignoring whitespace) by an opening one,
+		// or by a quote starting a new key/value.
+		if (ch == '{' || ch == '[' || ch == '"') &&
+			(lastSignificant == '}' || lastSignificant == ']' || lastSignificant == '"') {
+			buf.WriteByte(',')
+		}
+
+		buf.WriteByte(ch)
+
+		if ch == '"' {
+			inString = true
+		}
+		if ch != ' ' && ch != '\t' && ch != '\n' && ch != '\r' {
+			lastSignificant = ch
+		}
+	}
+
+	return buf.String()
 }
 
 // JSON types for wiki outline (internal to handler).

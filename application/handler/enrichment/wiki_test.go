@@ -1,6 +1,7 @@
 package enrichment
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -65,6 +66,45 @@ func TestExtractJSON_NoJSON(t *testing.T) {
 func TestExtractJSON_EscapedQuotesInStrings(t *testing.T) {
 	input := `{"title":"say \"hello\""}`
 	assert.Equal(t, input, extractJSON(input))
+}
+
+func TestRepairJSON_Valid(t *testing.T) {
+	input := `{"pages":[{"slug":"a"},{"slug":"b"}]}`
+	assert.Equal(t, input, repairJSON(input))
+}
+
+func TestRepairJSON_MissingCommaObjects(t *testing.T) {
+	input := `{"pages":[{"slug":"a"}{"slug":"b"}]}`
+	expected := `{"pages":[{"slug":"a"},{"slug":"b"}]}`
+	assert.Equal(t, expected, repairJSON(input))
+}
+
+func TestRepairJSON_MissingCommaWithWhitespace(t *testing.T) {
+	input := "{\"pages\":[{\"slug\":\"a\"} \n {\"slug\":\"b\"}]}"
+	result := repairJSON(input)
+	assert.True(t, json.Valid([]byte(result)), "should produce valid JSON, got: %s", result)
+}
+
+func TestRepairJSON_MissingCommaArrays(t *testing.T) {
+	input := `{"a":["x"]["y"]}`
+	expected := `{"a":["x"],["y"]}`
+	assert.Equal(t, expected, repairJSON(input))
+}
+
+func TestRepairJSON_BracesInStrings(t *testing.T) {
+	input := `{"title":"}{not a break"}`
+	assert.Equal(t, input, repairJSON(input))
+}
+
+func TestRepairJSON_NestedChildren(t *testing.T) {
+	// Simulates the exact error from the bug report.
+	input := `{"pages":[{"slug":"overview","children":[{"slug":"features"}{"slug":"getting-started"}]}]}`
+	result := repairJSON(input)
+	require.True(t, json.Valid([]byte(result)), "should produce valid JSON, got: %s", result)
+
+	var outline wikiOutline
+	require.NoError(t, json.Unmarshal([]byte(result), &outline))
+	assert.Len(t, outline.Pages[0].Children, 2)
 }
 
 func TestWikiOutline_Flatten(t *testing.T) {
