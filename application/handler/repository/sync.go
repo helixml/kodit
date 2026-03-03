@@ -72,6 +72,13 @@ func (h *Sync) Execute(ctx context.Context, payload map[string]any) error {
 		return repository.ErrNotCloned
 	}
 
+	// Mark the repository as scanned now so the periodic sync does not
+	// re-enqueue while this (potentially slow) sync is still running.
+	repo = repo.WithLastScannedAt(time.Now())
+	if _, err := h.repoStore.Save(ctx, repo); err != nil {
+		return fmt.Errorf("save last scanned at: %w", err)
+	}
+
 	tracker.SetTotal(ctx, 3)
 	tracker.SetCurrent(ctx, 0, "Fetching latest changes")
 

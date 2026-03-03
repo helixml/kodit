@@ -58,7 +58,7 @@ This document contains the complete configuration reference for Kodit. All confi
 | `WORKER_COUNT` | int | `1` | The number of background workers. |
 | `SEARCH_LIMIT` | int | `10` | The default search result limit. |
 | `HTTP_CACHE_DIR` | string | _(empty)_ | The directory for caching HTTP responses to disk. |
-| `SIMPLE_CHUNKING_ENABLED` | bool | `false` | SimpleChunking enables fixed-size text chunking instead of AST-based snippet extraction. |
+| `SIMPLE_CHUNKING_ENABLED` | bool | `true` | SimpleChunking enables fixed-size text chunking instead of AST-based snippet extraction. |
 | `CHUNK_SIZE` | int | `1500` | The target size in characters for each text chunk. |
 | `CHUNK_OVERLAP` | int | `200` | The number of overlapping characters between adjacent chunks. |
 | `CHUNK_MIN_SIZE` | int | `50` | The minimum chunk size in characters; smaller chunks are dropped. |

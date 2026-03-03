@@ -84,8 +84,8 @@ type EnvConfig struct {
 	HTTPCacheDir string `envconfig:"HTTP_CACHE_DIR"`
 
 	// SimpleChunking enables fixed-size text chunking instead of AST-based snippet extraction.
-	// Env: SIMPLE_CHUNKING_ENABLED (default: false)
-	SimpleChunking bool `envconfig:"SIMPLE_CHUNKING_ENABLED" default:"false"`
+	// Env: SIMPLE_CHUNKING_ENABLED (default: true)
+	SimpleChunking bool `envconfig:"SIMPLE_CHUNKING_ENABLED" default:"true"`
 
 	// ChunkSize is the target size in characters for each text chunk.
 	// Env: CHUNK_SIZE (default: 1500)
