@@ -93,6 +93,23 @@ func (p *PeriodicSync) run(ctx context.Context) {
 }
 
 func (p *PeriodicSync) sync(ctx context.Context) {
+	// Don't flood the queue — let workers drain existing tasks first.
+	pending, err := p.queue.Count(ctx)
+	if err != nil {
+		if ctx.Err() == nil {
+			p.logger.Error("periodic sync failed to count pending tasks",
+				slog.String("error", err.Error()),
+			)
+		}
+		return
+	}
+	if pending > 0 {
+		p.logger.Debug("periodic sync skipped, queue has pending tasks",
+			slog.Int64("pending", pending),
+		)
+		return
+	}
+
 	repos, err := p.repositories.Find(ctx, repository.WithScanDueBefore(time.Now().Add(-p.interval)))
 	if err != nil {
 		if ctx.Err() != nil {
