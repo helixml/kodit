@@ -3,7 +3,6 @@ package enrichment
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"sort"
 
 	"github.com/helixml/kodit/application/handler"
@@ -52,7 +51,7 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 
 	count, err := h.enrichCtx.Enrichments.Count(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeUsage), enrichment.WithSubtype(enrichment.SubtypeAPIDocs))
 	if err != nil {
-		h.enrichCtx.Logger.Error("failed to check existing API docs", slog.String("error", err.Error()))
+		h.enrichCtx.Logger.Error().Str("error", err.Error()).Msg("failed to check existing API docs")
 		return err
 	}
 
@@ -90,10 +89,7 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 
 		enrichments, err := h.extractor.Extract(ctx, langFileList, lang, false)
 		if err != nil {
-			h.enrichCtx.Logger.Warn("failed to extract API docs",
-				slog.String("language", lang),
-				slog.String("error", err.Error()),
-			)
+			h.enrichCtx.Logger.Warn().Str("language", lang).Str("error", err.Error()).Msg("failed to extract API docs")
 			i++
 			continue
 		}

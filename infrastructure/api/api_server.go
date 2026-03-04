@@ -2,9 +2,10 @@ package api
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -22,7 +23,7 @@ type APIServer struct {
 	server       *Server
 	router       chi.Router
 	routerCalled bool
-	logger       *slog.Logger
+	logger       zerolog.Logger
 }
 
 // NewAPIServer creates a new APIServer wired to the given kodit Client.

@@ -3,12 +3,14 @@ package v1_test
 import (
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/domain/chunk"
@@ -42,7 +44,7 @@ func TestSearchRouter_LineRanges(t *testing.T) {
 	}
 
 	// Seed BM25 index for the enrichment.
-	bm25Store, err := persistence.NewSQLiteBM25Store(db, slog.Default())
+	bm25Store, err := persistence.NewSQLiteBM25Store(db, zerolog.New(os.Stderr).With().Timestamp().Logger())
 	if err != nil {
 		t.Fatalf("create bm25 store: %v", err)
 	}

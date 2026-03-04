@@ -5,11 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/chunk"
@@ -92,7 +93,7 @@ type Server struct {
 	files              FileFinder
 	grepper            Grepper
 	version            string
-	logger             *slog.Logger
+	logger             zerolog.Logger
 }
 
 const instructions = "This server provides access to code knowledge through multiple " +
@@ -135,11 +136,8 @@ func NewServer(
 	files FileFinder,
 	grepper Grepper,
 	version string,
-	logger *slog.Logger,
+	logger zerolog.Logger,
 ) *Server {
-	if logger == nil {
-		logger = slog.Default()
-	}
 
 	s := &Server{
 		repositories:       repositories,
@@ -336,7 +334,7 @@ func (s *Server) handleGetVersion(_ context.Context, _ mcp.CallToolRequest) (*mc
 func (s *Server) handleListRepositories(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	repos, err := s.repositories.Find(ctx)
 	if err != nil {
-		s.logger.Error("failed to list repositories", slog.Any("error", err))
+		s.logger.Error().Interface("error", err).Msg("failed to list repositories")
 		return mcp.NewToolResultError(fmt.Sprintf("failed to list repositories: %v", err)), nil
 	}
 
@@ -414,7 +412,7 @@ func (s *Server) handleGetWiki(ctx context.Context, request mcp.CallToolRequest)
 
 	repos, err := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
 	if err != nil {
-		s.logger.Error("failed to find repository", slog.String("repo_url", repoURL), slog.Any("error", err))
+		s.logger.Error().Str("repo_url", repoURL).Interface("error", err).Msg("failed to find repository")
 		return mcp.NewToolResultError(fmt.Sprintf("failed to find repository: %v", err)), nil
 	}
 	if len(repos) == 0 {
@@ -429,7 +427,7 @@ func (s *Server) handleGetWiki(ctx context.Context, request mcp.CallToolRequest)
 			repository.WithLimit(1),
 		)
 		if commitErr != nil {
-			s.logger.Error("failed to find latest commit", slog.Any("error", commitErr))
+			s.logger.Error().Interface("error", commitErr).Msg("failed to find latest commit")
 			return mcp.NewToolResultError(fmt.Sprintf("failed to find latest commit: %v", commitErr)), nil
 		}
 		if len(commits) == 0 {
@@ -446,7 +444,7 @@ func (s *Server) handleGetWiki(ctx context.Context, request mcp.CallToolRequest)
 		Subtype:   &subtype,
 	})
 	if err != nil {
-		s.logger.Error("failed to list enrichments", slog.Any("error", err))
+		s.logger.Error().Interface("error", err).Msg("failed to list enrichments")
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get wiki: %v", err)), nil
 	}
 	if len(enrichments) == 0 {
@@ -455,7 +453,7 @@ func (s *Server) handleGetWiki(ctx context.Context, request mcp.CallToolRequest)
 
 	w, err := wiki.ParseWiki(enrichments[0].Content())
 	if err != nil {
-		s.logger.Error("failed to parse wiki", slog.Any("error", err))
+		s.logger.Error().Interface("error", err).Msg("failed to parse wiki")
 		return mcp.NewToolResultError(fmt.Sprintf("failed to parse wiki: %v", err)), nil
 	}
 
@@ -480,7 +478,7 @@ func (s *Server) handleGetWikiPage(ctx context.Context, request mcp.CallToolRequ
 
 	repos, err := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
 	if err != nil {
-		s.logger.Error("failed to find repository", slog.String("repo_url", repoURL), slog.Any("error", err))
+		s.logger.Error().Str("repo_url", repoURL).Interface("error", err).Msg("failed to find repository")
 		return mcp.NewToolResultError(fmt.Sprintf("failed to find repository: %v", err)), nil
 	}
 	if len(repos) == 0 {
@@ -495,7 +493,7 @@ func (s *Server) handleGetWikiPage(ctx context.Context, request mcp.CallToolRequ
 			repository.WithLimit(1),
 		)
 		if commitErr != nil {
-			s.logger.Error("failed to find latest commit", slog.Any("error", commitErr))
+			s.logger.Error().Interface("error", commitErr).Msg("failed to find latest commit")
 			return mcp.NewToolResultError(fmt.Sprintf("failed to find latest commit: %v", commitErr)), nil
 		}
 		if len(commits) == 0 {
@@ -512,7 +510,7 @@ func (s *Server) handleGetWikiPage(ctx context.Context, request mcp.CallToolRequ
 		Subtype:   &subtype,
 	})
 	if err != nil {
-		s.logger.Error("failed to list enrichments", slog.Any("error", err))
+		s.logger.Error().Interface("error", err).Msg("failed to list enrichments")
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get wiki: %v", err)), nil
 	}
 	if len(enrichments) == 0 {
@@ -521,7 +519,7 @@ func (s *Server) handleGetWikiPage(ctx context.Context, request mcp.CallToolRequ
 
 	w, err := wiki.ParseWiki(enrichments[0].Content())
 	if err != nil {
-		s.logger.Error("failed to parse wiki", slog.Any("error", err))
+		s.logger.Error().Interface("error", err).Msg("failed to parse wiki")
 		return mcp.NewToolResultError(fmt.Sprintf("failed to parse wiki: %v", err)), nil
 	}
 
@@ -557,7 +555,7 @@ func (s *Server) handleEnrichmentDocs(
 
 	repos, err := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
 	if err != nil {
-		s.logger.Error("failed to find repository", slog.String("repo_url", repoURL), slog.Any("error", err))
+		s.logger.Error().Str("repo_url", repoURL).Interface("error", err).Msg("failed to find repository")
 		return mcp.NewToolResultError(fmt.Sprintf("failed to find repository: %v", err)), nil
 	}
 	if len(repos) == 0 {
@@ -572,7 +570,7 @@ func (s *Server) handleEnrichmentDocs(
 			repository.WithLimit(1),
 		)
 		if commitErr != nil {
-			s.logger.Error("failed to find latest commit", slog.Any("error", commitErr))
+			s.logger.Error().Interface("error", commitErr).Msg("failed to find latest commit")
 			return mcp.NewToolResultError(fmt.Sprintf("failed to find latest commit: %v", commitErr)), nil
 		}
 		if len(commits) == 0 {
@@ -587,7 +585,7 @@ func (s *Server) handleEnrichmentDocs(
 		Subtype:   &subtype,
 	})
 	if err != nil {
-		s.logger.Error("failed to list enrichments", slog.Any("error", err))
+		s.logger.Error().Interface("error", err).Msg("failed to list enrichments")
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get enrichments: %v", err)), nil
 	}
 
@@ -762,7 +760,7 @@ func (s *Server) handleSemanticSearch(ctx context.Context, request mcp.CallToolR
 
 	enrichments, scores, err := s.semanticSearch.SearchCodeWithScores(ctx, query, limit, filters)
 	if err != nil {
-		s.logger.Error("semantic search failed", slog.Any("error", err))
+		s.logger.Error().Interface("error", err).Msg("semantic search failed")
 		return mcp.NewToolResultError(fmt.Sprintf("semantic search failed: %v", err)), nil
 	}
 
@@ -833,7 +831,7 @@ func (s *Server) handleKeywordSearch(ctx context.Context, request mcp.CallToolRe
 
 	enrichments, scores, err := s.keywordSearch.SearchKeywordsWithScores(ctx, keywords, limit, filters)
 	if err != nil {
-		s.logger.Error("keyword search failed", slog.Any("error", err))
+		s.logger.Error().Interface("error", err).Msg("keyword search failed")
 		return mcp.NewToolResultError(fmt.Sprintf("keyword search failed: %v", err)), nil
 	}
 
@@ -890,7 +888,7 @@ func (s *Server) handleGrep(ctx context.Context, request mcp.CallToolRequest) (*
 
 	repos, err := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
 	if err != nil {
-		s.logger.Error("failed to find repository", slog.String("repo_url", repoURL), slog.Any("error", err))
+		s.logger.Error().Str("repo_url", repoURL).Interface("error", err).Msg("failed to find repository")
 		return mcp.NewToolResultError(fmt.Sprintf("failed to find repository: %v", err)), nil
 	}
 	if len(repos) == 0 {
@@ -911,7 +909,7 @@ func (s *Server) handleGrep(ctx context.Context, request mcp.CallToolRequest) (*
 
 	results, err := s.grepper.Search(ctx, repos[0].ID(), pattern, glob, limit)
 	if err != nil {
-		s.logger.Error("grep failed", slog.Any("error", err))
+		s.logger.Error().Interface("error", err).Msg("grep failed")
 		return mcp.NewToolResultError(fmt.Sprintf("grep failed: %v", err)), nil
 	}
 
@@ -981,7 +979,7 @@ func (s *Server) handleLs(ctx context.Context, request mcp.CallToolRequest) (*mc
 
 	repos, err := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
 	if err != nil {
-		s.logger.Error("failed to find repository", slog.String("repo_url", repoURL), slog.Any("error", err))
+		s.logger.Error().Str("repo_url", repoURL).Interface("error", err).Msg("failed to find repository")
 		return mcp.NewToolResultError(fmt.Sprintf("failed to find repository: %v", err)), nil
 	}
 	if len(repos) == 0 {
@@ -994,7 +992,7 @@ func (s *Server) handleLs(ctx context.Context, request mcp.CallToolRequest) (*mc
 		repository.WithLimit(1),
 	)
 	if err != nil {
-		s.logger.Error("failed to find latest commit", slog.Any("error", err))
+		s.logger.Error().Interface("error", err).Msg("failed to find latest commit")
 		return mcp.NewToolResultError(fmt.Sprintf("failed to find latest commit: %v", err)), nil
 	}
 	if len(commits) == 0 {
@@ -1004,7 +1002,7 @@ func (s *Server) handleLs(ctx context.Context, request mcp.CallToolRequest) (*mc
 
 	files, err := s.fileLister.ListFiles(ctx, repos[0].ID(), pattern)
 	if err != nil {
-		s.logger.Error("list files failed", slog.Any("error", err))
+		s.logger.Error().Interface("error", err).Msg("list files failed")
 		return mcp.NewToolResultError(fmt.Sprintf("ls failed: %v", err)), nil
 	}
 

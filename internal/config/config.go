@@ -3,11 +3,12 @@ package config
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog"
 )
 
 // Default configuration values.
@@ -430,9 +431,9 @@ func DefaultCloneDir(dataDir string) string {
 	return filepath.Join(dataDir, DefaultCloneSubdir)
 }
 
-// DefaultLogger returns the default slog logger for library consumers.
-func DefaultLogger() *slog.Logger {
-	return slog.Default()
+// DefaultLogger returns the default zerolog logger for library consumers.
+func DefaultLogger() zerolog.Logger {
+	return zerolog.New(os.Stderr).With().Timestamp().Logger()
 }
 
 // PrepareDataDir creates the data directory if it does not exist and returns it.
@@ -731,23 +732,22 @@ func (c AppConfig) Apply(opts ...AppConfigOption) AppConfig {
 	return c
 }
 
-// LogAttrs returns slog attributes for logging the configuration.
+// LogConfig adds configuration attributes to a zerolog event.
 // Sensitive values like API keys are masked or shown as counts.
-func (c AppConfig) LogAttrs() []slog.Attr {
-	return []slog.Attr{
-		slog.String("data_dir", c.dataDir),
-		slog.String("clone_dir", c.CloneDir()),
-		slog.String("log_level", c.logLevel),
-		slog.String("db_url", c.maskedDBURL()),
-		slog.String("embedding_base_url", c.endpointBaseURL(c.embeddingEndpoint)),
-		slog.String("embedding_model", c.endpointModel(c.embeddingEndpoint)),
-		slog.String("enrichment_base_url", c.endpointBaseURL(c.enrichmentEndpoint)),
-		slog.String("enrichment_model", c.endpointModel(c.enrichmentEndpoint)),
-		slog.Int("api_keys_count", len(c.apiKeys)),
-		slog.Bool("skip_provider_validation", c.skipProviderValidation),
-		slog.Bool("periodic_sync_enabled", c.periodicSync.Enabled()),
-		slog.Duration("periodic_sync_interval", c.periodicSync.Interval()),
-	}
+func (c AppConfig) LogConfig(event *zerolog.Event) *zerolog.Event {
+	return event.
+		Str("data_dir", c.dataDir).
+		Str("clone_dir", c.CloneDir()).
+		Str("log_level", c.logLevel).
+		Str("db_url", c.maskedDBURL()).
+		Str("embedding_base_url", c.endpointBaseURL(c.embeddingEndpoint)).
+		Str("embedding_model", c.endpointModel(c.embeddingEndpoint)).
+		Str("enrichment_base_url", c.endpointBaseURL(c.enrichmentEndpoint)).
+		Str("enrichment_model", c.endpointModel(c.enrichmentEndpoint)).
+		Int("api_keys_count", len(c.apiKeys)).
+		Bool("skip_provider_validation", c.skipProviderValidation).
+		Bool("periodic_sync_enabled", c.periodicSync.Enabled()).
+		Dur("periodic_sync_interval", c.periodicSync.Interval())
 }
 
 func (c AppConfig) maskedDBURL() string {

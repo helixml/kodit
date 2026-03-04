@@ -36,11 +36,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/application/service"
@@ -116,7 +117,7 @@ type Client struct {
 	hugotEmbedding *provider.HugotEmbedding
 	closers        []io.Closer
 
-	logger         *slog.Logger
+	logger         zerolog.Logger
 	dataDir        string
 	cloneDir       string
 	apiKeys        []string
@@ -142,9 +143,6 @@ func New(opts ...Option) (*Client, error) {
 
 	// Set up logger
 	logger := cfg.logger
-	if logger == nil {
-		logger = config.DefaultLogger()
-	}
 
 	// Set up data directory
 	dataDir, err := config.PrepareDataDir(cfg.dataDir)
@@ -168,7 +166,7 @@ func New(opts ...Option) (*Client, error) {
 		hugotEmbedding = provider.NewHugotEmbedding(modelDir)
 		if hugotEmbedding.Available() {
 			cfg.embeddingProvider = hugotEmbedding
-			logger.Info("built-in embedding provider enabled", slog.String("model_dir", modelDir))
+			logger.Info().Str("model_dir", modelDir).Msg("built-in embedding provider enabled")
 		} else {
 			return nil, fmt.Errorf("no embedding model found in %s — run 'make download-model' or configure an external embedding provider", modelDir)
 		}
@@ -332,7 +330,7 @@ func New(opts ...Option) (*Client, error) {
 	enrichments := cfg.textProvider != nil
 	prescribedOps := task.NewPrescribedOperations(!cfg.simpleChunking, enrichments)
 	if !enrichments {
-		logger.Warn("enrichment endpoint not configured — LLM-based enrichments (summaries, architecture docs, commit descriptions, cookbooks, wiki) will be disabled; set ENRICHMENT_ENDPOINT_* environment variables to enable them")
+		logger.Warn().Msg("enrichment endpoint not configured — LLM-based enrichments (summaries, architecture docs, commit descriptions, cookbooks, wiki) will be disabled; set ENRICHMENT_ENDPOINT_* environment variables to enable them")
 	}
 	periodicSync := service.NewPeriodicSync(cfg.periodicSync, repoStore, queue, prescribedOps, logger)
 
@@ -416,7 +414,7 @@ func New(opts ...Option) (*Client, error) {
 
 	// Validate all prescribed operations have handlers
 	if cfg.skipProviderValidation {
-		logger.Warn("SKIP_PROVIDER_VALIDATION is deprecated and will be removed in a future release — enrichments are now automatically disabled when no enrichment endpoint is configured")
+		logger.Warn().Msg("SKIP_PROVIDER_VALIDATION is deprecated and will be removed in a future release — enrichments are now automatically disabled when no enrichment endpoint is configured")
 	}
 	if err := client.validateHandlers(); err != nil {
 		_ = db.Close()
@@ -443,9 +441,7 @@ func New(opts ...Option) (*Client, error) {
 				return nil, fmt.Errorf("enqueue re-index for repository %d: %w", repo.ID(), enqErr)
 			}
 		}
-		logger.Info("embedding dimension changed, enqueued sync for re-indexing",
-			slog.Int("repositories", len(repos)),
-		)
+		logger.Info().Int("repositories", len(repos)).Msg("embedding dimension changed, enqueued sync for re-indexing")
 	}
 
 	return client, nil
@@ -467,14 +463,14 @@ func (c *Client) Close() error {
 	// Close built-in embedding provider
 	if c.hugotEmbedding != nil {
 		if err := c.hugotEmbedding.Close(); err != nil {
-			c.logger.Error("failed to close hugot embedding", slog.Any("error", err))
+			c.logger.Error().Interface("error", err).Msg("failed to close hugot embedding")
 		}
 	}
 
 	// Close registered resources (e.g. caching transports)
 	for _, closer := range c.closers {
 		if err := closer.Close(); err != nil {
-			c.logger.Error("failed to close resource", slog.Any("error", err))
+			c.logger.Error().Interface("error", err).Msg("failed to close resource")
 		}
 	}
 
@@ -483,7 +479,7 @@ func (c *Client) Close() error {
 		return fmt.Errorf("close database: %w", err)
 	}
 
-	c.logger.Info("kodit client closed")
+	c.logger.Info().Msg("kodit client closed")
 	return nil
 }
 
@@ -493,7 +489,7 @@ func (c *Client) WorkerIdle() bool {
 }
 
 // Logger returns the client's logger.
-func (c *Client) Logger() *slog.Logger {
+func (c *Client) Logger() zerolog.Logger {
 	return c.logger
 }
 
@@ -513,7 +509,7 @@ func (a *embeddingAdapter) Embed(ctx context.Context, texts []string) ([][]float
 // buildSearchStores creates the search stores based on config.
 // The returned rebuilt bool is true when any VectorChord embedding table was
 // dropped and recreated due to a dimension change (requiring a full re-index).
-func buildSearchStores(ctx context.Context, cfg *clientConfig, db database.Database, dimension int, logger *slog.Logger) (textEmbeddingStore, codeEmbeddingStore search.EmbeddingStore, bm25Store search.BM25Store, rebuilt bool, err error) {
+func buildSearchStores(ctx context.Context, cfg *clientConfig, db database.Database, dimension int, logger zerolog.Logger) (textEmbeddingStore, codeEmbeddingStore search.EmbeddingStore, bm25Store search.BM25Store, rebuilt bool, err error) {
 	switch cfg.database {
 	case databaseSQLite:
 		bm25Store, err = persistence.NewSQLiteBM25Store(db, logger)

@@ -5,13 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	giteagit "code.gitea.io/gitea/modules/git"
 	"code.gitea.io/gitea/modules/git/gitcmd"
@@ -23,7 +24,7 @@ var ErrBranchNotFound = errors.New("branch not found")
 
 // GiteaAdapter implements Adapter using Gitea's git module (native git binary).
 type GiteaAdapter struct {
-	logger *slog.Logger
+	logger zerolog.Logger
 }
 
 var giteaInitOnce sync.Once
@@ -31,10 +32,7 @@ var giteaInitErr error
 
 // NewGiteaAdapter creates a new GiteaAdapter. It initializes the Gitea git
 // module once (verifying the git binary is available).
-func NewGiteaAdapter(logger *slog.Logger) (*GiteaAdapter, error) {
-	if logger == nil {
-		logger = slog.Default()
-	}
+func NewGiteaAdapter(logger zerolog.Logger) (*GiteaAdapter, error) {
 
 	if _, err := exec.LookPath("git"); err != nil {
 		return nil, fmt.Errorf("git is not installed or not in PATH: install git and try again")
@@ -61,14 +59,11 @@ func NewGiteaAdapter(logger *slog.Logger) (*GiteaAdapter, error) {
 
 // CloneRepository clones a repository to local path.
 func (g *GiteaAdapter) CloneRepository(ctx context.Context, remoteURI string, localPath string) error {
-	g.logger.Info("cloning repository",
-		slog.String("uri", remoteURI),
-		slog.String("path", localPath),
-	)
+	g.logger.Info().Str("uri", remoteURI).Str("path", localPath).Msg("cloning repository")
 
 	// Remove existing directory if it exists
 	if _, err := os.Stat(localPath); err == nil {
-		g.logger.Warn("removing existing directory", slog.String("path", localPath))
+		g.logger.Warn().Str("path", localPath).Msg("removing existing directory")
 		if err := os.RemoveAll(localPath); err != nil {
 			return fmt.Errorf("remove existing directory: %w", err)
 		}
@@ -135,7 +130,7 @@ func (g *GiteaAdapter) PullRepository(ctx context.Context, localPath string) err
 	_, _, err := gitcmd.NewCommand("pull", "--force", "origin").
 		RunStdString(ctx, &gitcmd.RunOpts{Dir: localPath})
 	if err != nil {
-		g.logger.Debug("pull failed (possibly detached HEAD)", slog.String("error", err.Error()))
+		g.logger.Debug().Str("error", err.Error()).Msg("pull failed (possibly detached HEAD)")
 	}
 
 	return nil
@@ -291,7 +286,7 @@ func (g *GiteaAdapter) AllBranchHeadSHAs(ctx context.Context, localPath string, 
 			// Try remote ref
 			sha, err = repo.GetRefCommitID("refs/remotes/origin/" + name)
 			if err != nil {
-				g.logger.Debug("branch not found", slog.String("branch", name))
+				g.logger.Debug().Str("branch", name).Msg("branch not found")
 				continue
 			}
 		}

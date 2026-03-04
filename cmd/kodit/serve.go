@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -99,10 +98,10 @@ func runServe(envFile, host string, port int) error {
 		return fmt.Errorf("create clone directory: %w", err)
 	}
 
-	// Setup logger and set as global default so slog.Debug() etc. respect LOG_LEVEL
+	// Setup logger and set as global default so zerolog debug calls etc. respect LOG_LEVEL)
 	logger := log.NewLogger(cfg)
 	log.SetDefaultLogger(logger)
-	slogger := logger.Slog()
+	zlog := logger.Zerolog()
 
 	// Build kodit client options from shared config (database, embedding, text)
 	opts, err := clientOptions(cfg)
@@ -112,7 +111,7 @@ func runServe(envFile, host string, port int) error {
 	opts = append(opts,
 		kodit.WithDataDir(cfg.DataDir()),
 		kodit.WithCloneDir(cfg.CloneDir()),
-		kodit.WithLogger(slogger),
+		kodit.WithLogger(zlog),
 	)
 
 	// Configure API keys
@@ -146,8 +145,7 @@ func runServe(envFile, host string, port int) error {
 	}
 
 	// Create kodit client and log settings
-	attrs := append([]slog.Attr{slog.String("version", version)}, cfg.LogAttrs()...)
-	slogger.LogAttrs(context.Background(), slog.LevelInfo, "starting kodit", attrs...)
+	cfg.LogConfig(zlog.Info().Str("version", version)).Msg("starting kodit")
 
 	client, err := kodit.New(opts...)
 	if err != nil {
@@ -155,7 +153,7 @@ func runServe(envFile, host string, port int) error {
 	}
 	defer func() {
 		if err := client.Close(); err != nil {
-			slogger.Error("failed to close kodit client", slog.Any("error", err))
+			zlog.Error().Interface("error", err).Msg("failed to close kodit client")
 		}
 	}()
 
@@ -164,7 +162,7 @@ func runServe(envFile, host string, port int) error {
 	router := apiServer.Router()
 
 	// Apply custom middleware (MUST be done before MountRoutes)
-	router.Use(apimiddleware.Logging(slogger))
+	router.Use(apimiddleware.Logging(zlog))
 	router.Use(apimiddleware.CorrelationID)
 
 	// Mount API routes after middleware is configured
@@ -193,22 +191,22 @@ func runServe(envFile, host string, port int) error {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	// Create standalone server for custom router
-	server := api.NewServer(addr, slogger)
+	server := api.NewServer(addr, zlog)
 	server.Router().Mount("/", router)
 
 	go func() {
 		<-sigChan
-		slogger.Info("shutting down server")
+		zlog.Info().Msg("shutting down server")
 		signal.Stop(sigChan)
 		cancel()
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer shutdownCancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {
-			slogger.Error("shutdown error", slog.Any("error", err))
+			zlog.Error().Interface("error", err).Msg("shutdown error")
 		}
 	}()
 
-	slogger.Info("starting server", slog.String("addr", addr))
+	zlog.Info().Str("addr", addr).Msg("starting server")
 	if err := server.Start(); err != nil {
 		return fmt.Errorf("server error: %w", err)
 	}

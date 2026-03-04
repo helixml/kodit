@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/rs/zerolog"
+
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/internal/database"
@@ -150,7 +152,7 @@ func TestTopKSimilarFiltered(t *testing.T) {
 
 func TestSQLiteEmbeddingStore_SaveAllAndSearch(t *testing.T) {
 	db := newTestDB(t)
-	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, nil)
+	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, zerolog.Nop())
 	require.NoError(t, err)
 	ctx := context.Background()
 
@@ -180,7 +182,7 @@ func TestSQLiteEmbeddingStore_SaveAllAndSearch(t *testing.T) {
 
 func TestSQLiteEmbeddingStore_SaveAllEmpty(t *testing.T) {
 	db := newTestDB(t)
-	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, nil)
+	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, zerolog.Nop())
 	require.NoError(t, err)
 	ctx := context.Background()
 
@@ -190,7 +192,7 @@ func TestSQLiteEmbeddingStore_SaveAllEmpty(t *testing.T) {
 
 func TestSQLiteEmbeddingStore_Search_NoEmbedding(t *testing.T) {
 	db := newTestDB(t)
-	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, nil)
+	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, zerolog.Nop())
 	require.NoError(t, err)
 	ctx := context.Background()
 
@@ -201,7 +203,7 @@ func TestSQLiteEmbeddingStore_Search_NoEmbedding(t *testing.T) {
 
 func TestSQLiteEmbeddingStore_SaveAllDuplicates(t *testing.T) {
 	db := newTestDB(t)
-	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, nil)
+	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, zerolog.Nop())
 	require.NoError(t, err)
 	ctx := context.Background()
 
@@ -221,7 +223,7 @@ func TestSQLiteEmbeddingStore_SaveAllDuplicates(t *testing.T) {
 
 func TestSQLiteEmbeddingStore_Exists(t *testing.T) {
 	db := newTestDB(t)
-	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, nil)
+	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, zerolog.Nop())
 	require.NoError(t, err)
 	ctx := context.Background()
 
@@ -244,7 +246,7 @@ func TestSQLiteEmbeddingStore_Exists(t *testing.T) {
 
 func TestSQLiteEmbeddingStore_DeleteBy(t *testing.T) {
 	db := newTestDB(t)
-	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, nil)
+	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, zerolog.Nop())
 	require.NoError(t, err)
 	ctx := context.Background()
 
@@ -272,7 +274,7 @@ func TestSQLiteEmbeddingStore_DeleteBy(t *testing.T) {
 
 func TestSQLiteEmbeddingStore_SearchWithFilter(t *testing.T) {
 	db := newTestDB(t)
-	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, nil)
+	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, zerolog.Nop())
 	require.NoError(t, err)
 	ctx := context.Background()
 
@@ -305,7 +307,7 @@ func TestSQLiteEmbeddingStore_SearchWithFilter(t *testing.T) {
 
 func TestSQLiteEmbeddingStore_Find(t *testing.T) {
 	db := newTestDB(t)
-	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, nil)
+	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, zerolog.Nop())
 	require.NoError(t, err)
 	ctx := context.Background()
 

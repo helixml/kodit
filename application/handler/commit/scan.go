@@ -3,7 +3,8 @@ package commit
 import (
 	"context"
 	"fmt"
-	"log/slog"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/repository"
@@ -19,7 +20,7 @@ type Scan struct {
 	fileStore      repository.FileStore
 	scanner        domainservice.Scanner
 	trackerFactory handler.TrackerFactory
-	logger         *slog.Logger
+	logger         zerolog.Logger
 }
 
 // NewScan creates a new Scan handler.
@@ -29,7 +30,7 @@ func NewScan(
 	fileStore repository.FileStore,
 	scanner domainservice.Scanner,
 	trackerFactory handler.TrackerFactory,
-	logger *slog.Logger,
+	logger zerolog.Logger,
 ) *Scan {
 	return &Scan{
 		repoStore:      repoStore,
@@ -60,10 +61,7 @@ func (h *Scan) Execute(ctx context.Context, payload map[string]any) error {
 	}
 
 	if existing {
-		h.logger.Info("commit already scanned",
-			slog.Int64("repo_id", cp.RepoID()),
-			slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
-		)
+		h.logger.Info().Int64("repo_id", cp.RepoID()).Str("commit", handler.ShortSHA(cp.CommitSHA())).Msg("commit already scanned")
 		tracker.Skip(ctx, "Commit already scanned")
 		return nil
 	}
@@ -97,19 +95,11 @@ func (h *Scan) Execute(ctx context.Context, payload map[string]any) error {
 	files := result.Files()
 	if len(files) > 0 {
 		if _, err := h.fileStore.SaveAll(ctx, files); err != nil {
-			h.logger.Warn("failed to save files",
-				slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
-				slog.String("error", err.Error()),
-			)
+			h.logger.Warn().Str("commit", handler.ShortSHA(cp.CommitSHA())).Str("error", err.Error()).Msg("failed to save files")
 		}
 	}
 
-	h.logger.Info("commit scanned successfully",
-		slog.Int64("repo_id", cp.RepoID()),
-		slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
-		slog.Int64("commit_id", savedCommit.ID()),
-		slog.Int("files", len(files)),
-	)
+	h.logger.Info().Int64("repo_id", cp.RepoID()).Str("commit", handler.ShortSHA(cp.CommitSHA())).Int64("commit_id", savedCommit.ID()).Int("files", len(files)).Msg("commit scanned successfully")
 
 	return nil
 }

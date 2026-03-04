@@ -33,7 +33,7 @@ func NewDatabase(ctx context.Context, url string) (Database, error) {
 	}
 
 	config := &gorm.Config{
-		Logger: slogGormLogger{},
+		Logger: zerologGormLogger{},
 	}
 
 	db, err := gorm.Open(dialector, config)

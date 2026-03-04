@@ -4,12 +4,13 @@ package service
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"maps"
 	"sort"
 	"strconv"
 	"sync"
 	"sync/atomic"
+
+	"github.com/rs/zerolog"
 
 	"golang.org/x/sync/errgroup"
 
@@ -212,7 +213,7 @@ type Search struct {
 	enrichmentStore enrichment.EnrichmentStore
 	fusion          search.Fusion
 	closed          *atomic.Bool
-	logger          *slog.Logger
+	logger          zerolog.Logger
 }
 
 // NewSearch creates a new Search service.
@@ -223,11 +224,8 @@ func NewSearch(
 	bm25Store search.BM25Store,
 	enrichmentStore enrichment.EnrichmentStore,
 	closed *atomic.Bool,
-	logger *slog.Logger,
+	logger zerolog.Logger,
 ) *Search {
-	if logger == nil {
-		logger = slog.Default()
-	}
 	return &Search{
 		embedder:        embedder,
 		textVectorStore: textVectorStore,
@@ -404,7 +402,7 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 		originalScores[result.ID()] = result.OriginalScores()
 		id, err := strconv.ParseInt(result.ID(), 10, 64)
 		if err != nil {
-			s.logger.Warn("failed to parse enrichment ID", "id", result.ID(), "error", err)
+			s.logger.Warn().Str("id", result.ID()).Err(err).Msg("failed to parse enrichment ID")
 			continue
 		}
 		ids = append(ids, id)

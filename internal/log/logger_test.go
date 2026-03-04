@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rs/zerolog"
+
 	"github.com/helixml/kodit/internal/config"
 )
 
@@ -20,9 +22,6 @@ func TestNewLogger_TextFormat(t *testing.T) {
 
 	if logger == nil {
 		t.Fatal("NewLogger should not return nil")
-	}
-	if logger.Slog() == nil {
-		t.Error("Slog() should not return nil")
 	}
 }
 
@@ -139,24 +138,24 @@ func TestRequestID_NotSet(t *testing.T) {
 func TestParseLevel(t *testing.T) {
 	tests := []struct {
 		input    string
-		expected string
+		expected zerolog.Level
 	}{
-		{"DEBUG", "DEBUG"},
-		{"debug", "DEBUG"},
-		{"INFO", "INFO"},
-		{"info", "INFO"},
-		{"WARN", "WARN"},
-		{"warn", "WARN"},
-		{"WARNING", "WARN"},
-		{"ERROR", "ERROR"},
-		{"error", "ERROR"},
-		{"unknown", "INFO"}, // defaults to INFO
+		{"DEBUG", zerolog.DebugLevel},
+		{"debug", zerolog.DebugLevel},
+		{"INFO", zerolog.InfoLevel},
+		{"info", zerolog.InfoLevel},
+		{"WARN", zerolog.WarnLevel},
+		{"warn", zerolog.WarnLevel},
+		{"WARNING", zerolog.WarnLevel},
+		{"ERROR", zerolog.ErrorLevel},
+		{"error", zerolog.ErrorLevel},
+		{"unknown", zerolog.InfoLevel}, // defaults to INFO
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			level := parseLevel(tt.input)
-			if level.String() != tt.expected {
+			if level != tt.expected {
 				t.Errorf("parseLevel(%q) = %v, want %v", tt.input, level.String(), tt.expected)
 			}
 		})

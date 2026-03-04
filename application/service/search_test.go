@@ -9,6 +9,7 @@ import (
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
+	"github.com/rs/zerolog"
 )
 
 // fakeEmbedder implements search.Embedder for testing.
@@ -99,7 +100,7 @@ func TestSearch_EmbeddingFailure_ReturnsError(t *testing.T) {
 		nil,
 		fakeEnrichmentStore{},
 		nil,
-		nil,
+		zerolog.Nop(),
 	)
 
 	req := search.NewMultiRequest(10, "test query", "test query", nil, search.NewFilters())
@@ -137,7 +138,7 @@ func TestSearch_KeywordsProduceSeparateFusionLists(t *testing.T) {
 		},
 	}
 
-	svc := NewSearch(nil, nil, nil, bm25, fakeEnrichmentStore{enrichments: enrichments}, nil, nil)
+	svc := NewSearch(nil, nil, nil, bm25, fakeEnrichmentStore{enrichments: enrichments}, nil, zerolog.Nop())
 
 	req := search.NewMultiRequest(10, "", "", []string{"auth", "login"}, search.NewFilters())
 	result, err := svc.Search(context.Background(), req)
@@ -166,7 +167,7 @@ func TestSearch_TextVectorFailure_ReturnsError(t *testing.T) {
 		nil,
 		fakeEnrichmentStore{},
 		nil,
-		nil,
+		zerolog.Nop(),
 	)
 
 	req := search.NewMultiRequest(10, "test", "test", nil, search.NewFilters())
@@ -189,7 +190,7 @@ func TestSearch_BM25Failure_ReturnsError(t *testing.T) {
 		fakeBM25Store{err: bm25Err},
 		fakeEnrichmentStore{},
 		nil,
-		nil,
+		zerolog.Nop(),
 	)
 
 	req := search.NewMultiRequest(10, "", "", []string{"test"}, search.NewFilters())
@@ -204,7 +205,7 @@ func TestSearch_BM25Failure_ReturnsError(t *testing.T) {
 }
 
 func TestSearch_NoStoresConfigured_ReturnsEmpty(t *testing.T) {
-	svc := NewSearch(nil, nil, nil, nil, fakeEnrichmentStore{}, nil, nil)
+	svc := NewSearch(nil, nil, nil, nil, fakeEnrichmentStore{}, nil, zerolog.Nop())
 
 	req := search.NewMultiRequest(10, "test", "test", []string{"keyword"}, search.NewFilters())
 	result, err := svc.Search(context.Background(), req)

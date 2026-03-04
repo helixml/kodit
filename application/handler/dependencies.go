@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"log/slog"
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
@@ -16,7 +16,7 @@ type EnrichmentContext struct {
 	Associations enrichment.AssociationStore
 	Enricher     domainservice.Enricher
 	Tracker      TrackerFactory
-	Logger       *slog.Logger
+	Logger       zerolog.Logger
 }
 
 // VectorIndex pairs an embedding domain service with its backing vector store.

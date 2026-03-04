@@ -1,8 +1,9 @@
 package config
 
 import (
-	"log/slog"
 	"strings"
+
+	"github.com/rs/zerolog/log"
 )
 
 // litellmPrefixes are provider prefixes used by Python's litellm library.
@@ -36,10 +37,7 @@ func normalizeDBURL(raw string) string {
 	}
 	scheme := raw[:plus]
 	rest := raw[colon:]
-	slog.Warn("deprecated: DB_URL contains a SQLAlchemy driver suffix — please update your .env to use the plain scheme",
-		"original", raw,
-		"normalized", scheme+rest,
-	)
+	log.Warn().Str("original", raw).Str("normalized", scheme+rest).Msg("deprecated: DB_URL contains a SQLAlchemy driver suffix — please update your .env to use the plain scheme")
 	return scheme + rest
 }
 
@@ -50,10 +48,7 @@ func normalizeModel(raw string) string {
 	for _, prefix := range litellmPrefixes {
 		if strings.HasPrefix(raw, prefix) {
 			normalized := raw[len(prefix):]
-			slog.Warn("deprecated: model name contains a litellm provider prefix — please update your .env to use the bare model name",
-				"original", raw,
-				"normalized", normalized,
-			)
+			log.Warn().Str("original", raw).Str("normalized", normalized).Msg("deprecated: model name contains a litellm provider prefix — please update your .env to use the bare model name")
 			return normalized
 		}
 	}

@@ -2,11 +2,12 @@ package service
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
@@ -123,7 +124,7 @@ func (f *fakeTaskStore) savedTasks() []task.Task {
 }
 
 func TestPeriodicSync_Enabled(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 
 	repoStore := &fakeRepositoryStore{
 		repos: []repository.Repository{
@@ -166,7 +167,7 @@ func TestPeriodicSync_Enabled(t *testing.T) {
 }
 
 func TestPeriodicSync_Disabled(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 
 	repoStore := &fakeRepositoryStore{
 		repos: []repository.Repository{
@@ -194,7 +195,7 @@ func TestPeriodicSync_Disabled(t *testing.T) {
 }
 
 func TestPeriodicSync_EmptyRepositories(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 
 	repoStore := &fakeRepositoryStore{}
 	taskStore := &fakeTaskStore{}

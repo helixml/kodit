@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"math"
 	"strings"
 	"sync"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
@@ -40,7 +41,7 @@ var ErrVectorInitializationFailed = errors.New("failed to initialize VectorChord
 // VectorChordEmbeddingStore implements search.EmbeddingStore using VectorChord PostgreSQL extension.
 type VectorChordEmbeddingStore struct {
 	database.Repository[search.Embedding, PgEmbeddingModel]
-	logger  *slog.Logger
+	logger  zerolog.Logger
 	indexMu sync.Mutex
 }
 
@@ -48,10 +49,7 @@ type VectorChordEmbeddingStore struct {
 // initializing the extension, table, index, and verifying the dimension.
 // The returned bool is true when the table was dropped and recreated due to a
 // dimension mismatch (e.g. the user switched embedding providers).
-func NewVectorChordEmbeddingStore(ctx context.Context, db database.Database, taskName TaskName, dimension int, logger *slog.Logger) (*VectorChordEmbeddingStore, bool, error) {
-	if logger == nil {
-		logger = slog.Default()
-	}
+func NewVectorChordEmbeddingStore(ctx context.Context, db database.Database, taskName TaskName, dimension int, logger zerolog.Logger) (*VectorChordEmbeddingStore, bool, error) {
 	tableName := fmt.Sprintf("vectorchord_%s_embeddings", taskName)
 	s := &VectorChordEmbeddingStore{
 		Repository: database.NewRepositoryForTable[search.Embedding, PgEmbeddingModel](
@@ -89,11 +87,7 @@ CREATE TABLE IF NOT EXISTS %s (
 
 	rebuilt := false
 	if result.RowsAffected > 0 && dbDimension != dimension {
-		logger.Warn("embedding dimension changed, dropping old table for re-indexing",
-			slog.String("table", tableName),
-			slog.Int("old_dimension", dbDimension),
-			slog.Int("new_dimension", dimension),
-		)
+		logger.Warn().Str("table", tableName).Int("old_dimension", dbDimension).Int("new_dimension", dimension).Msg("embedding dimension changed, dropping old table for re-indexing")
 
 		dropSQL := fmt.Sprintf("DROP TABLE %s CASCADE", tableName)
 		if err := rawDB.Exec(dropSQL).Error; err != nil {
@@ -176,11 +170,7 @@ residual_quantization = true
 lists = [%d]
 $$)`, tableName, tableName, lists)
 
-	s.logger.Info("creating vchordrq index",
-		slog.String("table", tableName),
-		slog.Int64("rows", count),
-		slog.Int64("lists", lists),
-	)
+	s.logger.Info().Str("table", tableName).Int64("rows", count).Int64("lists", lists).Msg("creating vchordrq index")
 
 	if err := db.Exec(indexSQL).Error; err != nil {
 		// Another process may have created the index concurrently,

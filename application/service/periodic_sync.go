@@ -2,9 +2,10 @@ package service
 
 import (
 	"context"
-	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
@@ -16,7 +17,7 @@ type PeriodicSync struct {
 	repositories  repository.RepositoryStore
 	queue         *Queue
 	prescribedOps task.PrescribedOperations
-	logger        *slog.Logger
+	logger        zerolog.Logger
 	interval      time.Duration
 	checkInterval time.Duration
 	enabled       bool
@@ -32,7 +33,7 @@ func NewPeriodicSync(
 	repositories repository.RepositoryStore,
 	queue *Queue,
 	prescribedOps task.PrescribedOperations,
-	logger *slog.Logger,
+	logger zerolog.Logger,
 ) *PeriodicSync {
 	return &PeriodicSync{
 		repositories:  repositories,
@@ -49,7 +50,7 @@ func NewPeriodicSync(
 // If disabled, this is a no-op.
 func (p *PeriodicSync) Start(ctx context.Context) {
 	if !p.enabled {
-		p.logger.Info("periodic sync disabled")
+		p.logger.Info().Msg("periodic sync disabled")
 		return
 	}
 
@@ -61,7 +62,7 @@ func (p *PeriodicSync) Start(ctx context.Context) {
 		p.run(ctx)
 	})
 
-	p.logger.Info("periodic sync started", slog.Duration("interval", p.interval))
+	p.logger.Info().Dur("interval", p.interval).Msg("periodic sync started")
 }
 
 // Stop cancels the background goroutine and waits for it to finish.
@@ -75,7 +76,7 @@ func (p *PeriodicSync) Stop() {
 		cancel()
 	}
 	p.wg.Wait()
-	p.logger.Info("periodic sync stopped")
+	p.logger.Info().Msg("periodic sync stopped")
 }
 
 func (p *PeriodicSync) run(ctx context.Context) {
@@ -97,16 +98,12 @@ func (p *PeriodicSync) sync(ctx context.Context) {
 	pending, err := p.queue.Count(ctx)
 	if err != nil {
 		if ctx.Err() == nil {
-			p.logger.Error("periodic sync failed to count pending tasks",
-				slog.String("error", err.Error()),
-			)
+			p.logger.Error().Str("error", err.Error()).Msg("periodic sync failed to count pending tasks")
 		}
 		return
 	}
 	if pending > 0 {
-		p.logger.Debug("periodic sync skipped, queue has pending tasks",
-			slog.Int64("pending", pending),
-		)
+		p.logger.Debug().Int64("pending", pending).Msg("periodic sync skipped, queue has pending tasks")
 		return
 	}
 
@@ -115,9 +112,7 @@ func (p *PeriodicSync) sync(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-		p.logger.Error("periodic sync failed to find repositories",
-			slog.String("error", err.Error()),
-		)
+		p.logger.Error().Str("error", err.Error()).Msg("periodic sync failed to find repositories")
 		return
 	}
 
@@ -126,14 +121,11 @@ func (p *PeriodicSync) sync(ctx context.Context) {
 	for _, repo := range repos {
 		payload := map[string]any{"repository_id": repo.ID()}
 		if err := p.queue.EnqueueOperations(ctx, operations, task.PriorityNormal, payload); err != nil {
-			p.logger.Error("periodic sync failed to enqueue",
-				slog.Int64("repo_id", repo.ID()),
-				slog.String("error", err.Error()),
-			)
+			p.logger.Error().Int64("repo_id", repo.ID()).Str("error", err.Error()).Msg("periodic sync failed to enqueue")
 			if ctx.Err() != nil {
 				return
 			}
 		}
-		p.logger.Debug("periodic sync enqueued", slog.Int64("repo_id", repo.ID()))
+		p.logger.Debug().Int64("repo_id", repo.ID()).Msg("periodic sync enqueued")
 	}
 }

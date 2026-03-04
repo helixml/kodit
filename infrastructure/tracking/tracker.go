@@ -2,8 +2,9 @@ package tracking
 
 import (
 	"context"
-	"log/slog"
 	"sync"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/task"
 )
@@ -13,12 +14,12 @@ import (
 type Tracker struct {
 	status      task.Status
 	subscribers []Reporter
-	logger      *slog.Logger
+	logger      zerolog.Logger
 	mu          sync.RWMutex
 }
 
 // NewTracker creates a new progress tracker wrapping the given Status.
-func NewTracker(status task.Status, logger *slog.Logger) *Tracker {
+func NewTracker(status task.Status, logger zerolog.Logger) *Tracker {
 	return &Tracker{
 		status:      status,
 		subscribers: make([]Reporter, 0),
@@ -29,7 +30,7 @@ func NewTracker(status task.Status, logger *slog.Logger) *Tracker {
 // TrackerForOperation creates a new Tracker for the given operation.
 func TrackerForOperation(
 	operation task.Operation,
-	logger *slog.Logger,
+	logger zerolog.Logger,
 	trackableType task.TrackableType,
 	trackableID int64,
 ) *Tracker {
@@ -135,10 +136,7 @@ func (t *Tracker) notifySubscribers(ctx context.Context, status task.Status) {
 
 	for _, subscriber := range subscribers {
 		if err := subscriber.OnChange(ctx, status); err != nil {
-			t.logger.Error("failed to notify subscriber",
-				slog.String("error", err.Error()),
-				slog.String("operation", status.Operation().String()),
-			)
+			t.logger.Error().Str("error", err.Error()).Str("operation", status.Operation().String()).Msg("failed to notify subscriber")
 			// Continue notifying other subscribers even if one fails
 		}
 	}

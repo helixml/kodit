@@ -3,7 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
-	"log/slog"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
@@ -19,11 +20,11 @@ type TaskListParams struct {
 // Queue provides the main interface for enqueuing and managing tasks.
 type Queue struct {
 	store  task.TaskStore
-	logger *slog.Logger
+	logger zerolog.Logger
 }
 
 // NewQueue creates a new queue service.
-func NewQueue(store task.TaskStore, logger *slog.Logger) *Queue {
+func NewQueue(store task.TaskStore, logger zerolog.Logger) *Queue {
 	return &Queue{
 		store:  store,
 		logger: logger,
@@ -38,10 +39,7 @@ func (s *Queue) Enqueue(ctx context.Context, t task.Task) error {
 		return err
 	}
 
-	s.logger.Debug("task enqueued",
-		slog.String("dedup_key", t.DedupKey()),
-		slog.String("operation", t.Operation().String()),
-	)
+	s.logger.Debug().Str("dedup_key", t.DedupKey()).Str("operation", t.Operation().String()).Msg("task enqueued")
 	return nil
 }
 

@@ -3,8 +3,9 @@ package indexing
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"strconv"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
@@ -19,7 +20,7 @@ type CreateCodeEmbeddings struct {
 	enrichmentStore enrichment.EnrichmentStore
 	subtype         enrichment.Subtype
 	trackerFactory  handler.TrackerFactory
-	logger          *slog.Logger
+	logger          zerolog.Logger
 }
 
 // NewCreateCodeEmbeddings creates a new CreateCodeEmbeddings handler.
@@ -28,7 +29,7 @@ func NewCreateCodeEmbeddings(
 	codeIndex handler.VectorIndex,
 	enrichmentStore enrichment.EnrichmentStore,
 	trackerFactory handler.TrackerFactory,
-	logger *slog.Logger,
+	logger zerolog.Logger,
 	subtype enrichment.Subtype,
 ) (*CreateCodeEmbeddings, error) {
 	if codeIndex.Embedding == nil {
@@ -67,7 +68,7 @@ func (h *CreateCodeEmbeddings) Execute(ctx context.Context, payload map[string]a
 
 	enrichments, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(h.subtype), repository.WithOrderAsc("enrichments_v2.id"))
 	if err != nil {
-		h.logger.Error("failed to get snippet enrichments for commit", slog.String("error", err.Error()))
+		h.logger.Error().Str("error", err.Error()).Msg("failed to get snippet enrichments for commit")
 		return err
 	}
 
@@ -78,7 +79,7 @@ func (h *CreateCodeEmbeddings) Execute(ctx context.Context, payload map[string]a
 
 	newEnrichments, err := h.filterNew(ctx, enrichments)
 	if err != nil {
-		h.logger.Error("failed to filter new enrichments", slog.String("error", err.Error()))
+		h.logger.Error().Str("error", err.Error()).Msg("failed to filter new enrichments")
 		return err
 	}
 
@@ -108,22 +109,14 @@ func (h *CreateCodeEmbeddings) Execute(ctx context.Context, payload map[string]a
 			tracker.SetCurrent(ctx, completed, "Creating code embeddings")
 		}),
 		search.WithBatchError(func(batchStart, batchEnd int, err error) {
-			h.logger.Error("embedding batch failed",
-				slog.String("operation", "create_code_embeddings"),
-				slog.Int("batch_start", batchStart),
-				slog.Int("batch_end", batchEnd),
-				slog.String("error", err.Error()),
-			)
+			h.logger.Error().Str("operation", "create_code_embeddings").Int("batch_start", batchStart).Int("batch_end", batchEnd).Str("error", err.Error()).Msg("embedding batch failed")
 		}),
 	); err != nil {
-		h.logger.Error("failed to create embeddings", slog.String("error", err.Error()))
+		h.logger.Error().Str("error", err.Error()).Msg("failed to create embeddings")
 		return err
 	}
 
-	h.logger.Info("code embeddings created",
-		slog.Int("documents", len(documents)),
-		slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
-	)
+	h.logger.Info().Int("documents", len(documents)).Str("commit", handler.ShortSHA(cp.CommitSHA())).Msg("code embeddings created")
 
 	return nil
 }

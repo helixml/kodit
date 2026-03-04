@@ -2,9 +2,10 @@ package v1
 
 import (
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strconv"
+
+	"github.com/rs/zerolog"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit"
@@ -17,7 +18,7 @@ import (
 // QueueRouter handles queue API endpoints.
 type QueueRouter struct {
 	client *kodit.Client
-	logger *slog.Logger
+	logger zerolog.Logger
 }
 
 // NewQueueRouter creates a new QueueRouter.

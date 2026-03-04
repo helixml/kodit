@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"regexp/syntax"
 	"strconv"
 	"strings"
+
+	"github.com/rs/zerolog"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit"
@@ -25,7 +26,7 @@ import (
 // SearchRouter handles search API endpoints.
 type SearchRouter struct {
 	client *kodit.Client
-	logger *slog.Logger
+	logger zerolog.Logger
 }
 
 // NewSearchRouter creates a new SearchRouter.
@@ -563,31 +564,31 @@ func (r *SearchRouter) resolveAndBuildResponse(
 
 	related, err := r.client.Enrichments.RelatedEnrichments(ctx, ids)
 	if err != nil {
-		r.logger.Warn("failed to fetch related enrichments", "error", err)
+		r.logger.Warn().Err(err).Msg("failed to fetch related enrichments")
 		related = map[string][]enrichment.Enrichment{}
 	}
 
 	fileMap, err := sourceFileMap(ctx, r.client, ids)
 	if err != nil {
-		r.logger.Warn("failed to fetch source files", "error", err)
+		r.logger.Warn().Err(err).Msg("failed to fetch source files")
 		fileMap = map[string][]repository.File{}
 	}
 
 	lineRanges, err := r.client.Enrichments.LineRanges(ctx, ids)
 	if err != nil {
-		r.logger.Warn("failed to fetch line ranges", "error", err)
+		r.logger.Warn().Err(err).Msg("failed to fetch line ranges")
 		lineRanges = map[string]chunk.LineRange{}
 	}
 
 	commits, err := r.commitMap(ctx, fileMap)
 	if err != nil {
-		r.logger.Warn("failed to fetch commits", "error", err)
+		r.logger.Warn().Err(err).Msg("failed to fetch commits")
 		commits = map[string]repository.Commit{}
 	}
 
 	repos, err := r.repositoryMap(ctx, commits)
 	if err != nil {
-		r.logger.Warn("failed to fetch repositories", "error", err)
+		r.logger.Warn().Err(err).Msg("failed to fetch repositories")
 		repos = map[int64]repository.Repository{}
 	}
 

@@ -2,8 +2,9 @@ package kodit
 
 import (
 	"io"
-	"log/slog"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/infrastructure/chunking"
@@ -31,7 +32,7 @@ type clientConfig struct {
 	modelDir               string
 	textProvider           provider.TextGenerator
 	embeddingProvider      provider.Embedder
-	logger                 *slog.Logger
+	logger                 zerolog.Logger
 	apiKeys                []string
 	workerCount            int
 	workerPollPeriod       time.Duration
@@ -193,7 +194,7 @@ func WithCloneDir(dir string) Option {
 }
 
 // WithLogger sets a custom logger.
-func WithLogger(l *slog.Logger) Option {
+func WithLogger(l zerolog.Logger) Option {
 	return func(c *clientConfig) {
 		c.logger = l
 	}

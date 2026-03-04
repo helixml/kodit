@@ -3,7 +3,6 @@ package enrichment
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
@@ -79,7 +78,7 @@ func (h *ArchitectureDiscovery) Execute(ctx context.Context, payload map[string]
 
 	count, err := h.enrichCtx.Enrichments.Count(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeArchitecture), enrichment.WithSubtype(enrichment.SubtypePhysical))
 	if err != nil {
-		h.enrichCtx.Logger.Error("failed to check existing architecture", slog.String("error", err.Error()))
+		h.enrichCtx.Logger.Error().Str("error", err.Error()).Msg("failed to check existing architecture")
 		return err
 	}
 

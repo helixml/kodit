@@ -5,9 +5,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/service"
@@ -18,14 +19,11 @@ import (
 type RepositoryCloner struct {
 	adapter  Adapter
 	cloneDir string
-	logger   *slog.Logger
+	logger   zerolog.Logger
 }
 
 // NewRepositoryCloner creates a new RepositoryCloner with the specified adapter and clone directory.
-func NewRepositoryCloner(adapter Adapter, cloneDir string, logger *slog.Logger) *RepositoryCloner {
-	if logger == nil {
-		logger = slog.Default()
-	}
+func NewRepositoryCloner(adapter Adapter, cloneDir string, logger zerolog.Logger) *RepositoryCloner {
 	return &RepositoryCloner{
 		adapter:  adapter,
 		cloneDir: cloneDir,
@@ -44,10 +42,7 @@ func (c *RepositoryCloner) ClonePathFromURI(uri string) string {
 func (c *RepositoryCloner) Clone(ctx context.Context, remoteURI string) (string, error) {
 	clonePath := c.ClonePathFromURI(remoteURI)
 
-	c.logger.Info("cloning repository",
-		slog.String("uri", remoteURI),
-		slog.String("path", clonePath),
-	)
+	c.logger.Info().Str("uri", remoteURI).Str("path", clonePath).Msg("cloning repository")
 
 	err := c.adapter.CloneRepository(ctx, remoteURI, clonePath)
 	if err != nil {
@@ -61,10 +56,7 @@ func (c *RepositoryCloner) Clone(ctx context.Context, remoteURI string) (string,
 
 // CloneToPath clones a repository to a specific path.
 func (c *RepositoryCloner) CloneToPath(ctx context.Context, remoteURI string, clonePath string) error {
-	c.logger.Info("cloning repository to path",
-		slog.String("uri", remoteURI),
-		slog.String("path", clonePath),
-	)
+	c.logger.Info().Str("uri", remoteURI).Str("path", clonePath).Msg("cloning repository to path")
 
 	err := c.adapter.CloneRepository(ctx, remoteURI, clonePath)
 	if err != nil {
@@ -92,11 +84,7 @@ func (c *RepositoryCloner) Update(ctx context.Context, repo repository.Repositor
 		// Clone to the correct location for the current environment.
 		clonePath = c.ClonePathFromURI(repo.RemoteURL())
 
-		c.logger.Info("relocating repository clone",
-			slog.Int64("repo_id", repo.ID()),
-			slog.String("old_path", repo.WorkingCopy().Path()),
-			slog.String("new_path", clonePath),
-		)
+		c.logger.Info().Int64("repo_id", repo.ID()).Str("old_path", repo.WorkingCopy().Path()).Str("new_path", clonePath).Msg("relocating repository clone")
 
 		if err := c.adapter.CloneRepository(ctx, repo.RemoteURL(), clonePath); err != nil {
 			_ = os.RemoveAll(clonePath)
@@ -107,9 +95,7 @@ func (c *RepositoryCloner) Update(ctx context.Context, repo repository.Repositor
 	}
 
 	if !repo.HasTrackingConfig() {
-		c.logger.Debug("repository has no tracking config",
-			slog.Int64("repo_id", repo.ID()),
-		)
+		c.logger.Debug().Int64("repo_id", repo.ID()).Msg("repository has no tracking config")
 		return clonePath, nil
 	}
 
@@ -135,10 +121,7 @@ func (c *RepositoryCloner) updateBranch(ctx context.Context, clonePath string, b
 	// Try to checkout the branch
 	if err := c.adapter.CheckoutBranch(ctx, clonePath, branchName); err != nil {
 		// Branch might not exist - detect default branch
-		c.logger.Warn("checkout failed, detecting default branch",
-			slog.String("branch", branchName),
-			slog.String("error", err.Error()),
-		)
+		c.logger.Warn().Str("branch", branchName).Str("error", err.Error()).Msg("checkout failed, detecting default branch")
 
 		defaultBranch, err := c.adapter.DefaultBranch(ctx, clonePath)
 		if err != nil {
@@ -152,9 +135,7 @@ func (c *RepositoryCloner) updateBranch(ctx context.Context, clonePath string, b
 
 	// Pull latest changes
 	if err := c.adapter.PullRepository(ctx, clonePath); err != nil {
-		c.logger.Debug("pull failed (possibly detached HEAD)",
-			slog.String("error", err.Error()),
-		)
+		c.logger.Debug().Str("error", err.Error()).Msg("pull failed (possibly detached HEAD)")
 	}
 
 	return nil
@@ -192,10 +173,7 @@ func (c *RepositoryCloner) updateTag(ctx context.Context, clonePath string) erro
 func (c *RepositoryCloner) Ensure(ctx context.Context, remoteURI string) (string, error) {
 	clonePath := c.ClonePathFromURI(remoteURI)
 
-	c.logger.Info("ensuring repository exists",
-		slog.String("uri", remoteURI),
-		slog.String("path", clonePath),
-	)
+	c.logger.Info().Str("uri", remoteURI).Str("path", clonePath).Msg("ensuring repository exists")
 
 	err := c.adapter.EnsureRepository(ctx, remoteURI, clonePath)
 	if err != nil {

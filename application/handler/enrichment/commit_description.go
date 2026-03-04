@@ -3,7 +3,6 @@ package enrichment
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
@@ -62,7 +61,7 @@ func (h *CommitDescription) Execute(ctx context.Context, payload map[string]any)
 
 	count, err := h.enrichCtx.Enrichments.Count(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeHistory), enrichment.WithSubtype(enrichment.SubtypeCommitDescription))
 	if err != nil {
-		h.enrichCtx.Logger.Error("failed to check existing commit description", slog.String("error", err.Error()))
+		h.enrichCtx.Logger.Error().Str("error", err.Error()).Msg("failed to check existing commit description")
 		return err
 	}
 

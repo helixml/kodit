@@ -3,9 +3,10 @@ package v1
 import (
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strconv"
+
+	"github.com/rs/zerolog"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit"
@@ -20,7 +21,7 @@ import (
 // EnrichmentsRouter handles enrichment API endpoints.
 type EnrichmentsRouter struct {
 	client *kodit.Client
-	logger *slog.Logger
+	logger zerolog.Logger
 }
 
 // NewEnrichmentsRouter creates a new EnrichmentsRouter.
@@ -103,7 +104,7 @@ func (r *EnrichmentsRouter) List(w http.ResponseWriter, req *http.Request) {
 	}
 	lineRanges, err := r.client.Enrichments.LineRanges(ctx, ids)
 	if err != nil {
-		r.logger.Warn("failed to fetch line ranges", "error", err)
+		r.logger.Warn().Err(err).Msg("failed to fetch line ranges")
 		lineRanges = map[string]chunk.LineRange{}
 	}
 
@@ -147,7 +148,7 @@ func (r *EnrichmentsRouter) Get(w http.ResponseWriter, req *http.Request) {
 
 	lineRanges, err := r.client.Enrichments.LineRanges(ctx, []int64{id})
 	if err != nil {
-		r.logger.Warn("failed to fetch line ranges", "error", err)
+		r.logger.Warn().Err(err).Msg("failed to fetch line ranges")
 		lineRanges = map[string]chunk.LineRange{}
 	}
 
@@ -232,7 +233,7 @@ func (r *EnrichmentsRouter) Update(w http.ResponseWriter, req *http.Request) {
 
 	lineRanges, err := r.client.Enrichments.LineRanges(ctx, []int64{id})
 	if err != nil {
-		r.logger.Warn("failed to fetch line ranges", "error", err)
+		r.logger.Warn().Err(err).Msg("failed to fetch line ranges")
 		lineRanges = map[string]chunk.LineRange{}
 	}
 

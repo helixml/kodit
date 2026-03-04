@@ -2,12 +2,13 @@ package git
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/repository"
 )
@@ -76,7 +77,7 @@ func (f *fakeAdapter) Grep(_ context.Context, _ string, _ string, _ string, _ st
 func TestUpdate_MissingDirectory(t *testing.T) {
 	fake := &fakeAdapter{}
 	cloneDir := t.TempDir()
-	cloner := NewRepositoryCloner(fake, cloneDir, slog.Default())
+	cloner := NewRepositoryCloner(fake, cloneDir, zerolog.New(os.Stderr).With().Timestamp().Logger())
 
 	missingPath := filepath.Join(t.TempDir(), "does-not-exist")
 	remoteURI := "https://github.com/example/repo.git"
@@ -116,7 +117,7 @@ func TestUpdate_InaccessibleDirectory(t *testing.T) {
 	}
 
 	fake := &fakeAdapter{}
-	cloner := NewRepositoryCloner(fake, t.TempDir(), slog.Default())
+	cloner := NewRepositoryCloner(fake, t.TempDir(), zerolog.New(os.Stderr).With().Timestamp().Logger())
 
 	// Create parent/child, then remove execute on the parent so that
 	// os.Stat on the child returns a permission error (not IsNotExist).

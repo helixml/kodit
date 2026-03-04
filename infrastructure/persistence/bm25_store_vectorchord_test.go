@@ -5,6 +5,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/rs/zerolog"
+
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/internal/database"
@@ -33,7 +35,7 @@ func TestVectorChordBM25Store_Integration(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
 
-	store, err := NewVectorChordBM25Store(db, nil)
+	store, err := NewVectorChordBM25Store(db, zerolog.Nop())
 	require.NoError(t, err)
 
 	// Index documents.

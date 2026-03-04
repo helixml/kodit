@@ -2,11 +2,12 @@ package git
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"github.com/rs/zerolog"
 )
 
 // initTestRepo creates a temporary git repository with a single committed file.
@@ -49,7 +50,7 @@ func initTestRepo(t *testing.T, files map[string]string) string {
 }
 
 func TestGiteaAdapter_Grep(t *testing.T) {
-	adapter, err := NewGiteaAdapter(slog.Default())
+	adapter, err := NewGiteaAdapter(zerolog.New(os.Stderr).With().Timestamp().Logger())
 	if err != nil {
 		t.Fatalf("create adapter: %v", err)
 	}

@@ -3,7 +3,8 @@ package persistence
 import (
 	"context"
 	"fmt"
-	"log/slog"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
@@ -16,14 +17,11 @@ import (
 // Stores embeddings as JSON and performs cosine similarity search in-memory.
 type SQLiteEmbeddingStore struct {
 	database.Repository[search.Embedding, SQLiteEmbeddingModel]
-	logger *slog.Logger
+	logger zerolog.Logger
 }
 
 // NewSQLiteEmbeddingStore creates a new SQLiteEmbeddingStore.
-func NewSQLiteEmbeddingStore(db database.Database, taskName TaskName, logger *slog.Logger) (*SQLiteEmbeddingStore, error) {
-	if logger == nil {
-		logger = slog.Default()
-	}
+func NewSQLiteEmbeddingStore(db database.Database, taskName TaskName, logger zerolog.Logger) (*SQLiteEmbeddingStore, error) {
 	tableName := fmt.Sprintf("kodit_%s_embeddings", taskName)
 	s := &SQLiteEmbeddingStore{
 		Repository: database.NewRepositoryForTable[search.Embedding, SQLiteEmbeddingModel](
@@ -135,7 +133,7 @@ func (s *SQLiteEmbeddingStore) loadVectors(ctx context.Context, options ...repos
 	vectors := make([]StoredVector, 0, len(entities))
 	for _, e := range entities {
 		if len(e.Embedding) == 0 {
-			s.logger.Warn("skipping empty embedding", "snippet_id", e.SnippetID)
+			s.logger.Warn().Str("snippet_id", e.SnippetID).Msg("skipping empty embedding")
 			continue
 		}
 		vectors = append(vectors, NewStoredVector(e.SnippetID, e.Embedding))

@@ -3,7 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
-	"log/slog"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
@@ -40,7 +41,7 @@ type Repository struct {
 	tagStore      repository.TagStore
 	queue         *Queue
 	prescribedOps task.PrescribedOperations
-	logger        *slog.Logger
+	logger        zerolog.Logger
 }
 
 // NewRepository creates a new Repository service.
@@ -51,7 +52,7 @@ func NewRepository(
 	tagStore repository.TagStore,
 	queue *Queue,
 	prescribedOps task.PrescribedOperations,
-	logger *slog.Logger,
+	logger zerolog.Logger,
 ) *Repository {
 	return &Repository{
 		Collection:    repository.NewCollection[repository.Repository](repoStore),
@@ -100,18 +101,10 @@ func (s *Repository) Add(ctx context.Context, params *RepositoryAddParams) (repo
 	operations := s.prescribedOps.CreateNewRepository()
 
 	if err := s.queue.EnqueueOperations(ctx, operations, task.PriorityUserInitiated, payload); err != nil {
-		s.logger.Warn("failed to enqueue clone task",
-			slog.Int64("repo_id", repo.ID()),
-			slog.String("error", err.Error()),
-		)
+		s.logger.Warn().Int64("repo_id", repo.ID()).Str("error", err.Error()).Msg("failed to enqueue clone task")
 	}
 
-	s.logger.Info("repository added",
-		slog.Int64("repo_id", savedRepo.ID()),
-		slog.String("url", savedRepo.RemoteURL()),
-		slog.String("tracking", savedRepo.TrackingConfig().Reference()),
-		slog.String("local_path", savedRepo.WorkingCopy().Path()),
-	)
+	s.logger.Info().Int64("repo_id", savedRepo.ID()).Str("url", savedRepo.RemoteURL()).Str("tracking", savedRepo.TrackingConfig().Reference()).Str("local_path", savedRepo.WorkingCopy().Path()).Msg("repository added")
 
 	return repository.NewSource(savedRepo), true, nil
 }
@@ -130,9 +123,7 @@ func (s *Repository) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("enqueue delete: %w", err)
 	}
 
-	s.logger.Info("delete requested",
-		slog.Int64("repo_id", id),
-	)
+	s.logger.Info().Int64("repo_id", id).Msg("delete requested")
 
 	return nil
 }
@@ -151,9 +142,7 @@ func (s *Repository) Sync(ctx context.Context, id int64) error {
 		return fmt.Errorf("enqueue sync: %w", err)
 	}
 
-	s.logger.Info("sync requested",
-		slog.Int64("repo_id", id),
-	)
+	s.logger.Info().Int64("repo_id", id).Msg("sync requested")
 
 	return nil
 }
@@ -195,10 +184,7 @@ func (s *Repository) UpdateTrackingConfig(ctx context.Context, id int64, params 
 		return repository.Source{}, fmt.Errorf("save repository: %w", err)
 	}
 
-	s.logger.Info("tracking config updated",
-		slog.Int64("repo_id", id),
-		slog.String("tracking", trackingConfig.Reference()),
-	)
+	s.logger.Info().Int64("repo_id", id).Str("tracking", trackingConfig.Reference()).Msg("tracking config updated")
 
 	return repository.NewSource(savedRepo), nil
 }
@@ -264,10 +250,7 @@ func (s *Repository) enqueueRescan(ctx context.Context, params *RescanParams) er
 		return fmt.Errorf("enqueue rescan: %w", err)
 	}
 
-	s.logger.Info("rescan requested",
-		slog.Int64("repo_id", params.RepositoryID),
-		slog.String("commit_sha", params.CommitSHA),
-	)
+	s.logger.Info().Int64("repo_id", params.RepositoryID).Str("commit_sha", params.CommitSHA).Msg("rescan requested")
 
 	return nil
 }

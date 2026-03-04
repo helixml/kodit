@@ -3,7 +3,8 @@ package indexing
 import (
 	"context"
 	"fmt"
-	"log/slog"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
@@ -18,7 +19,7 @@ type CreateSummaryEmbeddings struct {
 	enrichmentStore  enrichment.EnrichmentStore
 	associationStore enrichment.AssociationStore
 	trackerFactory   handler.TrackerFactory
-	logger           *slog.Logger
+	logger           zerolog.Logger
 }
 
 // NewCreateSummaryEmbeddings creates a new CreateSummaryEmbeddings handler.
@@ -27,7 +28,7 @@ func NewCreateSummaryEmbeddings(
 	enrichmentStore enrichment.EnrichmentStore,
 	associationStore enrichment.AssociationStore,
 	trackerFactory handler.TrackerFactory,
-	logger *slog.Logger,
+	logger zerolog.Logger,
 ) (*CreateSummaryEmbeddings, error) {
 	if textIndex.Embedding == nil {
 		return nil, fmt.Errorf("NewCreateSummaryEmbeddings: nil Embedding")
@@ -68,7 +69,7 @@ func (h *CreateSummaryEmbeddings) Execute(ctx context.Context, payload map[strin
 
 	enrichments, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippetSummary), repository.WithOrderAsc("enrichments_v2.id"))
 	if err != nil {
-		h.logger.Error("failed to get summary enrichments", slog.String("error", err.Error()))
+		h.logger.Error().Str("error", err.Error()).Msg("failed to get summary enrichments")
 		return err
 	}
 
@@ -79,7 +80,7 @@ func (h *CreateSummaryEmbeddings) Execute(ctx context.Context, payload map[strin
 
 	newEnrichments, err := h.filterNewEnrichments(ctx, enrichments)
 	if err != nil {
-		h.logger.Error("failed to filter new enrichments", slog.String("error", err.Error()))
+		h.logger.Error().Str("error", err.Error()).Msg("failed to filter new enrichments")
 		return err
 	}
 
@@ -98,11 +99,11 @@ func (h *CreateSummaryEmbeddings) Execute(ctx context.Context, payload map[strin
 		// Find the snippet SHA associated with this enrichment
 		snippetSHA, err := h.findSnippetSHA(ctx, e.ID())
 		if err != nil {
-			h.logger.Warn("failed to find snippet SHA for enrichment", slog.Int64("enrichment_id", e.ID()), slog.String("error", err.Error()))
+			h.logger.Warn().Int64("enrichment_id", e.ID()).Str("error", err.Error()).Msg("failed to find snippet SHA for enrichment")
 			continue
 		}
 		if snippetSHA == "" {
-			h.logger.Warn("no snippet association found for enrichment", slog.Int64("enrichment_id", e.ID()))
+			h.logger.Warn().Int64("enrichment_id", e.ID()).Msg("no snippet association found for enrichment")
 			continue
 		}
 
@@ -123,22 +124,14 @@ func (h *CreateSummaryEmbeddings) Execute(ctx context.Context, payload map[strin
 			tracker.SetCurrent(ctx, completed, "Creating summary embeddings")
 		}),
 		search.WithBatchError(func(batchStart, batchEnd int, err error) {
-			h.logger.Error("embedding batch failed",
-				slog.String("operation", "create_summary_embeddings"),
-				slog.Int("batch_start", batchStart),
-				slog.Int("batch_end", batchEnd),
-				slog.String("error", err.Error()),
-			)
+			h.logger.Error().Str("operation", "create_summary_embeddings").Int("batch_start", batchStart).Int("batch_end", batchEnd).Str("error", err.Error()).Msg("embedding batch failed")
 		}),
 	); err != nil {
-		h.logger.Error("failed to create summary embeddings", slog.String("error", err.Error()))
+		h.logger.Error().Str("error", err.Error()).Msg("failed to create summary embeddings")
 		return err
 	}
 
-	h.logger.Info("summary embeddings created",
-		slog.Int("documents", len(documents)),
-		slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
-	)
+	h.logger.Info().Int("documents", len(documents)).Str("commit", handler.ShortSHA(cp.CommitSHA())).Msg("summary embeddings created")
 
 	return nil
 }

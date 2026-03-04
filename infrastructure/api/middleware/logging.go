@@ -4,22 +4,18 @@ package middleware
 import (
 	"bytes"
 	"io"
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/rs/zerolog"
 )
 
 const maxBodyLog = 4096
 
 // Logging returns a middleware that logs HTTP requests.
-func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
-	if logger == nil {
-		logger = slog.Default()
-	}
-
+func Logging(logger zerolog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
@@ -30,33 +26,28 @@ func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 			body := readableBody(r)
 
 			defer func() {
-				attrs := []slog.Attr{
-					slog.String("request_id", requestID),
-					slog.String("method", r.Method),
-					slog.String("path", r.URL.Path),
-					slog.Int("status", ww.Status()),
-					slog.Int("bytes", ww.BytesWritten()),
-					slog.Int64("duration_ms", time.Since(start).Milliseconds()),
-					slog.String("remote_addr", r.RemoteAddr),
-				}
+				level := logLevel(ww.Status())
+				event := logger.WithLevel(level).
+					Str("request_id", requestID).
+					Str("method", r.Method).
+					Str("path", r.URL.Path).
+					Int("status", ww.Status()).
+					Int("bytes", ww.BytesWritten()).
+					Int64("duration_ms", time.Since(start).Milliseconds()).
+					Str("remote_addr", r.RemoteAddr)
 
 				if q := r.URL.RawQuery; q != "" {
-					attrs = append(attrs, slog.String("query", q))
+					event = event.Str("query", q)
 				}
 
 				if body != "" {
-					attrs = append(attrs, slog.String("body", body))
+					event = event.Str("body", body)
 				}
 
-				attrs = append(attrs, safeRequestHeaders(r)...)
-				attrs = append(attrs, safeResponseHeaders(ww)...)
+				event = addRequestHeaders(event, r)
+				event = addResponseHeaders(event, ww)
 
-				level := logLevel(ww.Status())
-				args := make([]any, len(attrs))
-				for i, a := range attrs {
-					args[i] = a
-				}
-				logger.Log(r.Context(), level, "request completed", args...)
+				event.Msg("request completed")
 			}()
 
 			next.ServeHTTP(ww, r)
@@ -64,14 +55,14 @@ func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 	}
 }
 
-func logLevel(status int) slog.Level {
+func logLevel(status int) zerolog.Level {
 	if status >= 500 {
-		return slog.LevelError
+		return zerolog.ErrorLevel
 	}
 	if status >= 400 {
-		return slog.LevelWarn
+		return zerolog.WarnLevel
 	}
-	return slog.LevelInfo
+	return zerolog.InfoLevel
 }
 
 func readableBody(r *http.Request) string {
@@ -116,8 +107,7 @@ func isTextContent(ct string) bool {
 	return false
 }
 
-func safeRequestHeaders(r *http.Request) []slog.Attr {
-	var attrs []slog.Attr
+func addRequestHeaders(event *zerolog.Event, r *http.Request) *zerolog.Event {
 	for _, name := range []string{
 		"Content-Type",
 		"Accept",
@@ -127,14 +117,13 @@ func safeRequestHeaders(r *http.Request) []slog.Attr {
 		"Referer",
 	} {
 		if v := r.Header.Get(name); v != "" {
-			attrs = append(attrs, slog.String("req_"+headerKey(name), v))
+			event = event.Str("req_"+headerKey(name), v)
 		}
 	}
-	return attrs
+	return event
 }
 
-func safeResponseHeaders(w http.ResponseWriter) []slog.Attr {
-	var attrs []slog.Attr
+func addResponseHeaders(event *zerolog.Event, w http.ResponseWriter) *zerolog.Event {
 	for _, name := range []string{
 		"Content-Type",
 		"X-Correlation-ID",
@@ -143,10 +132,10 @@ func safeResponseHeaders(w http.ResponseWriter) []slog.Attr {
 		"Retry-After",
 	} {
 		if v := w.Header().Get(name); v != "" {
-			attrs = append(attrs, slog.String("resp_"+headerKey(name), v))
+			event = event.Str("resp_"+headerKey(name), v)
 		}
 	}
-	return attrs
+	return event
 }
 
 func headerKey(name string) string {

@@ -3,10 +3,11 @@ package indexing
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"path/filepath"
 	"sort"
 	"strconv"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
@@ -24,7 +25,7 @@ type ExtractSnippets struct {
 	fileStore        repository.FileStore
 	slicer           *slicing.Slicer
 	trackerFactory   handler.TrackerFactory
-	logger           *slog.Logger
+	logger           zerolog.Logger
 }
 
 // NewExtractSnippets creates a new ExtractSnippets handler.
@@ -35,7 +36,7 @@ func NewExtractSnippets(
 	fileStore repository.FileStore,
 	slicerInstance *slicing.Slicer,
 	trackerFactory handler.TrackerFactory,
-	logger *slog.Logger,
+	logger zerolog.Logger,
 ) *ExtractSnippets {
 	return &ExtractSnippets{
 		repoStore:        repoStore,
@@ -63,7 +64,7 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 
 	existing, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippet))
 	if err != nil {
-		h.logger.Error("failed to check existing snippets", slog.String("error", err.Error()))
+		h.logger.Error().Str("error", err.Error()).Msg("failed to check existing snippets")
 		return err
 	}
 
@@ -89,9 +90,7 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 	}
 
 	if len(files) == 0 {
-		h.logger.Info("no files found for commit, skipping",
-			slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
-		)
+		h.logger.Info().Str("commit", handler.ShortSHA(cp.CommitSHA())).Msg("no files found for commit, skipping")
 		tracker.Skip(ctx, "No files found for commit")
 		return nil
 	}
@@ -117,10 +116,7 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 
 		result, sliceErr := h.slicer.Slice(ctx, extFiles, clonedPath, cfg)
 		if sliceErr != nil {
-			h.logger.Warn("failed to slice files",
-				slog.String("extension", ext),
-				slog.String("error", sliceErr.Error()),
-			)
+			h.logger.Warn().Str("extension", ext).Str("error", sliceErr.Error()).Msg("failed to slice files")
 			processed++
 			continue
 		}
@@ -131,11 +127,7 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 
 	uniqueSnippets := h.deduplicateSnippets(allSnippets)
 
-	h.logger.Info("extracted snippets",
-		slog.Int("total", len(allSnippets)),
-		slog.Int("unique", len(uniqueSnippets)),
-		slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
-	)
+	h.logger.Info().Int("total", len(allSnippets)).Int("unique", len(uniqueSnippets)).Str("commit", handler.ShortSHA(cp.CommitSHA())).Msg("extracted snippets")
 
 	for _, s := range uniqueSnippets {
 		if s.Content() == "" {
