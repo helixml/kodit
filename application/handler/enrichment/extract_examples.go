@@ -56,8 +56,7 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 
 	tracker := h.enrichCtx.Tracker.ForOperation(
 		task.OperationExtractExamplesForCommit,
-		task.TrackableTypeRepository,
-		cp.RepoID(),
+		payload,
 	)
 
 	count, err := h.enrichCtx.Enrichments.Count(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeExample))

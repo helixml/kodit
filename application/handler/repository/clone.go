@@ -49,8 +49,7 @@ func (h *Clone) Execute(ctx context.Context, payload map[string]any) error {
 
 	tracker := h.trackerFactory.ForOperation(
 		task.OperationCloneRepository,
-		task.TrackableTypeRepository,
-		repoID,
+		payload,
 	)
 
 	repo, err := h.repoStore.FindOne(ctx, repository.WithID(repoID))

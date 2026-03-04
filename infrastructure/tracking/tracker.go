@@ -102,8 +102,15 @@ func (t *Tracker) Complete(ctx context.Context) {
 	t.notifySubscribers(ctx, status)
 }
 
+// WithLabel sets a label on the tracker's status for log context.
+func (t *Tracker) WithLabel(key, value string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.status = t.status.WithLabel(key, value)
+}
+
 // Child creates a child tracker for a sub-operation.
-// The child inherits the parent's subscribers and trackable info.
+// The child inherits the parent's subscribers, trackable info, and labels.
 func (t *Tracker) Child(operation task.Operation) *Tracker {
 	t.mu.RLock()
 	parentStatus := t.status
@@ -117,6 +124,10 @@ func (t *Tracker) Child(operation task.Operation) *Tracker {
 		parentStatus.TrackableType(),
 		parentStatus.TrackableID(),
 	)
+
+	for k, v := range parentStatus.Labels() {
+		childStatus = childStatus.WithLabel(k, v)
+	}
 
 	child := &Tracker{
 		status:      childStatus,

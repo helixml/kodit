@@ -48,6 +48,7 @@ type Status struct {
 	parent        *Status
 	trackableID   int64
 	trackableType TrackableType
+	labels        map[string]string
 }
 
 // NewStatus creates a new Status for the given operation.
@@ -139,6 +140,21 @@ func (s Status) TrackableID() int64 { return s.trackableID }
 
 // TrackableType returns the trackable entity type.
 func (s Status) TrackableType() TrackableType { return s.trackableType }
+
+// Labels returns the status labels.
+func (s Status) Labels() map[string]string { return s.labels }
+
+// WithLabel returns a copy of the status with the given label set.
+func (s Status) WithLabel(key, value string) Status {
+	newLabels := make(map[string]string, len(s.labels)+1)
+	for k, v := range s.labels {
+		newLabels[k] = v
+	}
+	newLabels[key] = value
+	s.labels = newLabels
+	s.updatedAt = time.Now().UTC()
+	return s
+}
 
 // CompletionPercent calculates the completion percentage.
 func (s Status) CompletionPercent() float64 {

@@ -58,8 +58,7 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 
 	tracker := h.trackerFactory.ForOperation(
 		task.OperationExtractSnippetsForCommit,
-		task.TrackableTypeRepository,
-		cp.RepoID(),
+		payload,
 	)
 
 	existing, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippet))

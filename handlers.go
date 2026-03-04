@@ -217,10 +217,26 @@ type trackerFactoryImpl struct {
 }
 
 // ForOperation creates a Tracker for the given operation.
-func (f *trackerFactoryImpl) ForOperation(operation task.Operation, trackableType task.TrackableType, trackableID int64) handler.Tracker {
-	tracker := tracking.TrackerForOperation(operation, f.logger, trackableType, trackableID)
+// Repository ID and commit SHA are extracted from the payload automatically.
+func (f *trackerFactoryImpl) ForOperation(operation task.Operation, payload map[string]any) handler.Tracker {
+	var repoID int64
+	if v, ok := payload["repository_id"]; ok {
+		switch n := v.(type) {
+		case int64:
+			repoID = n
+		case int:
+			repoID = int64(n)
+		case float64:
+			repoID = int64(n)
+		}
+	}
+
+	tracker := tracking.TrackerForOperation(operation, f.logger, task.TrackableTypeRepository, repoID)
 	for _, reporter := range f.reporters {
 		tracker.Subscribe(reporter)
+	}
+	if sha, ok := payload["commit_sha"].(string); ok && sha != "" {
+		tracker.WithLabel("commit", handler.ShortSHA(sha))
 	}
 	return tracker
 }
@@ -231,6 +247,6 @@ type workerTrackerAdapter struct {
 }
 
 // ForOperation creates a WorkerTracker for the given operation.
-func (a *workerTrackerAdapter) ForOperation(operation task.Operation, trackableType task.TrackableType, trackableID int64) service.WorkerTracker {
-	return a.factory.ForOperation(operation, trackableType, trackableID)
+func (a *workerTrackerAdapter) ForOperation(operation task.Operation, payload map[string]any) service.WorkerTracker {
+	return a.factory.ForOperation(operation, payload)
 }

@@ -117,8 +117,7 @@ func (h *DatabaseSchema) Execute(ctx context.Context, payload map[string]any) er
 
 	tracker := h.enrichCtx.Tracker.ForOperation(
 		task.OperationCreateDatabaseSchemaForCommit,
-		task.TrackableTypeRepository,
-		cp.RepoID(),
+		payload,
 	)
 
 	count, err := h.enrichCtx.Enrichments.Count(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeArchitecture), enrichment.WithSubtype(enrichment.SubtypeDatabaseSchema))

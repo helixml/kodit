@@ -24,18 +24,29 @@ func NewLoggingReporter(logger zerolog.Logger) *LoggingReporter {
 func (r *LoggingReporter) OnChange(_ context.Context, status task.Status) error {
 	state := status.State()
 
+	var event *zerolog.Event
 	if state == task.ReportingStateFailed {
-		r.logger.Debug().
-			Str("state", string(state)).
-			Float64("completion_percent", status.CompletionPercent()).
-			Str("error", status.Error()).
-			Msg(status.Operation().String())
+		event = r.logger.Debug()
 	} else {
-		r.logger.Info().
-			Str("state", string(state)).
-			Float64("completion_percent", status.CompletionPercent()).
-			Msg(status.Operation().String())
+		event = r.logger.Info()
 	}
+
+	event.Str("state", string(state)).
+		Float64("completion_percent", status.CompletionPercent())
+
+	if status.TrackableID() != 0 {
+		event.Int64("repository_id", status.TrackableID())
+	}
+
+	for k, v := range status.Labels() {
+		event.Str(k, v)
+	}
+
+	if state == task.ReportingStateFailed {
+		event.Str("error", status.Error())
+	}
+
+	event.Msg(status.Operation().String())
 
 	return nil
 }

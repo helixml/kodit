@@ -23,8 +23,10 @@ type Tracker interface {
 }
 
 // TrackerFactory creates trackers for progress reporting.
+// Repository ID and commit SHA are extracted automatically from the payload
+// for both tracking and log context.
 type TrackerFactory interface {
-	ForOperation(operation task.Operation, trackableType task.TrackableType, trackableID int64) Tracker
+	ForOperation(operation task.Operation, payload map[string]any) Tracker
 }
 
 // Handler defines the interface for task operation handlers.

@@ -152,8 +152,7 @@ func (h *Wiki) Execute(ctx context.Context, payload map[string]any) error {
 
 	tracker := h.enrichCtx.Tracker.ForOperation(
 		task.OperationGenerateWikiForCommit,
-		task.TrackableTypeRepository,
-		cp.RepoID(),
+		payload,
 	)
 
 	// Delete any existing wiki for this repository so each repo has at most one.

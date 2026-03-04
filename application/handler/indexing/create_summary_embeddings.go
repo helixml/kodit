@@ -63,8 +63,7 @@ func (h *CreateSummaryEmbeddings) Execute(ctx context.Context, payload map[strin
 
 	tracker := h.trackerFactory.ForOperation(
 		task.OperationCreateSummaryEmbeddingsForCommit,
-		task.TrackableTypeRepository,
-		cp.RepoID(),
+		payload,
 	)
 
 	enrichments, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippetSummary), repository.WithOrderAsc("enrichments_v2.id"))

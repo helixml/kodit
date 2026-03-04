@@ -30,7 +30,7 @@ func (f *fakeTracker) Complete(_ context.Context)                    {}
 
 type fakeTrackerFactory struct{}
 
-func (f *fakeTrackerFactory) ForOperation(_ task.Operation, _ task.TrackableType, _ int64) handler.Tracker {
+func (f *fakeTrackerFactory) ForOperation(_ task.Operation, _ map[string]any) handler.Tracker {
 	return &fakeTracker{}
 }
 

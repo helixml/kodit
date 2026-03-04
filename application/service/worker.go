@@ -20,7 +20,7 @@ type WorkerTracker interface {
 
 // WorkerTrackerFactory creates trackers for task status updates.
 type WorkerTrackerFactory interface {
-	ForOperation(operation task.Operation, trackableType task.TrackableType, trackableID int64) WorkerTracker
+	ForOperation(operation task.Operation, payload map[string]any) WorkerTracker
 }
 
 // Handler executes a specific task operation.
@@ -225,13 +225,7 @@ func (w *Worker) markStatusFailed(ctx context.Context, t task.Task, err error) {
 		return
 	}
 
-	payload := t.Payload()
-	repoID, _ := extractInt64(payload, "repository_id")
-	if repoID == 0 {
-		return
-	}
-
-	tracker := w.trackerFactory.ForOperation(t.Operation(), task.TrackableTypeRepository, repoID)
+	tracker := w.trackerFactory.ForOperation(t.Operation(), t.Payload())
 	tracker.Fail(ctx, err.Error())
 }
 
@@ -241,31 +235,8 @@ func (w *Worker) markStatusComplete(ctx context.Context, t task.Task) {
 		return
 	}
 
-	payload := t.Payload()
-	repoID, _ := extractInt64(payload, "repository_id")
-	if repoID == 0 {
-		return
-	}
-
-	tracker := w.trackerFactory.ForOperation(t.Operation(), task.TrackableTypeRepository, repoID)
+	tracker := w.trackerFactory.ForOperation(t.Operation(), t.Payload())
 	tracker.Complete(ctx)
-}
-
-func extractInt64(payload map[string]any, key string) (int64, bool) {
-	val, ok := payload[key]
-	if !ok {
-		return 0, false
-	}
-	switch v := val.(type) {
-	case int64:
-		return v, true
-	case int:
-		return int64(v), true
-	case float64:
-		return int64(v), true
-	default:
-		return 0, false
-	}
 }
 
 // ProcessOne processes a single task synchronously (for testing).

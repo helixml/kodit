@@ -70,8 +70,7 @@ func (h *ArchitectureDiscovery) Execute(ctx context.Context, payload map[string]
 
 	tracker := h.enrichCtx.Tracker.ForOperation(
 		task.OperationCreateArchitectureEnrichmentForCommit,
-		task.TrackableTypeRepository,
-		cp.RepoID(),
+		payload,
 	)
 
 	tracker.SetTotal(ctx, 3)

@@ -45,8 +45,7 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 
 	tracker := h.enrichCtx.Tracker.ForOperation(
 		task.OperationCreatePublicAPIDocsForCommit,
-		task.TrackableTypeRepository,
-		cp.RepoID(),
+		payload,
 	)
 
 	count, err := h.enrichCtx.Enrichments.Count(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeUsage), enrichment.WithSubtype(enrichment.SubtypeAPIDocs))
