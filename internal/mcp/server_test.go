@@ -2457,6 +2457,101 @@ func TestServer_Grep_NoResults(t *testing.T) {
 	}
 }
 
+func TestServer_ReadResource(t *testing.T) {
+	srv := testServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "read_resource",
+		"arguments": map[string]any{
+			"uri": "file://1/main/README.md",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+	if text != "alpha\nbeta\ngamma\ndelta\nepsilon\nzeta\neta" {
+		t.Errorf("expected full content, got %q", text)
+	}
+}
+
+func TestServer_ReadResource_WithLines(t *testing.T) {
+	srv := testServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "read_resource",
+		"arguments": map[string]any{
+			"uri": "file://1/main/README.md?lines=L2-L3&line_numbers=true",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+	expected := "2\tbeta\n3\tgamma"
+	if text != expected {
+		t.Errorf("expected %q, got %q", expected, text)
+	}
+}
+
+func TestServer_ReadResource_MissingURI(t *testing.T) {
+	srv := testServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name":      "read_resource",
+		"arguments": map[string]any{},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if !result.IsError {
+		t.Fatal("expected error for missing uri")
+	}
+
+	text := textFromContent(t, result)
+	if !containsStr(text, "uri is required") {
+		t.Errorf("expected 'uri is required' error, got: %s", text)
+	}
+}
+
+func TestServer_ReadResource_InvalidScheme(t *testing.T) {
+	srv := testServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "read_resource",
+		"arguments": map[string]any{
+			"uri": "https://example.com/file.txt",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if !result.IsError {
+		t.Fatal("expected error for invalid scheme")
+	}
+
+	text := textFromContent(t, result)
+	if !containsStr(text, "invalid file URI") {
+		t.Errorf("expected 'invalid file URI' error, got: %s", text)
+	}
+}
+
 func TestServer_Grep_RepoNotFound(t *testing.T) {
 	srv := grepServer()
 	sendMessage(t, srv, "initialize", 1, initializeParams())
