@@ -48,14 +48,21 @@ func (s *Tracking) Summary(ctx context.Context, repositoryID int64) (tracking.Re
 	return tracking.StatusSummaryFromTasks(statuses, pendingCount), nil
 }
 
-func (s *Tracking) pendingTaskCount(ctx context.Context, _ int64) (int, error) {
+func (s *Tracking) pendingTaskCount(ctx context.Context, repositoryID int64) (int, error) {
 	if s.taskStore == nil {
 		return 0, nil
 	}
 
-	count, err := s.taskStore.CountPending(ctx)
+	tasks, err := s.taskStore.FindPending(ctx)
 	if err != nil {
 		return 0, err
 	}
-	return int(count), nil
+
+	count := 0
+	for _, t := range tasks {
+		if payloadRepoID(t.Payload()) == repositoryID {
+			count++
+		}
+	}
+	return count, nil
 }
