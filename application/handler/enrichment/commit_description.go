@@ -55,8 +55,7 @@ func (h *CommitDescription) Execute(ctx context.Context, payload map[string]any)
 
 	tracker := h.enrichCtx.Tracker.ForOperation(
 		task.OperationCreateCommitDescriptionForCommit,
-		task.TrackableTypeRepository,
-		cp.RepoID(),
+		payload,
 	)
 
 	count, err := h.enrichCtx.Enrichments.Count(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeHistory), enrichment.WithSubtype(enrichment.SubtypeCommitDescription))

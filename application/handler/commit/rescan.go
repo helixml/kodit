@@ -54,8 +54,7 @@ func (h *Rescan) Execute(ctx context.Context, payload map[string]any) error {
 
 	tracker := h.trackerFactory.ForOperation(
 		task.OperationRescanCommit,
-		task.TrackableTypeRepository,
-		cp.RepoID(),
+		payload,
 	)
 
 	tracker.SetTotal(ctx, 2)

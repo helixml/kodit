@@ -50,8 +50,7 @@ func (h *Delete) Execute(ctx context.Context, payload map[string]any) error {
 
 	tracker := h.trackerFactory.ForOperation(
 		task.OperationDeleteRepository,
-		task.TrackableTypeRepository,
-		repoID,
+		payload,
 	)
 
 	repo, err := h.repoStores.Repositories.FindOne(ctx, repository.WithID(repoID))

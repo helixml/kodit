@@ -49,8 +49,7 @@ func (h *CreateBM25Index) Execute(ctx context.Context, payload map[string]any) e
 
 	tracker := h.trackerFactory.ForOperation(
 		task.OperationCreateBM25IndexForCommit,
-		task.TrackableTypeRepository,
-		cp.RepoID(),
+		payload,
 	)
 
 	enrichments, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(h.subtype))

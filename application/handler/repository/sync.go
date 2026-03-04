@@ -60,8 +60,7 @@ func (h *Sync) Execute(ctx context.Context, payload map[string]any) error {
 
 	tracker := h.trackerFactory.ForOperation(
 		task.OperationSyncRepository,
-		task.TrackableTypeRepository,
-		repoID,
+		payload,
 	)
 
 	repo, err := h.repoStore.FindOne(ctx, repository.WithID(repoID))

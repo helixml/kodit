@@ -81,8 +81,7 @@ func (h *Cookbook) Execute(ctx context.Context, payload map[string]any) error {
 
 	tracker := h.enrichCtx.Tracker.ForOperation(
 		task.OperationCreateCookbookForCommit,
-		task.TrackableTypeRepository,
-		cp.RepoID(),
+		payload,
 	)
 
 	count, err := h.enrichCtx.Enrichments.Count(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeUsage), enrichment.WithSubtype(enrichment.SubtypeCookbook))

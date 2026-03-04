@@ -51,8 +51,7 @@ func (h *Scan) Execute(ctx context.Context, payload map[string]any) error {
 
 	tracker := h.trackerFactory.ForOperation(
 		task.OperationScanCommit,
-		task.TrackableTypeRepository,
-		cp.RepoID(),
+		payload,
 	)
 
 	existing, err := h.commitStore.Exists(ctx, repository.WithRepoID(cp.RepoID()), repository.WithSHA(cp.CommitSHA()))

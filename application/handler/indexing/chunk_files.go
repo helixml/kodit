@@ -73,8 +73,7 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 
 	tracker := h.trackerFactory.ForOperation(
 		task.OperationExtractSnippetsForCommit,
-		task.TrackableTypeRepository,
-		cp.RepoID(),
+		payload,
 	)
 
 	existing, err := h.enrichmentStore.Find(ctx,
