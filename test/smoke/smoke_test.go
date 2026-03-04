@@ -709,6 +709,27 @@ func TestSmoke(t *testing.T) {
 		}
 	})
 
+	t.Run("mcp_read_resource", func(t *testing.T) {
+		// First get a URI from semantic_search, then read it via read_resource.
+		results := callMCPTool(t, mcpSessionID, "semantic_search", 5, map[string]any{
+			"query": "HTTP server orders JSON",
+			"limit": 1,
+		})
+		if len(results) == 0 {
+			t.Fatal("expected at least one semantic search result to use as URI source")
+		}
+		uri := results[0].URI
+		t.Logf("reading resource: %s", uri)
+
+		text := callMCPToolText(t, mcpSessionID, "read_resource", 6, map[string]any{
+			"uri": uri,
+		})
+		if text == "" {
+			t.Fatal("expected non-empty file content from read_resource")
+		}
+		t.Logf("read_resource: %d bytes", len(text))
+	})
+
 	t.Run("ls", func(t *testing.T) {
 		lsURL := fmt.Sprintf("%s/search/ls?repository_id=%d&pattern=%s", baseURL, repoID, url.QueryEscape("**/*.py"))
 		resp := getJSON(t, lsURL)
@@ -1088,6 +1109,54 @@ func callMCPTool(t *testing.T, sessionID string, toolName string, id int, args m
 		t.Fatalf("unmarshal MCP %s results: %v", toolName, err)
 	}
 	return results
+}
+
+// callMCPToolText invokes an MCP tool and returns the raw text content.
+func callMCPToolText(t *testing.T, sessionID string, toolName string, id int, args map[string]any) string {
+	t.Helper()
+	body := mcpJSONRPC("tools/call", id, map[string]any{
+		"name":      toolName,
+		"arguments": args,
+	})
+	httpClient := &http.Client{Timeout: 30 * time.Second}
+	req, err := http.NewRequest(http.MethodPost, rootURL+"/mcp", strings.NewReader(string(body)))
+	if err != nil {
+		t.Fatalf("create MCP request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Mcp-Session-Id", sessionID)
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		t.Fatalf("MCP %s failed: %v", toolName, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("MCP %s: expected 200, got %d", toolName, resp.StatusCode)
+	}
+
+	var rpcResp struct {
+		Result struct {
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+			IsError bool `json:"isError"`
+		} `json:"result"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&rpcResp); err != nil {
+		t.Fatalf("decode MCP response: %v", err)
+	}
+	if rpcResp.Result.IsError {
+		text := ""
+		if len(rpcResp.Result.Content) > 0 {
+			text = rpcResp.Result.Content[0].Text
+		}
+		t.Fatalf("MCP %s returned error: %s", toolName, text)
+	}
+	if len(rpcResp.Result.Content) == 0 {
+		t.Fatalf("MCP %s returned no content", toolName)
+	}
+
+	return rpcResp.Result.Content[0].Text
 }
 
 // mcpLsResult represents a single result from ls.

@@ -113,9 +113,11 @@ const instructions = "This server provides access to code knowledge through mult
 	"- semantic_search() - Find files matching a natural language query (returns resource URIs)\n" +
 	"- keyword_search() - Find files matching keywords using BM25 search (returns resource URIs)\n" +
 	"- grep() - Search file contents using git grep with regex patterns (returns resource URIs)\n" +
-	"- ls() - List files matching a glob pattern in a repository\n\n" +
+	"- ls() - List files matching a glob pattern in a repository\n" +
+	"- read_resource() - Read file content from a resource URI returned by search tools\n\n" +
 	"**Reading file content:**\n" +
-	"Use the file resource template: file://{id}/{blob_name}/{+path}\n" +
+	"Use read_resource() with the URI returned by search tools, or the file resource " +
+	"template: file://{id}/{blob_name}/{+path}\n" +
 	"where id is the repository ID, blob_name is a commit SHA, tag, or branch name, " +
 	"and path is the file path within the repository.\n" +
 	"Optional query parameters: ?lines=L17-L26,L45 and ?line_numbers=true\n\n" +
@@ -311,6 +313,14 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 			mcp.Description("Maximum number of file results (default 50)"),
 		),
 	), s.handleGrep)
+
+	mcpServer.AddTool(mcp.NewTool("read_resource",
+		mcp.WithDescription("Read the contents of a file resource URI. Use this to fetch file content from URIs returned by semantic_search, keyword_search, grep, and ls."),
+		mcp.WithString("uri",
+			mcp.Required(),
+			mcp.Description("The file resource URI (e.g. file://1/main/src/foo.go?lines=L17-L26&line_numbers=true)"),
+		),
+	), s.handleReadResource)
 
 	mcpServer.AddTool(mcp.NewTool("ls",
 		mcp.WithDescription("List files matching a glob pattern in a repository"),
@@ -1025,6 +1035,35 @@ func (s *Server) handleLs(ctx context.Context, request mcp.CallToolRequest) (*mc
 	}
 
 	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+// handleReadResource handles the read_resource tool invocation.
+// It delegates to the file resource handler, allowing clients that do not
+// support MCP resources to read file content through a tool call.
+func (s *Server) handleReadResource(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	uri, err := request.RequireString("uri")
+	if err != nil {
+		return mcp.NewToolResultError("uri is required"), nil
+	}
+
+	resourceRequest := mcp.ReadResourceRequest{}
+	resourceRequest.Params.URI = uri
+
+	contents, err := s.handleReadFile(ctx, resourceRequest)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("invalid file URI: %v", err)), nil
+	}
+
+	if len(contents) == 0 {
+		return mcp.NewToolResultText(""), nil
+	}
+
+	text, ok := contents[0].(mcp.TextResourceContents)
+	if !ok {
+		return mcp.NewToolResultError("unexpected resource content type"), nil
+	}
+
+	return mcp.NewToolResultText(text.Text), nil
 }
 
 // registerResources registers MCP resource templates with the server.
