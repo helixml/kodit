@@ -29,6 +29,8 @@ BINARY_OUTPUT?=$(BUILD_DIR)/$(BINARY_NAME)
 CMD_DIR=./cmd/kodit
 BUILD_DIR=./build
 COVERAGE_FILE=coverage.out
+# Package path for targeted testing/linting (default: all packages)
+PKG?=./...
 
 # Version info (can be overridden via environment or make args)
 VERSION?=v1.0.0
@@ -92,8 +94,8 @@ clean: docker-clean ## Remove build artifacts
 ##@ Testing
 
 .PHONY: test
-test: download-model download-ort ## Run all tests (excludes smoke tests)
-	$(GOENV) $(GOCMD) test -tags "$(EMBED_TAGS)" -v $$(go list ./... | grep -v /test/smoke)
+test: download-model download-ort ## Run tests (PKG=./path/... to target)
+	$(GOENV) $(GOCMD) test -tags "$(EMBED_TAGS)" -v $$(go list $(PKG) | grep -v /test/smoke)
 
 .PHONY: test-cover
 test-cover: download-model download-ort ## Run tests with coverage (excludes smoke tests)
@@ -115,8 +117,8 @@ test-smoke: ## Run smoke tests (resets database for idempotency)
 ##@ Code Quality
 
 .PHONY: lint
-lint: ## Run golangci-lint
-	golangci-lint run
+lint: ## Run golangci-lint (PKG=./path/... to target)
+	golangci-lint run $(PKG)
 
 .PHONY: lint-fix
 lint-fix: format ## Run golangci-lint with auto-fix
@@ -134,11 +136,11 @@ imports: ## Format imports with goimports
 format: fmt imports ## Format code (gofmt + goimports)
 
 .PHONY: vet
-vet: ## Run go vet
-	$(GOCMD) vet -tags "$(BUILD_TAGS)" ./...
+vet: ## Run go vet (PKG=./path/... to target)
+	$(GOCMD) vet -tags "$(BUILD_TAGS)" $(PKG)
 
 .PHONY: check
-check: fmt vet lint test ## Run all checks (format, vet, lint, test)
+check: fmt vet lint test ## Run all checks (PKG=./path/... to target vet/lint/test)
 
 ##@ Models
 
