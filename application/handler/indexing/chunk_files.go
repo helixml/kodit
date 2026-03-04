@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log/slog"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/chunk"
@@ -35,7 +36,7 @@ type ChunkFiles struct {
 	fileContent      FileContentSource
 	params           chunking.ChunkParams
 	trackerFactory   handler.TrackerFactory
-	logger           *slog.Logger
+	logger           zerolog.Logger
 }
 
 // NewChunkFiles creates a new ChunkFiles handler.
@@ -48,7 +49,7 @@ func NewChunkFiles(
 	fileContent FileContentSource,
 	params chunking.ChunkParams,
 	trackerFactory handler.TrackerFactory,
-	logger *slog.Logger,
+	logger zerolog.Logger,
 ) *ChunkFiles {
 	return &ChunkFiles{
 		repoStore:        repoStore,
@@ -128,10 +129,7 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 		relPath := relativeFilePath(f.Path(), clonedPath)
 		content, readErr := h.fileContent.FileContent(ctx, clonedPath, cp.CommitSHA(), relPath)
 		if readErr != nil {
-			h.logger.Warn("failed to read file content",
-				slog.String("path", f.Path()),
-				slog.String("error", readErr.Error()),
-			)
+			h.logger.Warn().Str("path", f.Path()).Str("error", readErr.Error()).Msg("failed to read file content")
 			processed++
 			continue
 		}
@@ -143,10 +141,7 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 
 		textChunks, chunkErr := chunking.NewTextChunks(string(content), h.params)
 		if chunkErr != nil {
-			h.logger.Warn("failed to chunk file",
-				slog.String("path", f.Path()),
-				slog.String("error", chunkErr.Error()),
-			)
+			h.logger.Warn().Str("path", f.Path()).Str("error", chunkErr.Error()).Msg("failed to chunk file")
 			processed++
 			continue
 		}
@@ -181,10 +176,7 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 		processed++
 	}
 
-	h.logger.Info("text chunks created",
-		slog.Int("files", len(files)),
-		slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
-	)
+	h.logger.Info().Int("files", len(files)).Str("commit", handler.ShortSHA(cp.CommitSHA())).Msg("text chunks created")
 
 	return nil
 }

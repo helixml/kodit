@@ -3,8 +3,9 @@ package repository
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/application/service"
@@ -24,7 +25,7 @@ type Sync struct {
 	queue          *service.Queue
 	prescribedOps  task.PrescribedOperations
 	trackerFactory handler.TrackerFactory
-	logger         *slog.Logger
+	logger         zerolog.Logger
 }
 
 // NewSync creates a new Sync handler.
@@ -36,7 +37,7 @@ func NewSync(
 	queue *service.Queue,
 	prescribedOps task.PrescribedOperations,
 	trackerFactory handler.TrackerFactory,
-	logger *slog.Logger,
+	logger zerolog.Logger,
 ) *Sync {
 	return &Sync{
 		repoStore:      repoStore,
@@ -90,11 +91,7 @@ func (h *Sync) Execute(ctx context.Context, payload map[string]any) error {
 	// The clone may have been relocated (e.g. stale path from a previous
 	// container). Persist the new working copy so future syncs use it.
 	if clonedPath != repo.WorkingCopy().Path() {
-		h.logger.Info("repository clone path changed",
-			slog.Int64("repo_id", repoID),
-			slog.String("old_path", repo.WorkingCopy().Path()),
-			slog.String("new_path", clonedPath),
-		)
+		h.logger.Info().Int64("repo_id", repoID).Str("old_path", repo.WorkingCopy().Path()).Str("new_path", clonedPath).Msg("repository clone path changed")
 		repo = repo.WithWorkingCopy(repository.NewWorkingCopy(clonedPath, repo.RemoteURL()))
 		if _, err := h.repoStore.Save(ctx, repo); err != nil {
 			return fmt.Errorf("save relocated repository: %w", err)
@@ -104,19 +101,19 @@ func (h *Sync) Execute(ctx context.Context, payload map[string]any) error {
 	tracker.SetCurrent(ctx, 1, "Scanning branches")
 	branches, err := h.scanner.ScanAllBranches(ctx, clonedPath, repoID)
 	if err != nil {
-		h.logger.Warn("failed to scan branches", slog.String("error", err.Error()))
+		h.logger.Warn().Str("error", err.Error()).Msg("failed to scan branches")
 	}
 
 	if err == nil {
 		if _, err := h.branchStore.SaveAll(ctx, branches); err != nil {
-			h.logger.Warn("failed to save branches", slog.String("error", err.Error()))
+			h.logger.Warn().Str("error", err.Error()).Msg("failed to save branches")
 		}
 	}
 
 	tracker.SetCurrent(ctx, 2, "Queueing commit scans")
 
 	if err := h.enqueueCommitScans(ctx, repo, branches); err != nil {
-		h.logger.Warn("failed to enqueue commit scans", slog.String("error", err.Error()))
+		h.logger.Warn().Str("error", err.Error()).Msg("failed to enqueue commit scans")
 	}
 
 	repo = repo.WithLastScannedAt(time.Now())
@@ -124,10 +121,7 @@ func (h *Sync) Execute(ctx context.Context, payload map[string]any) error {
 		return fmt.Errorf("save last synced at: %w", err)
 	}
 
-	h.logger.Info("repository synced successfully",
-		slog.Int64("repo_id", repoID),
-		slog.Int("branches", len(branches)),
-	)
+	h.logger.Info().Int64("repo_id", repoID).Int("branches", len(branches)).Msg("repository synced successfully")
 
 	return nil
 }
@@ -163,7 +157,7 @@ func (h *Sync) enqueueCommitScans(ctx context.Context, repo repository.Repositor
 	}
 
 	if commitSHA == "" {
-		h.logger.Debug("no commit to scan", slog.Int64("repo_id", repo.ID()))
+		h.logger.Debug().Int64("repo_id", repo.ID()).Msg("no commit to scan")
 		return nil
 	}
 

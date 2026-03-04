@@ -3,8 +3,9 @@ package repository
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/application/service"
@@ -20,7 +21,7 @@ type Delete struct {
 	enrichments    *service.Enrichment
 	queue          *service.Queue
 	trackerFactory handler.TrackerFactory
-	logger         *slog.Logger
+	logger         zerolog.Logger
 }
 
 // NewDelete creates a new Delete handler.
@@ -29,7 +30,7 @@ func NewDelete(
 	enrichments *service.Enrichment,
 	queue *service.Queue,
 	trackerFactory handler.TrackerFactory,
-	logger *slog.Logger,
+	logger zerolog.Logger,
 ) *Delete {
 	return &Delete{
 		repoStores:     repoStores,
@@ -62,13 +63,10 @@ func (h *Delete) Execute(ctx context.Context, payload map[string]any) error {
 	// so they don't block the worker after the repository data is gone.
 	drained, err := h.queue.DrainForRepository(ctx, repoID)
 	if err != nil {
-		h.logger.Warn("failed to drain pending tasks", slog.String("error", err.Error()))
+		h.logger.Warn().Str("error", err.Error()).Msg("failed to drain pending tasks")
 	}
 	if drained > 0 {
-		h.logger.Info("drained pending tasks for repository",
-			slog.Int64("repo_id", repoID),
-			slog.Int("drained", drained),
-		)
+		h.logger.Info().Int64("repo_id", repoID).Int("drained", drained).Msg("drained pending tasks for repository")
 	}
 
 	tracker.SetTotal(ctx, 3)
@@ -78,11 +76,11 @@ func (h *Delete) Execute(ctx context.Context, payload map[string]any) error {
 
 	commits, err := h.repoStores.Commits.Find(ctx, repository.WithRepoID(repoID))
 	if err != nil {
-		h.logger.Warn("failed to find commits", slog.String("error", err.Error()))
+		h.logger.Warn().Str("error", err.Error()).Msg("failed to find commits")
 	}
 
 	if err := h.deleteEnrichments(ctx, commits); err != nil {
-		h.logger.Warn("failed to delete enrichment data", slog.String("error", err.Error()))
+		h.logger.Warn().Str("error", err.Error()).Msg("failed to delete enrichment data")
 	}
 
 	// Remove working copy from disk
@@ -91,10 +89,7 @@ func (h *Delete) Execute(ctx context.Context, payload map[string]any) error {
 	if repo.HasWorkingCopy() {
 		clonedPath := repo.WorkingCopy().Path()
 		if err := os.RemoveAll(clonedPath); err != nil {
-			h.logger.Warn("failed to remove working copy",
-				slog.String("path", clonedPath),
-				slog.String("error", err.Error()),
-			)
+			h.logger.Warn().Str("path", clonedPath).Str("error", err.Error()).Msg("failed to remove working copy")
 		}
 	}
 
@@ -105,10 +100,7 @@ func (h *Delete) Execute(ctx context.Context, payload map[string]any) error {
 		return fmt.Errorf("delete repository: %w", err)
 	}
 
-	h.logger.Info("repository deleted successfully",
-		slog.Int64("repo_id", repoID),
-		slog.Int("commits_cleaned", len(commits)),
-	)
+	h.logger.Info().Int64("repo_id", repoID).Int("commits_cleaned", len(commits)).Msg("repository deleted successfully")
 
 	return nil
 }

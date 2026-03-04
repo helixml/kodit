@@ -3,8 +3,9 @@ package persistence
 
 import (
 	"fmt"
-	"log/slog"
 	"strings"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/helixml/kodit/internal/database"
 	"gorm.io/gorm"
@@ -27,7 +28,7 @@ func PreMigrate(db database.Database) error {
 		return err
 	}
 	if enumExists {
-		slog.Warn("one-time database migration: converting Python-era enum columns to text — please wait, do not interrupt")
+		log.Warn().Msg("one-time database migration: converting Python-era enum columns to text — please wait, do not interrupt")
 		if err := gdb.Exec(`ALTER TABLE embeddings ALTER COLUMN type TYPE text USING type::text`).Error; err != nil {
 			return err
 		}
@@ -37,7 +38,7 @@ func PreMigrate(db database.Database) error {
 		if err := gdb.Exec(`DROP TYPE IF EXISTS embeddingtype`).Error; err != nil {
 			return err
 		}
-		slog.Info("one-time database migration complete")
+		log.Info().Msg("one-time database migration complete")
 	}
 
 	// Add auto-increment id column to git_commit_files if missing.
@@ -67,7 +68,7 @@ func PreMigrate(db database.Database) error {
 			return err
 		}
 		if !hasIDColumn {
-			slog.Warn("one-time database migration: adding id column to git_commit_files")
+			log.Warn().Msg("one-time database migration: adding id column to git_commit_files")
 			stmts := []string{
 				`CREATE SEQUENCE IF NOT EXISTS git_commit_files_id_seq`,
 				`ALTER TABLE git_commit_files ADD COLUMN id BIGINT NOT NULL DEFAULT nextval('git_commit_files_id_seq')`,
@@ -78,7 +79,7 @@ func PreMigrate(db database.Database) error {
 					return fmt.Errorf("git_commit_files id migration: %w", err)
 				}
 			}
-			slog.Info("one-time database migration complete: git_commit_files.id added")
+			log.Info().Msg("one-time database migration complete: git_commit_files.id added")
 		}
 	}
 
@@ -94,7 +95,7 @@ func PreMigrate(db database.Database) error {
 		return err
 	}
 	if hasOldDedupIndex {
-		slog.Warn("one-time database migration: replacing non-unique ix_tasks_dedup_key with unique index")
+		log.Warn().Msg("one-time database migration: replacing non-unique ix_tasks_dedup_key with unique index")
 		stmts := []string{
 			`DROP INDEX IF EXISTS ix_tasks_dedup_key`,
 			`CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_dedup_key ON tasks (dedup_key)`,
@@ -104,7 +105,7 @@ func PreMigrate(db database.Database) error {
 				return fmt.Errorf("tasks dedup_key index migration: %w", err)
 			}
 		}
-		slog.Info("one-time database migration complete: tasks.dedup_key unique index created")
+		log.Info().Msg("one-time database migration complete: tasks.dedup_key unique index created")
 	}
 
 	return nil

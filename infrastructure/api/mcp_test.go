@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rs/zerolog"
+
 	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/infrastructure/api"
@@ -274,7 +276,7 @@ func TestMCPEndpoint_ServerMiddlewareStack(t *testing.T) {
 
 	// Build the same handler stack as ListenAndServe: the Server router
 	// (with RequestID, RealIP, Recoverer) wrapping the APIServer routes.
-	srv := api.NewServer("", nil)
+	srv := api.NewServer("", zerolog.Nop())
 	srv.Router().Mount("/", apiServer.Router())
 	handler := srv.Router()
 

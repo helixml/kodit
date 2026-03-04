@@ -4,9 +4,11 @@ package log
 import (
 	"context"
 	"io"
-	"log/slog"
 	"os"
 	"strings"
+
+	"github.com/rs/zerolog"
+	zlog "github.com/rs/zerolog/log"
 
 	"github.com/helixml/kodit/internal/config"
 )
@@ -20,138 +22,140 @@ const (
 	RequestIDKey     ContextKey = "request_id"
 )
 
-// Logger wraps slog.Logger with convenience methods.
+// Logger wraps zerolog.Logger with convenience methods.
 type Logger struct {
-	handler slog.Handler
-	logger  *slog.Logger
+	logger zerolog.Logger
 }
 
 // NewLogger creates a new Logger based on configuration.
 func NewLogger(cfg config.AppConfig) *Logger {
 	level := parseLevel(cfg.LogLevel())
 
-	var handler slog.Handler
+	var logger zerolog.Logger
 	switch cfg.LogFormat() {
 	case config.LogFormatJSON:
-		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-			Level: level,
-		})
+		logger = zerolog.New(os.Stdout).Level(level).With().Timestamp().Logger()
 	default:
-		handler = newTerminalHandler(os.Stdout, &slog.HandlerOptions{
-			Level: level,
-		})
+		w := newConsoleWriter(os.Stdout)
+		logger = zerolog.New(w).Level(level).With().Timestamp().Logger()
 	}
 
-	return &Logger{
-		handler: handler,
-		logger:  slog.New(handler),
-	}
+	return &Logger{logger: logger}
 }
 
 // NewLoggerWithWriter creates a Logger that writes to the specified writer.
 func NewLoggerWithWriter(w io.Writer, format config.LogFormat, level string) *Logger {
 	lvl := parseLevel(level)
 
-	var handler slog.Handler
+	var logger zerolog.Logger
 	switch format {
 	case config.LogFormatJSON:
-		handler = slog.NewJSONHandler(w, &slog.HandlerOptions{Level: lvl})
+		logger = zerolog.New(w).Level(lvl).With().Timestamp().Logger()
 	default:
-		handler = newTerminalHandler(w, &slog.HandlerOptions{Level: lvl})
+		cw := newConsoleWriter(w)
+		logger = zerolog.New(cw).Level(lvl).With().Timestamp().Logger()
 	}
 
-	return &Logger{
-		handler: handler,
-		logger:  slog.New(handler),
-	}
+	return &Logger{logger: logger}
 }
 
-func parseLevel(level string) slog.Level {
+func parseLevel(level string) zerolog.Level {
 	switch strings.ToUpper(level) {
 	case "DEBUG":
-		return slog.LevelDebug
+		return zerolog.DebugLevel
 	case "WARN", "WARNING":
-		return slog.LevelWarn
+		return zerolog.WarnLevel
 	case "ERROR":
-		return slog.LevelError
+		return zerolog.ErrorLevel
 	default:
-		return slog.LevelInfo
+		return zerolog.InfoLevel
 	}
 }
 
-// Handler returns the underlying slog.Handler.
-func (l *Logger) Handler() slog.Handler {
-	return l.handler
-}
-
-// Slog returns the underlying slog.Logger.
-func (l *Logger) Slog() *slog.Logger {
+// Zerolog returns the underlying zerolog.Logger.
+func (l *Logger) Zerolog() zerolog.Logger {
 	return l.logger
 }
 
 // With returns a new Logger with additional attributes.
 func (l *Logger) With(args ...any) *Logger {
-	return &Logger{
-		handler: l.handler,
-		logger:  l.logger.With(args...),
+	ctx := l.logger.With()
+	for i := 0; i < len(args)-1; i += 2 {
+		if key, ok := args[i].(string); ok {
+			ctx = ctx.Interface(key, args[i+1])
+		}
 	}
+	return &Logger{logger: ctx.Logger()}
 }
 
 // WithContext returns a logger with context values (correlation ID, request ID).
 func (l *Logger) WithContext(ctx context.Context) *Logger {
-	attrs := make([]any, 0, 4)
+	c := l.logger.With()
+	added := false
 
 	if corrID, ok := ctx.Value(CorrelationIDKey).(string); ok && corrID != "" {
-		attrs = append(attrs, "correlation_id", corrID)
+		c = c.Str("correlation_id", corrID)
+		added = true
 	}
 	if reqID, ok := ctx.Value(RequestIDKey).(string); ok && reqID != "" {
-		attrs = append(attrs, "request_id", reqID)
+		c = c.Str("request_id", reqID)
+		added = true
 	}
 
-	if len(attrs) == 0 {
+	if !added {
 		return l
 	}
-	return l.With(attrs...)
+	return &Logger{logger: c.Logger()}
 }
 
 // Debug logs at debug level.
 func (l *Logger) Debug(msg string, args ...any) {
-	l.logger.Debug(msg, args...)
+	addPairs(l.logger.Debug(), args).Msg(msg)
 }
 
 // DebugContext logs at debug level with context.
 func (l *Logger) DebugContext(ctx context.Context, msg string, args ...any) {
-	l.WithContext(ctx).logger.Debug(msg, args...)
+	addPairs(l.WithContext(ctx).logger.Debug(), args).Msg(msg)
 }
 
 // Info logs at info level.
 func (l *Logger) Info(msg string, args ...any) {
-	l.logger.Info(msg, args...)
+	addPairs(l.logger.Info(), args).Msg(msg)
 }
 
 // InfoContext logs at info level with context.
 func (l *Logger) InfoContext(ctx context.Context, msg string, args ...any) {
-	l.WithContext(ctx).logger.Info(msg, args...)
+	addPairs(l.WithContext(ctx).logger.Info(), args).Msg(msg)
 }
 
 // Warn logs at warn level.
 func (l *Logger) Warn(msg string, args ...any) {
-	l.logger.Warn(msg, args...)
+	addPairs(l.logger.Warn(), args).Msg(msg)
 }
 
 // WarnContext logs at warn level with context.
 func (l *Logger) WarnContext(ctx context.Context, msg string, args ...any) {
-	l.WithContext(ctx).logger.Warn(msg, args...)
+	addPairs(l.WithContext(ctx).logger.Warn(), args).Msg(msg)
 }
 
 // Error logs at error level.
 func (l *Logger) Error(msg string, args ...any) {
-	l.logger.Error(msg, args...)
+	addPairs(l.logger.Error(), args).Msg(msg)
 }
 
 // ErrorContext logs at error level with context.
 func (l *Logger) ErrorContext(ctx context.Context, msg string, args ...any) {
-	l.WithContext(ctx).logger.Error(msg, args...)
+	addPairs(l.WithContext(ctx).logger.Error(), args).Msg(msg)
+}
+
+// addPairs adds key-value pairs from a variadic args list to a zerolog event.
+func addPairs(event *zerolog.Event, args []any) *zerolog.Event {
+	for i := 0; i < len(args)-1; i += 2 {
+		if key, ok := args[i].(string); ok {
+			event = event.Interface(key, args[i+1])
+		}
+	}
+	return event
 }
 
 // WithCorrelationID adds a correlation ID to the context.
@@ -180,15 +184,15 @@ func RequestID(ctx context.Context) string {
 	return ""
 }
 
-// SetDefault sets the global default slog logger.
+// SetDefault sets the global default zerolog logger.
 func (l *Logger) SetDefault() {
-	slog.SetDefault(l.logger)
+	zlog.Logger = l.logger
+	zerolog.SetGlobalLevel(l.logger.GetLevel())
 }
 
 // defaultLogger is the package-level default logger.
 var defaultLogger = &Logger{
-	handler: newTerminalHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}),
-	logger:  slog.New(newTerminalHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})),
+	logger: zerolog.New(newConsoleWriter(os.Stdout)).Level(zerolog.InfoLevel).With().Timestamp().Logger(),
 }
 
 // Default returns the default logger.

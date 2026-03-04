@@ -3,7 +3,6 @@ package enrichment
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,7 +62,7 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 
 	count, err := h.enrichCtx.Enrichments.Count(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeExample))
 	if err != nil {
-		h.enrichCtx.Logger.Error("failed to check existing examples", slog.String("error", err.Error()))
+		h.enrichCtx.Logger.Error().Str("error", err.Error()).Msg("failed to check existing examples")
 		return err
 	}
 
@@ -120,11 +119,7 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 
 	uniqueExamples := deduplicateExamples(examples)
 
-	h.enrichCtx.Logger.Info("extracted examples",
-		slog.Int("total", len(examples)),
-		slog.Int("unique", len(uniqueExamples)),
-		slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
-	)
+	h.enrichCtx.Logger.Info().Int("total", len(examples)).Int("unique", len(uniqueExamples)).Str("commit", handler.ShortSHA(cp.CommitSHA())).Msg("extracted examples")
 
 	for _, content := range uniqueExamples {
 		sanitized := sanitizeContent(content)
@@ -152,7 +147,7 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 func (h *ExtractExamples) extractFromDocumentation(path string) string {
 	content, err := os.ReadFile(path)
 	if err != nil {
-		h.enrichCtx.Logger.Warn("failed to read file", slog.String("path", path), slog.String("error", err.Error()))
+		h.enrichCtx.Logger.Warn().Str("path", path).Str("error", err.Error()).Msg("failed to read file")
 		return ""
 	}
 
@@ -175,7 +170,7 @@ func (h *ExtractExamples) extractFullFile(path string) string {
 
 	content, err := os.ReadFile(path)
 	if err != nil {
-		h.enrichCtx.Logger.Warn("failed to read file", slog.String("path", path), slog.String("error", err.Error()))
+		h.enrichCtx.Logger.Warn().Str("path", path).Str("error", err.Error()).Msg("failed to read file")
 		return ""
 	}
 

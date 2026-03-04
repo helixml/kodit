@@ -2,9 +2,10 @@ package kodit
 
 import (
 	"fmt"
-	"log/slog"
 	"net/url"
 	"strings"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/application/handler"
 	commithandler "github.com/helixml/kodit/application/handler/commit"
@@ -154,7 +155,7 @@ func (c *Client) registerHandlers() error {
 		))
 	}
 
-	c.logger.Info("registered task handlers", slog.Int("count", len(c.registry.Operations())))
+	c.logger.Info().Int("count", len(c.registry.Operations())).Msg("registered task handlers")
 	return nil
 }
 
@@ -212,7 +213,7 @@ func vectorchordDSN(dsn string) (string, error) {
 // trackerFactoryImpl implements handler.TrackerFactory for progress reporting.
 type trackerFactoryImpl struct {
 	reporters []tracking.Reporter
-	logger    *slog.Logger
+	logger    zerolog.Logger
 }
 
 // ForOperation creates a Tracker for the given operation.

@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
@@ -38,16 +39,13 @@ var ErrSQLiteBM25InitializationFailed = errors.New("failed to initialize SQLite 
 // SQLiteBM25Store implements search.BM25Store using SQLite FTS5.
 type SQLiteBM25Store struct {
 	db        *gorm.DB
-	logger    *slog.Logger
+	logger    zerolog.Logger
 	nextRowID int64
 }
 
 // NewSQLiteBM25Store creates a new SQLiteBM25Store, eagerly initializing
 // the FTS5 table and row ID counter.
-func NewSQLiteBM25Store(db database.Database, logger *slog.Logger) (*SQLiteBM25Store, error) {
-	if logger == nil {
-		logger = slog.Default()
-	}
+func NewSQLiteBM25Store(db database.Database, logger zerolog.Logger) (*SQLiteBM25Store, error) {
 	s := &SQLiteBM25Store{
 		db:     db.GORM(),
 		logger: logger,
@@ -107,7 +105,7 @@ func (s *SQLiteBM25Store) Index(ctx context.Context, request search.IndexRequest
 	}
 
 	if len(valid) == 0 {
-		s.logger.Warn("corpus is empty, skipping bm25 index")
+		s.logger.Warn().Msg("corpus is empty, skipping bm25 index")
 		return nil
 	}
 
@@ -130,7 +128,7 @@ func (s *SQLiteBM25Store) Index(ctx context.Context, request search.IndexRequest
 	}
 
 	if len(toIndex) == 0 {
-		s.logger.Info("no new documents to index")
+		s.logger.Info().Msg("no new documents to index")
 		return nil
 	}
 

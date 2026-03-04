@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
@@ -109,7 +110,7 @@ func (f *failingAssociationStore) Find(ctx context.Context, opts ...repository.O
 
 func TestCreateSummaryEmbeddings_FilterPropagatesError(t *testing.T) {
 	ctx := context.Background()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 
 	db := testdb.New(t)
 	enrichmentStore := persistence.NewEnrichmentStore(db)
@@ -160,7 +161,7 @@ func TestCreateSummaryEmbeddings_FilterPropagatesError(t *testing.T) {
 
 func TestCreateCodeEmbeddings_OrdersByID(t *testing.T) {
 	ctx := context.Background()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 
 	db := testdb.New(t)
 	enrichmentStore := persistence.NewEnrichmentStore(db)
@@ -207,7 +208,7 @@ func TestCreateCodeEmbeddings_OrdersByID(t *testing.T) {
 
 func TestCreateSummaryEmbeddings_OrdersByID(t *testing.T) {
 	ctx := context.Background()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 
 	db := testdb.New(t)
 	enrichmentStore := persistence.NewEnrichmentStore(db)
@@ -291,7 +292,7 @@ func (f *recordingTrackerFactory) ForOperation(_ task.Operation, _ task.Trackabl
 
 func TestExtractSnippets_ProcessesExtensionsInSortedOrder(t *testing.T) {
 	ctx := context.Background()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 
 	db := testdb.New(t)
 	repoStore := persistence.NewRepositoryStore(db)
@@ -373,7 +374,7 @@ func (r *recordingFileStore) Find(ctx context.Context, opts ...repository.Option
 
 func TestExtractSnippets_QueriesFilesInPathOrder(t *testing.T) {
 	ctx := context.Background()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 
 	db := testdb.New(t)
 	repoStore := persistence.NewRepositoryStore(db)

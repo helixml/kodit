@@ -3,10 +3,11 @@ package service
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/task"
 )
@@ -80,7 +81,7 @@ type Worker struct {
 	store          task.TaskStore
 	registry       *Registry
 	trackerFactory WorkerTrackerFactory
-	logger         *slog.Logger
+	logger         zerolog.Logger
 	pollPeriod     time.Duration
 
 	inFlight atomic.Int64
@@ -90,7 +91,7 @@ type Worker struct {
 }
 
 // NewWorker creates a new queue worker.
-func NewWorker(store task.TaskStore, registry *Registry, trackerFactory WorkerTrackerFactory, logger *slog.Logger) *Worker {
+func NewWorker(store task.TaskStore, registry *Registry, trackerFactory WorkerTrackerFactory, logger zerolog.Logger) *Worker {
 	return &Worker{
 		store:          store,
 		registry:       registry,
@@ -120,7 +121,7 @@ func (w *Worker) Start(ctx context.Context) {
 		w.run(ctx)
 	}()
 
-	w.logger.Info("queue worker started")
+	w.logger.Info().Msg("queue worker started")
 }
 
 // Stop gracefully shuts down the worker.
@@ -135,11 +136,11 @@ func (w *Worker) Stop() {
 		cancel()
 	}
 	w.wg.Wait()
-	w.logger.Info("queue worker stopped")
+	w.logger.Info().Msg("queue worker stopped")
 }
 
 func (w *Worker) run(ctx context.Context) {
-	w.logger.Debug("worker loop started")
+	w.logger.Debug().Msg("worker loop started")
 
 	ticker := time.NewTicker(w.pollPeriod)
 	defer ticker.Stop()
@@ -147,16 +148,14 @@ func (w *Worker) run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			w.logger.Info("worker loop stopping")
+			w.logger.Info().Msg("worker loop stopping")
 			return
 		case <-ticker.C:
 			if err := w.processNext(ctx); err != nil {
 				if ctx.Err() != nil {
 					return // Context cancelled, exit cleanly
 				}
-				w.logger.Error("error processing task",
-					slog.String("error", err.Error()),
-				)
+				w.logger.Error().Str("error", err.Error()).Msg("error processing task")
 			}
 		}
 	}
@@ -187,27 +186,17 @@ func (w *Worker) processNext(ctx context.Context) error {
 func (w *Worker) processTask(ctx context.Context, t task.Task) error {
 	start := time.Now()
 
-	w.logger.Info("processing task",
-		slog.Int64("task_id", t.ID()),
-		slog.String("operation", t.Operation().String()),
-	)
+	w.logger.Info().Int64("task_id", t.ID()).Str("operation", t.Operation().String()).Msg("processing task")
 
 	h, ok := w.registry.Handler(t.Operation())
 	if !ok {
-		w.logger.Error("no handler for operation",
-			slog.Int64("task_id", t.ID()),
-			slog.String("operation", t.Operation().String()),
-		)
+		w.logger.Error().Int64("task_id", t.ID()).Str("operation", t.Operation().String()).Msg("no handler for operation")
 		// Delete the task anyway to prevent it from blocking the queue
 		return w.store.Delete(ctx, t)
 	}
 
 	if err := w.executeWithRecovery(ctx, h, t); err != nil {
-		w.logger.Error("task execution failed",
-			slog.Int64("task_id", t.ID()),
-			slog.String("operation", t.Operation().String()),
-			slog.String("error", err.Error()),
-		)
+		w.logger.Error().Int64("task_id", t.ID()).Str("operation", t.Operation().String()).Str("error", err.Error()).Msg("task execution failed")
 		w.markStatusFailed(ctx, t, err)
 		// Delete the task - failed tasks are not retried
 		return w.store.Delete(ctx, t)
@@ -216,11 +205,7 @@ func (w *Worker) processTask(ctx context.Context, t task.Task) error {
 	w.markStatusComplete(ctx, t)
 
 	duration := time.Since(start)
-	w.logger.Info("task completed",
-		slog.Int64("task_id", t.ID()),
-		slog.String("operation", t.Operation().String()),
-		slog.Duration("duration", duration),
-	)
+	w.logger.Info().Int64("task_id", t.ID()).Str("operation", t.Operation().String()).Dur("duration", duration).Msg("task completed")
 
 	return w.store.Delete(ctx, t)
 }

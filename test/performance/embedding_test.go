@@ -3,7 +3,6 @@ package performance_test
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"math/rand"
 	"os"
 	"runtime"
@@ -11,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
@@ -120,7 +121,7 @@ func TestEmbeddingPipeline(t *testing.T) {
 	ctx := context.Background()
 	db := testDB(t)
 	embedder := testEmbedder(t)
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	logger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
 
 	store, _, err := persistence.NewVectorChordEmbeddingStore(
 		ctx, db, "perf", embeddingDimension, logger,
@@ -295,7 +296,7 @@ func TestEmbeddingPipelineCPUProfile(t *testing.T) {
 	ctx := context.Background()
 	db := testDB(t)
 	embedder := testEmbedder(t)
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	logger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
 
 	store, _, err := persistence.NewVectorChordEmbeddingStore(
 		ctx, db, "perf", embeddingDimension, logger,
@@ -351,7 +352,7 @@ func TestEmbeddingPipelineMemProfile(t *testing.T) {
 	ctx := context.Background()
 	db := testDB(t)
 	embedder := testEmbedder(t)
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	logger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
 
 	store, _, err := persistence.NewVectorChordEmbeddingStore(
 		ctx, db, "perf", embeddingDimension, logger,
@@ -436,7 +437,7 @@ func TestVectorCopyOverhead(t *testing.T) {
 func TestConcurrentSaveAll(t *testing.T) {
 	ctx := context.Background()
 	db := testDB(t)
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	logger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
 
 	const tableName = "vectorchord_perf_embeddings"
 	const goroutines = 8
@@ -492,7 +493,7 @@ func TestConcurrentSaveAll(t *testing.T) {
 func TestSaveAllBatching(t *testing.T) {
 	ctx := context.Background()
 	db := testDB(t)
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	logger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
 
 	store, _, err := persistence.NewVectorChordEmbeddingStore(
 		ctx, db, "perf", embeddingDimension, logger,
@@ -529,7 +530,7 @@ func TestSaveAllBatching(t *testing.T) {
 func TestDimensionMismatch_RebuildTable(t *testing.T) {
 	ctx := context.Background()
 	db := testDB(t)
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	logger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
 
 	// Create store with dimension 4 and insert data.
 	store, rebuilt, err := persistence.NewVectorChordEmbeddingStore(ctx, db, "perf", 4, logger)

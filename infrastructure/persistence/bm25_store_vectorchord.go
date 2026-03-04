@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
@@ -66,15 +67,12 @@ var ErrBM25InitializationFailed = errors.New("failed to initialize VectorChord B
 // VectorChordBM25Store implements search.BM25Store using VectorChord PostgreSQL extension.
 type VectorChordBM25Store struct {
 	db     *gorm.DB
-	logger *slog.Logger
+	logger zerolog.Logger
 }
 
 // NewVectorChordBM25Store creates a new VectorChordBM25Store, eagerly initializing
 // extensions, tokenizer, and tables.
-func NewVectorChordBM25Store(db database.Database, logger *slog.Logger) (*VectorChordBM25Store, error) {
-	if logger == nil {
-		logger = slog.Default()
-	}
+func NewVectorChordBM25Store(db database.Database, logger zerolog.Logger) (*VectorChordBM25Store, error) {
 	s := &VectorChordBM25Store{
 		db:     db.GORM(),
 		logger: logger,
@@ -200,7 +198,7 @@ func (s *VectorChordBM25Store) Index(ctx context.Context, request search.IndexRe
 	}
 
 	if len(valid) == 0 {
-		s.logger.Warn("corpus is empty, skipping bm25 index")
+		s.logger.Warn().Msg("corpus is empty, skipping bm25 index")
 		return nil
 	}
 
@@ -223,7 +221,7 @@ func (s *VectorChordBM25Store) Index(ctx context.Context, request search.IndexRe
 	}
 
 	if len(toIndex) == 0 {
-		s.logger.Info("no new documents to index")
+		s.logger.Info().Msg("no new documents to index")
 		return nil
 	}
 

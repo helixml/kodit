@@ -2,15 +2,17 @@ package api
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
+
+	"github.com/rs/zerolog"
 )
 
 func TestNewServer(t *testing.T) {
-	logger := slog.Default()
+	logger := zerolog.New(os.Stderr).With().Timestamp().Logger()
 	server := NewServer(":8080", logger)
 
 	if server.Addr() != ":8080" {
@@ -24,7 +26,7 @@ func TestNewServer(t *testing.T) {
 }
 
 func TestServer_HealthCheck(t *testing.T) {
-	logger := slog.Default()
+	logger := zerolog.New(os.Stderr).With().Timestamp().Logger()
 	server := NewServer(":0", logger)
 	router := server.Router()
 
@@ -52,7 +54,7 @@ func TestServer_HealthCheck(t *testing.T) {
 }
 
 func TestServer_NotFound(t *testing.T) {
-	logger := slog.Default()
+	logger := zerolog.New(os.Stderr).With().Timestamp().Logger()
 	server := NewServer(":0", logger)
 	router := server.Router()
 
@@ -67,7 +69,7 @@ func TestServer_NotFound(t *testing.T) {
 }
 
 func TestServer_Shutdown(t *testing.T) {
-	logger := slog.Default()
+	logger := zerolog.New(os.Stderr).With().Timestamp().Logger()
 	server := NewServer(":0", logger)
 
 	// Test that shutdown works without starting

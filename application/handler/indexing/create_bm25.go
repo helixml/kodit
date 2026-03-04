@@ -2,8 +2,9 @@ package indexing
 
 import (
 	"context"
-	"log/slog"
 	"strconv"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
@@ -18,7 +19,7 @@ type CreateBM25Index struct {
 	enrichmentStore enrichment.EnrichmentStore
 	subtype         enrichment.Subtype
 	trackerFactory  handler.TrackerFactory
-	logger          *slog.Logger
+	logger          zerolog.Logger
 }
 
 // NewCreateBM25Index creates a new CreateBM25Index handler.
@@ -27,7 +28,7 @@ func NewCreateBM25Index(
 	bm25Service *domainservice.BM25,
 	enrichmentStore enrichment.EnrichmentStore,
 	trackerFactory handler.TrackerFactory,
-	logger *slog.Logger,
+	logger zerolog.Logger,
 	subtype enrichment.Subtype,
 ) *CreateBM25Index {
 	return &CreateBM25Index{
@@ -54,7 +55,7 @@ func (h *CreateBM25Index) Execute(ctx context.Context, payload map[string]any) e
 
 	enrichments, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(h.subtype))
 	if err != nil {
-		h.logger.Error("failed to get snippet enrichments for commit", slog.String("error", err.Error()))
+		h.logger.Error().Str("error", err.Error()).Msg("failed to get snippet enrichments for commit")
 		return err
 	}
 
@@ -80,16 +81,13 @@ func (h *CreateBM25Index) Execute(ctx context.Context, payload map[string]any) e
 
 	request := search.NewIndexRequest(documents)
 	if err := h.bm25Service.Index(ctx, request); err != nil {
-		h.logger.Error("failed to index documents", slog.String("error", err.Error()))
+		h.logger.Error().Str("error", err.Error()).Msg("failed to index documents")
 		return err
 	}
 
 	tracker.SetCurrent(ctx, len(enrichments), "BM25 index created for commit")
 
-	h.logger.Info("BM25 index created",
-		slog.Int("documents", len(documents)),
-		slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
-	)
+	h.logger.Info().Int("documents", len(documents)).Str("commit", handler.ShortSHA(cp.CommitSHA())).Msg("BM25 index created")
 
 	return nil
 }

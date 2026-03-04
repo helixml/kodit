@@ -2,10 +2,11 @@ package indexing
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"strconv"
 	"testing"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
@@ -36,7 +37,7 @@ func (f *fakeGitAdapter) FileContent(_ context.Context, _ string, _ string, file
 
 func TestChunkFiles_SkipsWhenEnrichmentsExist(t *testing.T) {
 	ctx := context.Background()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 	db := testdb.New(t)
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
@@ -91,7 +92,7 @@ func TestChunkFiles_SkipsWhenEnrichmentsExist(t *testing.T) {
 
 func TestChunkFiles_CreatesEnrichmentsForTextFiles(t *testing.T) {
 	ctx := context.Background()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 	db := testdb.New(t)
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
@@ -188,7 +189,7 @@ func TestChunkFiles_CreatesEnrichmentsForTextFiles(t *testing.T) {
 
 func TestChunkFiles_SkipsBinaryFiles(t *testing.T) {
 	ctx := context.Background()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 	db := testdb.New(t)
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
@@ -243,7 +244,7 @@ func TestChunkFiles_SkipsBinaryFiles(t *testing.T) {
 
 func TestChunkFiles_ContinuesOnFileContentError(t *testing.T) {
 	ctx := context.Background()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 	db := testdb.New(t)
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
@@ -352,7 +353,7 @@ func TestRelativeFilePath(t *testing.T) {
 
 func TestChunkFiles_HandlesAbsoluteFilePaths(t *testing.T) {
 	ctx := context.Background()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 	db := testdb.New(t)
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
@@ -413,7 +414,7 @@ func TestChunkFiles_HandlesAbsoluteFilePaths(t *testing.T) {
 
 func TestChunkFiles_OnlyIndexesSourceAndDocFiles(t *testing.T) {
 	ctx := context.Background()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 	db := testdb.New(t)
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
@@ -513,7 +514,7 @@ func TestChunkFiles_OnlyIndexesSourceAndDocFiles(t *testing.T) {
 
 func TestChunkFiles_SetsLanguageFromExtension(t *testing.T) {
 	ctx := context.Background()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 	db := testdb.New(t)
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
@@ -572,7 +573,7 @@ func TestChunkFiles_SetsLanguageFromExtension(t *testing.T) {
 
 func TestChunkFiles_PersistsLineRanges(t *testing.T) {
 	ctx := context.Background()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 	db := testdb.New(t)
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)

@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
+
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -256,7 +258,7 @@ func testServer() *Server {
 		&fakeFileFinder{},
 		&fakeGrepper{},
 		"1.0.0-test",
-		nil,
+		zerolog.Nop(),
 	)
 }
 
@@ -581,7 +583,7 @@ func semanticSearchServer() *Server {
 		&fakeFileFinder{files: []repository.File{testFile}},
 		&fakeGrepper{},
 		"1.0.0-test",
-		nil,
+		zerolog.Nop(),
 	)
 }
 
@@ -701,7 +703,7 @@ func TestServer_SemanticSearch_AbsolutePathNormalized(t *testing.T) {
 		&fakeFileFinder{files: []repository.File{testFile}},
 		&fakeGrepper{},
 		"1.0.0-test",
-		nil,
+		zerolog.Nop(),
 	)
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
@@ -780,7 +782,7 @@ func TestServer_SemanticSearch_LanguageFilterDotPrefix(t *testing.T) {
 		&fakeFileFinder{files: []repository.File{testFile}},
 		&fakeGrepper{},
 		"1.0.0-test",
-		nil,
+		zerolog.Nop(),
 	)
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
@@ -934,7 +936,7 @@ func TestServer_SemanticSearch_LimitCapsResults(t *testing.T) {
 		&fakeFileFinder{files: []repository.File{f1, f2, f3}},
 		&fakeGrepper{},
 		"1.0.0-test",
-		nil,
+		zerolog.Nop(),
 	)
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
@@ -1034,7 +1036,7 @@ func TestServer_SemanticSearchThenReadFile(t *testing.T) {
 		}},
 		&fakeGrepper{},
 		"1.0.0-test",
-		nil,
+		zerolog.Nop(),
 	)
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
@@ -1119,7 +1121,7 @@ func TestServer_SemanticSearchThenReadFile_AbsolutePath(t *testing.T) {
 		}},
 		&fakeGrepper{},
 		"1.0.0-test",
-		nil,
+		zerolog.Nop(),
 	)
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
@@ -1198,7 +1200,7 @@ func TestServer_SemanticSearchThenReadFile_WithLineRange(t *testing.T) {
 		}},
 		&fakeGrepper{},
 		"1.0.0-test",
-		nil,
+		zerolog.Nop(),
 	)
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
@@ -1257,7 +1259,7 @@ func TestServer_SemanticSearchNoResults(t *testing.T) {
 		&fakeFileFinder{},
 		&fakeGrepper{},
 		"1.0.0-test",
-		nil,
+		zerolog.Nop(),
 	)
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
@@ -1315,7 +1317,7 @@ func keywordSearchServer() *Server {
 		&fakeFileFinder{files: []repository.File{testFile}},
 		&fakeGrepper{},
 		"1.0.0-test",
-		nil,
+		zerolog.Nop(),
 	)
 }
 
@@ -1532,7 +1534,7 @@ func TestServer_KeywordSearch_NoResults(t *testing.T) {
 		&fakeFileFinder{},
 		&fakeGrepper{},
 		"1.0.0-test",
-		nil,
+		zerolog.Nop(),
 	)
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
@@ -1646,7 +1648,7 @@ func TestServer_KeywordSearchThenReadFile(t *testing.T) {
 		&fakeFileFinder{files: []repository.File{testFile}},
 		&fakeGrepper{},
 		"1.0.0-test",
-		nil,
+		zerolog.Nop(),
 	)
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
@@ -1764,7 +1766,7 @@ func wikiServer() *Server {
 		&fakeFileFinder{},
 		&fakeGrepper{},
 		"1.0.0-test",
-		nil,
+		zerolog.Nop(),
 	)
 }
 
@@ -1842,7 +1844,7 @@ func TestServer_GetWiki_NoWiki(t *testing.T) {
 		&fakeFileFinder{},
 		&fakeGrepper{},
 		"1.0.0-test",
-		nil,
+		zerolog.Nop(),
 	)
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
@@ -1960,7 +1962,7 @@ func lsServer(files []service.FileEntry) *Server {
 		&fakeFileFinder{},
 		&fakeGrepper{},
 		"1.0.0-test",
-		nil,
+		zerolog.Nop(),
 	)
 }
 
@@ -2140,7 +2142,7 @@ func TestServer_Ls_RepoNotFound(t *testing.T) {
 		&fakeFileFinder{},
 		&fakeGrepper{},
 		"1.0.0-test",
-		nil,
+		zerolog.Nop(),
 	)
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
@@ -2204,7 +2206,7 @@ func TestServer_KeywordSearch_HTTP(t *testing.T) {
 	}))
 
 	innerRouter := chi.NewRouter()
-	innerRouter.Use(middleware.Logging(nil))
+	innerRouter.Use(middleware.Logging(zerolog.Nop()))
 	innerRouter.Mount("/mcp", httpHandler)
 
 	outerRouter.Mount("/", innerRouter)
@@ -2308,7 +2310,7 @@ func grepServer() *Server {
 			},
 		},
 		"1.0.0-test",
-		nil,
+		zerolog.Nop(),
 	)
 }
 
@@ -2431,7 +2433,7 @@ func TestServer_Grep_NoResults(t *testing.T) {
 		&fakeFileFinder{},
 		&fakeGrepper{},
 		"1.0.0-test",
-		nil,
+		zerolog.Nop(),
 	)
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 

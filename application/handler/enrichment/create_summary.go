@@ -3,7 +3,6 @@ package enrichment
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"strconv"
 
 	"github.com/helixml/kodit/application/handler"
@@ -49,7 +48,7 @@ func (h *CreateSummary) Execute(ctx context.Context, payload map[string]any) err
 
 	count, err := h.enrichCtx.Enrichments.Count(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippetSummary))
 	if err != nil {
-		h.enrichCtx.Logger.Error("failed to check existing summaries", slog.String("error", err.Error()))
+		h.enrichCtx.Logger.Error().Str("error", err.Error()).Msg("failed to check existing summaries")
 		return err
 	}
 
@@ -84,10 +83,7 @@ func (h *CreateSummary) Execute(ctx context.Context, payload map[string]any) err
 			tracker.SetCurrent(ctx, completed, "Enriching snippets for commit")
 		}),
 		domainservice.WithRequestError(func(requestID string, err error) {
-			h.enrichCtx.Logger.Error("enrichment request failed",
-				slog.String("request_id", requestID),
-				slog.String("error", err.Error()),
-			)
+			h.enrichCtx.Logger.Error().Str("request_id", requestID).Str("error", err.Error()).Msg("enrichment request failed")
 		}),
 	)
 	if err != nil {

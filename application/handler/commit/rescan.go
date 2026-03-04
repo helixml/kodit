@@ -3,7 +3,8 @@ package commit
 import (
 	"context"
 	"fmt"
-	"log/slog"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/application/service"
@@ -19,7 +20,7 @@ type Rescan struct {
 	associationStore enrichment.AssociationStore
 	statusStore      task.StatusStore
 	trackerFactory   handler.TrackerFactory
-	logger           *slog.Logger
+	logger           zerolog.Logger
 }
 
 // NewRescan creates a new Rescan handler.
@@ -28,7 +29,7 @@ func NewRescan(
 	associationStore enrichment.AssociationStore,
 	statusStore task.StatusStore,
 	trackerFactory handler.TrackerFactory,
-	logger *slog.Logger,
+	logger zerolog.Logger,
 ) *Rescan {
 	return &Rescan{
 		enrichments:      enrichments,
@@ -83,10 +84,7 @@ func (h *Rescan) Execute(ctx context.Context, payload map[string]any) error {
 		return fmt.Errorf("delete enrichment associations: %w", err)
 	}
 
-	h.logger.Info("commit data cleared for rescan",
-		slog.Int64("repo_id", cp.RepoID()),
-		slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
-	)
+	h.logger.Info().Int64("repo_id", cp.RepoID()).Str("commit", handler.ShortSHA(cp.CommitSHA())).Msg("commit data cleared for rescan")
 
 	return nil
 }

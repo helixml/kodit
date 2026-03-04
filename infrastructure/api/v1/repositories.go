@@ -5,11 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/rs/zerolog"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit"
@@ -27,7 +28,7 @@ import (
 // RepositoriesRouter handles repository API endpoints.
 type RepositoriesRouter struct {
 	client *kodit.Client
-	logger *slog.Logger
+	logger zerolog.Logger
 }
 
 // NewRepositoriesRouter creates a new RepositoriesRouter.
@@ -699,7 +700,7 @@ func (r *RepositoriesRouter) ListCommitEnrichments(w http.ResponseWriter, req *h
 	}
 	lineRanges, err := r.client.Enrichments.LineRanges(ctx, ids)
 	if err != nil {
-		r.logger.Warn("failed to fetch line ranges", "error", err)
+		r.logger.Warn().Err(err).Msg("failed to fetch line ranges")
 		lineRanges = map[string]chunk.LineRange{}
 	}
 
@@ -757,7 +758,7 @@ func (r *RepositoriesRouter) GetCommitEnrichment(w http.ResponseWriter, req *htt
 
 	lineRanges, err := r.client.Enrichments.LineRanges(ctx, []int64{enrichmentID})
 	if err != nil {
-		r.logger.Warn("failed to fetch line ranges", "error", err)
+		r.logger.Warn().Err(err).Msg("failed to fetch line ranges")
 		lineRanges = map[string]chunk.LineRange{}
 	}
 
@@ -934,7 +935,7 @@ func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http
 	}
 	related, err := r.client.Enrichments.RelatedEnrichments(ctx, ids)
 	if err != nil {
-		r.logger.Warn("failed to fetch related enrichments", "error", err)
+		r.logger.Warn().Err(err).Msg("failed to fetch related enrichments")
 		related = map[string][]enrichment.Enrichment{}
 	}
 
@@ -1152,7 +1153,7 @@ func (r *RepositoriesRouter) ListRepositoryEnrichments(w http.ResponseWriter, re
 	}
 	lineRanges, err := r.client.Enrichments.LineRanges(ctx, ids)
 	if err != nil {
-		r.logger.Warn("failed to fetch line ranges", "error", err)
+		r.logger.Warn().Err(err).Msg("failed to fetch line ranges")
 		lineRanges = map[string]chunk.LineRange{}
 	}
 
@@ -1246,7 +1247,7 @@ func (r *RepositoriesRouter) GetWikiPage(w http.ResponseWriter, req *http.Reques
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprint(w, rewritten.String()); err != nil {
-		r.logger.Error("failed to write wiki page response", "error", err)
+		r.logger.Error().Err(err).Msg("failed to write wiki page response")
 	}
 }
 

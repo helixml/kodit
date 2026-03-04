@@ -2,10 +2,11 @@ package enrichment
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
@@ -148,7 +149,7 @@ func newEnrichmentContext(
 	enrichmentStore enrichment.EnrichmentStore,
 	associationStore enrichment.AssociationStore,
 	enricher domainservice.Enricher,
-	logger *slog.Logger,
+	logger zerolog.Logger,
 ) handler.EnrichmentContext {
 	return handler.EnrichmentContext{
 		Enrichments:  enrichmentStore,
@@ -161,7 +162,7 @@ func newEnrichmentContext(
 
 func TestCommitDescriptionHandler(t *testing.T) {
 	ctx := context.Background()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 
 	db := testdb.New(t)
 	repoStore := persistence.NewRepositoryStore(db)
@@ -225,7 +226,7 @@ func TestCommitDescriptionHandler(t *testing.T) {
 
 func TestCreateSummaryHandler(t *testing.T) {
 	ctx := context.Background()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 	enricher := &fakeEnricher{}
 
 	t.Run("creates summaries for snippets", func(t *testing.T) {

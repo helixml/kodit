@@ -2,7 +2,8 @@ package tracking
 
 import (
 	"context"
-	"log/slog"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/repository"
 )
@@ -14,7 +15,7 @@ type Resolver struct {
 	commitStore repository.CommitStore
 	branchStore repository.BranchStore
 	tagStore    repository.TagStore
-	logger      *slog.Logger
+	logger      zerolog.Logger
 }
 
 // NewResolver creates a new trackable resolver.
@@ -22,7 +23,7 @@ func NewResolver(
 	commitStore repository.CommitStore,
 	branchStore repository.BranchStore,
 	tagStore repository.TagStore,
-	logger *slog.Logger,
+	logger zerolog.Logger,
 ) *Resolver {
 	return &Resolver{
 		commitStore: commitStore,

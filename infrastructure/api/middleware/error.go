@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/internal/database"
 )
@@ -24,7 +25,7 @@ type JSONAPIErrorResponse struct {
 }
 
 // WriteError writes a JSON:API formatted error response.
-func WriteError(w http.ResponseWriter, r *http.Request, err error, logger *slog.Logger) {
+func WriteError(w http.ResponseWriter, r *http.Request, err error, logger zerolog.Logger) {
 	status := http.StatusInternalServerError
 	title := "Internal Server Error"
 	detail := ""
@@ -73,14 +74,7 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error, logger *slog.
 
 	correlationID := GetCorrelationID(r.Context())
 
-	if logger != nil {
-		logger.Error("request error",
-			"correlation_id", correlationID,
-			"status", status,
-			"error", err.Error(),
-			"path", r.URL.Path,
-		)
-	}
+	logger.Error().Str("correlation_id", correlationID).Int("status", status).Err(err).Str("path", r.URL.Path).Msg("request error")
 
 	resp := JSONAPIErrorResponse{
 		Errors: []JSONAPIError{

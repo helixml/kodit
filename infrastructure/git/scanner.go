@@ -3,9 +3,10 @@ package git
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"path/filepath"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/service"
@@ -15,14 +16,11 @@ import (
 // Implements domain/service.Scanner interface.
 type RepositoryScanner struct {
 	adapter Adapter
-	logger  *slog.Logger
+	logger  zerolog.Logger
 }
 
 // NewRepositoryScanner creates a new RepositoryScanner with the specified adapter.
-func NewRepositoryScanner(adapter Adapter, logger *slog.Logger) *RepositoryScanner {
-	if logger == nil {
-		logger = slog.Default()
-	}
+func NewRepositoryScanner(adapter Adapter, logger zerolog.Logger) *RepositoryScanner {
 	return &RepositoryScanner{
 		adapter: adapter,
 		logger:  logger,
@@ -31,10 +29,7 @@ func NewRepositoryScanner(adapter Adapter, logger *slog.Logger) *RepositoryScann
 
 // ScanCommit scans a specific commit and returns commit with its files.
 func (s *RepositoryScanner) ScanCommit(ctx context.Context, clonedPath string, commitSHA string, repoID int64) (service.ScanCommitResult, error) {
-	s.logger.Info("scanning commit",
-		slog.String("sha", shortSHA(commitSHA)),
-		slog.String("path", clonedPath),
-	)
+	s.logger.Info().Str("sha", shortSHA(commitSHA)).Str("path", clonedPath).Msg("scanning commit")
 
 	commitInfo, err := s.adapter.CommitDetails(ctx, clonedPath, commitSHA)
 	if err != nil {
@@ -50,20 +45,14 @@ func (s *RepositoryScanner) ScanCommit(ctx context.Context, clonedPath string, c
 
 	files := s.filesFromInfo(filesInfo, commitSHA)
 
-	s.logger.Info("scanned commit",
-		slog.String("sha", shortSHA(commitSHA)),
-		slog.Int("files", len(files)),
-	)
+	s.logger.Info().Str("sha", shortSHA(commitSHA)).Int("files", len(files)).Msg("scanned commit")
 
 	return service.NewScanCommitResult(commit, files), nil
 }
 
 // ScanBranch scans all commits on a branch.
 func (s *RepositoryScanner) ScanBranch(ctx context.Context, clonedPath string, branchName string, repoID int64) ([]repository.Commit, error) {
-	s.logger.Info("scanning branch",
-		slog.String("branch", branchName),
-		slog.String("path", clonedPath),
-	)
+	s.logger.Info().Str("branch", branchName).Str("path", clonedPath).Msg("scanning branch")
 
 	commitInfos, err := s.adapter.BranchCommits(ctx, clonedPath, branchName)
 	if err != nil {
@@ -75,19 +64,14 @@ func (s *RepositoryScanner) ScanBranch(ctx context.Context, clonedPath string, b
 		commits = append(commits, s.commitFromInfo(info, repoID))
 	}
 
-	s.logger.Info("scanned branch",
-		slog.String("branch", branchName),
-		slog.Int("commits", len(commits)),
-	)
+	s.logger.Info().Str("branch", branchName).Int("commits", len(commits)).Msg("scanned branch")
 
 	return commits, nil
 }
 
 // ScanAllBranches scans metadata for all branches.
 func (s *RepositoryScanner) ScanAllBranches(ctx context.Context, clonedPath string, repoID int64) ([]repository.Branch, error) {
-	s.logger.Info("scanning all branches",
-		slog.String("path", clonedPath),
-	)
+	s.logger.Info().Str("path", clonedPath).Msg("scanning all branches")
 
 	branchInfos, err := s.adapter.AllBranches(ctx, clonedPath)
 	if err != nil {
@@ -99,18 +83,14 @@ func (s *RepositoryScanner) ScanAllBranches(ctx context.Context, clonedPath stri
 		branches = append(branches, s.branchFromInfo(info, repoID))
 	}
 
-	s.logger.Info("scanned all branches",
-		slog.Int("branches", len(branches)),
-	)
+	s.logger.Info().Int("branches", len(branches)).Msg("scanned all branches")
 
 	return branches, nil
 }
 
 // ScanAllTags scans metadata for all tags.
 func (s *RepositoryScanner) ScanAllTags(ctx context.Context, clonedPath string, repoID int64) ([]repository.Tag, error) {
-	s.logger.Info("scanning all tags",
-		slog.String("path", clonedPath),
-	)
+	s.logger.Info().Str("path", clonedPath).Msg("scanning all tags")
 
 	tagInfos, err := s.adapter.AllTags(ctx, clonedPath)
 	if err != nil {
@@ -122,9 +102,7 @@ func (s *RepositoryScanner) ScanAllTags(ctx context.Context, clonedPath string, 
 		tags = append(tags, s.tagFromInfo(info, repoID))
 	}
 
-	s.logger.Info("scanned all tags",
-		slog.Int("tags", len(tags)),
-	)
+	s.logger.Info().Int("tags", len(tags)).Msg("scanned all tags")
 
 	return tags, nil
 }
@@ -132,10 +110,7 @@ func (s *RepositoryScanner) ScanAllTags(ctx context.Context, clonedPath string, 
 // FilesForCommitsBatch processes files for a batch of commits.
 // Reuses adapter resources efficiently for large batches.
 func (s *RepositoryScanner) FilesForCommitsBatch(ctx context.Context, clonedPath string, commitSHAs []string) ([]repository.File, error) {
-	s.logger.Info("processing files for commit batch",
-		slog.String("path", clonedPath),
-		slog.Int("commits", len(commitSHAs)),
-	)
+	s.logger.Info().Str("path", clonedPath).Int("commits", len(commitSHAs)).Msg("processing files for commit batch")
 
 	var files []repository.File
 	for _, sha := range commitSHAs {
@@ -146,10 +121,7 @@ func (s *RepositoryScanner) FilesForCommitsBatch(ctx context.Context, clonedPath
 		files = append(files, s.filesFromInfo(filesInfo, sha)...)
 	}
 
-	s.logger.Info("processed files for commit batch",
-		slog.Int("commits", len(commitSHAs)),
-		slog.Int("files", len(files)),
-	)
+	s.logger.Info().Int("commits", len(commitSHAs)).Int("files", len(files)).Msg("processed files for commit batch")
 
 	return files, nil
 }

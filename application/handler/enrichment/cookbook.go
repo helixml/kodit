@@ -3,7 +3,6 @@ package enrichment
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
@@ -88,7 +87,7 @@ func (h *Cookbook) Execute(ctx context.Context, payload map[string]any) error {
 
 	count, err := h.enrichCtx.Enrichments.Count(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeUsage), enrichment.WithSubtype(enrichment.SubtypeCookbook))
 	if err != nil {
-		h.enrichCtx.Logger.Error("failed to check existing cookbook", slog.String("error", err.Error()))
+		h.enrichCtx.Logger.Error().Str("error", err.Error()).Msg("failed to check existing cookbook")
 		return err
 	}
 
@@ -131,7 +130,7 @@ func (h *Cookbook) Execute(ctx context.Context, payload map[string]any) error {
 
 	repoContext, err := h.contextGatherer.Gather(ctx, clonedPath, primaryLang)
 	if err != nil {
-		h.enrichCtx.Logger.Warn("failed to gather context", slog.String("error", err.Error()))
+		h.enrichCtx.Logger.Warn().Str("error", err.Error()).Msg("failed to gather context")
 		repoContext = fmt.Sprintf("Repository at %s with primary language %s", clonedPath, primaryLang)
 	}
 

@@ -2,9 +2,10 @@ package commit
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"testing"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/application/service"
@@ -31,7 +32,7 @@ func (f *fakeTrackerFactory) ForOperation(_ task.Operation, _ task.TrackableType
 
 func TestRescan_DeletesOldStatuses(t *testing.T) {
 	ctx := context.Background()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 
 	db := testdb.New(t)
 	enrichmentStore := persistence.NewEnrichmentStore(db)

@@ -3,7 +3,8 @@ package repository
 import (
 	"context"
 	"fmt"
-	"log/slog"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/application/service"
@@ -19,7 +20,7 @@ type Clone struct {
 	cloner         domainservice.Cloner
 	queue          *service.Queue
 	trackerFactory handler.TrackerFactory
-	logger         *slog.Logger
+	logger         zerolog.Logger
 }
 
 // NewClone creates a new Clone handler.
@@ -28,7 +29,7 @@ func NewClone(
 	cloner domainservice.Cloner,
 	queue *service.Queue,
 	trackerFactory handler.TrackerFactory,
-	logger *slog.Logger,
+	logger zerolog.Logger,
 ) *Clone {
 	return &Clone{
 		repoStore:      repoStore,
@@ -58,10 +59,7 @@ func (h *Clone) Execute(ctx context.Context, payload map[string]any) error {
 	}
 
 	if repo.HasWorkingCopy() {
-		h.logger.Info("repository already cloned",
-			slog.Int64("repo_id", repoID),
-			slog.String("path", repo.WorkingCopy().Path()),
-		)
+		h.logger.Info().Int64("repo_id", repoID).Str("path", repo.WorkingCopy().Path()).Msg("repository already cloned")
 		tracker.Skip(ctx, "Repository already cloned")
 		return nil
 	}
@@ -81,13 +79,10 @@ func (h *Clone) Execute(ctx context.Context, payload map[string]any) error {
 		return fmt.Errorf("save repository: %w", err)
 	}
 
-	h.logger.Info("repository cloned successfully",
-		slog.Int64("repo_id", repoID),
-		slog.String("path", clonedPath),
-	)
+	h.logger.Info().Int64("repo_id", repoID).Str("path", clonedPath).Msg("repository cloned successfully")
 
 	if err := h.enqueueFollowUpTasks(ctx, repoID); err != nil {
-		h.logger.Warn("failed to enqueue follow-up tasks", slog.String("error", err.Error()))
+		h.logger.Warn().Str("error", err.Error()).Msg("failed to enqueue follow-up tasks")
 	}
 
 	return nil

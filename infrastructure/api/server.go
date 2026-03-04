@@ -3,9 +3,10 @@ package api
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -16,15 +17,12 @@ import (
 type Server struct {
 	router     chi.Router
 	httpServer *http.Server
-	logger     *slog.Logger
+	logger     zerolog.Logger
 	addr       string
 }
 
 // NewServer creates a new API Server.
-func NewServer(addr string, logger *slog.Logger) Server {
-	if logger == nil {
-		logger = slog.Default()
-	}
+func NewServer(addr string, logger zerolog.Logger) Server {
 
 	router := chi.NewRouter()
 
@@ -69,7 +67,7 @@ func (s *Server) Start() error {
 		IdleTimeout:       120 * time.Second,
 	}
 
-	s.logger.Info("starting HTTP server", "addr", s.addr)
+	s.logger.Info().Str("addr", s.addr).Msg("starting HTTP server")
 	if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("http server error: %w", err)
 	}
@@ -82,7 +80,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		return nil
 	}
 
-	s.logger.Info("shutting down HTTP server")
+	s.logger.Info().Msg("shutting down HTTP server")
 	return s.httpServer.Shutdown(ctx)
 }
 
