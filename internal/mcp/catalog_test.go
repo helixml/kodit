@@ -23,7 +23,7 @@ func TestServerInstructions(t *testing.T) {
 	if instr == "" {
 		t.Fatal("ServerInstructions() is empty")
 	}
-	for _, phrase := range []string{"list_repositories", "semantic_search", "keyword_search", "grep"} {
+	for _, phrase := range []string{"kodit_repositories", "kodit_semantic_search", "kodit_keyword_search", "kodit_grep"} {
 		if !strings.Contains(instr, phrase) {
 			t.Errorf("ServerInstructions() does not contain %q", phrase)
 		}
@@ -33,7 +33,7 @@ func TestServerInstructions(t *testing.T) {
 func TestToolDefinitions_SemanticSearch(t *testing.T) {
 	var found bool
 	for _, def := range ToolDefinitions() {
-		if def.Name() != "semantic_search" {
+		if def.Name() != "kodit_semantic_search" {
 			continue
 		}
 		found = true

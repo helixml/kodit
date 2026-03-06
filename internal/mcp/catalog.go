@@ -49,15 +49,15 @@ func (d ToolDefinition) Params() []ParamDefinition {
 func tools() []ToolDefinition {
 	return []ToolDefinition{
 		{
-			name:        "get_version",
+			name:        "kodit_version",
 			description: "Get the kodit server version",
 		},
 		{
-			name:        "list_repositories",
+			name:        "kodit_repositories",
 			description: "List all repositories tracked by kodit",
 		},
 		{
-			name:        "get_architecture_docs",
+			name:        "kodit_architecture_docs",
 			description: "Get high-level architecture documentation for a repository",
 			params: []ParamDefinition{
 				{name: "repo_url", description: "The remote URL of the repository", typ: "string", required: true},
@@ -65,7 +65,7 @@ func tools() []ToolDefinition {
 			},
 		},
 		{
-			name:        "get_api_docs",
+			name:        "kodit_api_docs",
 			description: "Get API documentation for a repository",
 			params: []ParamDefinition{
 				{name: "repo_url", description: "The remote URL of the repository", typ: "string", required: true},
@@ -73,7 +73,7 @@ func tools() []ToolDefinition {
 			},
 		},
 		{
-			name:        "get_commit_description",
+			name:        "kodit_commit_description",
 			description: "Get commit description for a repository",
 			params: []ParamDefinition{
 				{name: "repo_url", description: "The remote URL of the repository", typ: "string", required: true},
@@ -81,7 +81,7 @@ func tools() []ToolDefinition {
 			},
 		},
 		{
-			name:        "get_database_schema",
+			name:        "kodit_database_schema",
 			description: "Get database schema documentation for a repository",
 			params: []ParamDefinition{
 				{name: "repo_url", description: "The remote URL of the repository", typ: "string", required: true},
@@ -89,7 +89,7 @@ func tools() []ToolDefinition {
 			},
 		},
 		{
-			name:        "get_cookbook",
+			name:        "kodit_cookbook",
 			description: "Get cookbook with usage examples for a repository",
 			params: []ParamDefinition{
 				{name: "repo_url", description: "The remote URL of the repository", typ: "string", required: true},
@@ -97,7 +97,7 @@ func tools() []ToolDefinition {
 			},
 		},
 		{
-			name:        "get_wiki",
+			name:        "kodit_wiki",
 			description: "Get the table of contents for a repository's wiki",
 			params: []ParamDefinition{
 				{name: "repo_url", description: "The remote URL of the repository", typ: "string", required: true},
@@ -105,7 +105,7 @@ func tools() []ToolDefinition {
 			},
 		},
 		{
-			name:        "get_wiki_page",
+			name:        "kodit_wiki_page",
 			description: "Get the content of a specific wiki page",
 			params: []ParamDefinition{
 				{name: "repo_url", description: "The remote URL of the repository", typ: "string", required: true},
@@ -114,7 +114,7 @@ func tools() []ToolDefinition {
 			},
 		},
 		{
-			name:        "semantic_search",
+			name:        "kodit_semantic_search",
 			description: "Search indexed files using semantic similarity and return file resource URIs",
 			params: []ParamDefinition{
 				{name: "query", description: "Natural language description of what you are looking for", typ: "string", required: true},
@@ -124,7 +124,7 @@ func tools() []ToolDefinition {
 			},
 		},
 		{
-			name:        "keyword_search",
+			name:        "kodit_keyword_search",
 			description: "Search indexed files using keyword-based BM25 search and return file resource URIs",
 			params: []ParamDefinition{
 				{name: "keywords", description: "Keywords to search for", typ: "string", required: true},
@@ -134,8 +134,8 @@ func tools() []ToolDefinition {
 			},
 		},
 		{
-			name:        "grep",
-			description: "Search file contents in a repository using git grep with regex patterns. Returns matching file URIs with line numbers. Use for exact/regex matching; use keyword_search for fuzzy/semantic matching.",
+			name:        "kodit_grep",
+			description: "Search file contents in a repository using git grep with regex patterns. Returns matching file URIs with line numbers. Use for exact/regex matching; use kodit_keyword_search for fuzzy/semantic matching.",
 			params: []ParamDefinition{
 				{name: "repo_url", description: "The remote URL of the repository", typ: "string", required: true},
 				{name: "pattern", description: "Regex pattern to search for (git grep syntax)", typ: "string", required: true},
@@ -144,14 +144,14 @@ func tools() []ToolDefinition {
 			},
 		},
 		{
-			name:        "read_resource",
-			description: "Read the contents of a file resource URI. Use this to fetch file content from URIs returned by semantic_search, keyword_search, grep, and ls.",
+			name:        "kodit_read_resource",
+			description: "Read the contents of a file resource URI. Use this to fetch file content from URIs returned by kodit_semantic_search, kodit_keyword_search, kodit_grep, and kodit_ls.",
 			params: []ParamDefinition{
 				{name: "uri", description: "The file resource URI (e.g. file://1/main/src/foo.go?lines=L17-L26&line_numbers=true)", typ: "string", required: true},
 			},
 		},
 		{
-			name:        "ls",
+			name:        "kodit_ls",
 			description: "List files matching a glob pattern in a repository",
 			params: []ParamDefinition{
 				{name: "repo_url", description: "The remote URL of the repository", typ: "string", required: true},

@@ -153,7 +153,7 @@ func TestMCPEndpoint_ListTools(t *testing.T) {
 	}
 
 	// Spot-check a few core tools rather than maintaining an exhaustive list.
-	for _, name := range []string{"get_version", "list_repositories", "semantic_search"} {
+	for _, name := range []string{"kodit_version", "kodit_repositories", "kodit_semantic_search"} {
 		if !names[name] {
 			t.Errorf("missing %s tool", name)
 		}
@@ -293,7 +293,7 @@ func TestMCPEndpoint_ServerMiddlewareStack(t *testing.T) {
 
 	// Call a tool to confirm end-to-end through the middleware stack.
 	callBody := mcpRequest(t, "tools/call", 3, map[string]any{
-		"name":      "get_version",
+		"name":      "kodit_version",
 		"arguments": map[string]any{},
 	})
 	w = postMCP(t, handler, callBody, sessionID)

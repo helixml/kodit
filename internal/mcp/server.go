@@ -99,24 +99,24 @@ type Server struct {
 const instructions = "This server provides access to code knowledge through multiple " +
 	"complementary tools:\n\n" +
 	"**Discovery workflow:**\n" +
-	"1. Use list_repositories() first to see available repositories\n" +
+	"1. Use kodit_repositories() first to see available repositories\n" +
 	"2. Then use repository-specific tools with the discovered repo URLs\n\n" +
 	"**Available tools:**\n" +
-	"- list_repositories() - Discover available repositories (call this first!)\n" +
-	"- get_architecture_docs() - High-level structure and design\n" +
-	"- get_api_docs() - Interface documentation\n" +
-	"- get_commit_description() - Recent changes and context\n" +
-	"- get_database_schema() - Data models\n" +
-	"- get_cookbook() - Complete usage examples\n" +
-	"- get_wiki() - Get the table of contents for a repository's wiki\n" +
-	"- get_wiki_page() - Get the content of a specific wiki page by slug\n" +
-	"- semantic_search() - Find files matching a natural language query (returns resource URIs)\n" +
-	"- keyword_search() - Find files matching keywords using BM25 search (returns resource URIs)\n" +
-	"- grep() - Search file contents using git grep with regex patterns (returns resource URIs)\n" +
-	"- ls() - List files matching a glob pattern in a repository\n" +
-	"- read_resource() - Read file content from a resource URI returned by search tools\n\n" +
+	"- kodit_repositories() - Discover available repositories (call this first!)\n" +
+	"- kodit_architecture_docs() - High-level structure and design\n" +
+	"- kodit_api_docs() - Interface documentation\n" +
+	"- kodit_commit_description() - Recent changes and context\n" +
+	"- kodit_database_schema() - Data models\n" +
+	"- kodit_cookbook() - Complete usage examples\n" +
+	"- kodit_wiki() - Get the table of contents for a repository's wiki\n" +
+	"- kodit_wiki_page() - Get the content of a specific wiki page by slug\n" +
+	"- kodit_semantic_search() - Find files matching a natural language query (returns resource URIs)\n" +
+	"- kodit_keyword_search() - Find files matching keywords using BM25 search (returns resource URIs)\n" +
+	"- kodit_grep() - Search file contents using git grep with regex patterns (returns resource URIs)\n" +
+	"- kodit_ls() - List files matching a glob pattern in a repository\n" +
+	"- kodit_read_resource() - Read file content from a resource URI returned by search tools\n\n" +
 	"**Reading file content:**\n" +
-	"Use read_resource() with the URI returned by search tools, or the file resource " +
+	"Use kodit_read_resource() with the URI returned by search tools, or the file resource " +
 	"template: file://{id}/{blob_name}/{+path}\n" +
 	"where id is the repository ID, blob_name is a commit SHA, tag, or branch name, " +
 	"and path is the file path within the repository.\n" +
@@ -176,20 +176,20 @@ func NewServer(
 // this method pairs each tool name with its handler.
 func (s *Server) registerTools(mcpServer *server.MCPServer) {
 	handlers := map[string]server.ToolHandlerFunc{
-		"get_version":            s.handleGetVersion,
-		"list_repositories":      s.handleListRepositories,
-		"get_architecture_docs":  s.handleGetArchitectureDocs,
-		"get_api_docs":           s.handleGetAPIDocs,
-		"get_commit_description": s.handleGetCommitDescription,
-		"get_database_schema":    s.handleGetDatabaseSchema,
-		"get_cookbook":           s.handleGetCookbook,
-		"get_wiki":               s.handleGetWiki,
-		"get_wiki_page":          s.handleGetWikiPage,
-		"semantic_search":        s.handleSemanticSearch,
-		"keyword_search":         s.handleKeywordSearch,
-		"grep":                   s.handleGrep,
-		"read_resource":          s.handleReadResource,
-		"ls":                     s.handleLs,
+		"kodit_version":            s.handleGetVersion,
+		"kodit_repositories":       s.handleListRepositories,
+		"kodit_architecture_docs":  s.handleGetArchitectureDocs,
+		"kodit_api_docs":           s.handleGetAPIDocs,
+		"kodit_commit_description": s.handleGetCommitDescription,
+		"kodit_database_schema":    s.handleGetDatabaseSchema,
+		"kodit_cookbook":           s.handleGetCookbook,
+		"kodit_wiki":               s.handleGetWiki,
+		"kodit_wiki_page":          s.handleGetWikiPage,
+		"kodit_semantic_search":    s.handleSemanticSearch,
+		"kodit_keyword_search":     s.handleKeywordSearch,
+		"kodit_grep":               s.handleGrep,
+		"kodit_read_resource":      s.handleReadResource,
+		"kodit_ls":                 s.handleLs,
 	}
 
 	for _, def := range tools() {
@@ -335,7 +335,7 @@ func (s *Server) handleGetWiki(ctx context.Context, request mcp.CallToolRequest)
 
 	pathIndex := w.PathIndex()
 	var b strings.Builder
-	b.WriteString("Wiki pages (use get_wiki_page with the slug to read a page):\n\n")
+	b.WriteString("Wiki pages (use kodit_wiki_page with the slug to read a page):\n\n")
 	formatPageTree(&b, w.Pages(), pathIndex, 0)
 	return mcp.NewToolResultText(b.String()), nil
 }

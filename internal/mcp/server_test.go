@@ -289,14 +289,14 @@ func TestServer_Initialize(t *testing.T) {
 	if result.Capabilities.Tools == nil {
 		t.Error("expected tools capability to be present")
 	}
-	if !containsStr(result.Instructions, "semantic_search") {
-		t.Error("expected instructions to mention semantic_search")
+	if !containsStr(result.Instructions, "kodit_semantic_search") {
+		t.Error("expected instructions to mention kodit_semantic_search")
 	}
-	if !containsStr(result.Instructions, "get_wiki") {
-		t.Error("expected instructions to mention get_wiki")
+	if !containsStr(result.Instructions, "kodit_wiki") {
+		t.Error("expected instructions to mention kodit_wiki")
 	}
-	if !containsStr(result.Instructions, "get_wiki_page") {
-		t.Error("expected instructions to mention get_wiki_page")
+	if !containsStr(result.Instructions, "kodit_wiki_page") {
+		t.Error("expected instructions to mention kodit_wiki_page")
 	}
 }
 
@@ -320,7 +320,7 @@ func TestServer_ListTools(t *testing.T) {
 	}
 
 	// Spot-check a few core tools rather than maintaining an exhaustive list.
-	for _, name := range []string{"get_version", "list_repositories", "semantic_search"} {
+	for _, name := range []string{"kodit_version", "kodit_repositories", "kodit_semantic_search"} {
 		if _, ok := tools[name]; !ok {
 			t.Errorf("missing tool: %s", name)
 		}
@@ -332,7 +332,7 @@ func TestServer_GetVersion(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name":      "get_version",
+		"name":      "kodit_version",
 		"arguments": map[string]any{},
 	})
 
@@ -354,7 +354,7 @@ func TestServer_ListRepositories(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name":      "list_repositories",
+		"name":      "kodit_repositories",
 		"arguments": map[string]any{},
 	})
 
@@ -382,7 +382,7 @@ func TestServer_GetArchitectureDocs(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "get_architecture_docs",
+		"name": "kodit_architecture_docs",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/example/repo",
 		},
@@ -406,7 +406,7 @@ func TestServer_GetArchitectureDocsRepoNotFound(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "get_architecture_docs",
+		"name": "kodit_architecture_docs",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/nonexistent/repo",
 		},
@@ -592,7 +592,7 @@ func TestServer_SemanticSearch(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "semantic_search",
+		"name": "kodit_semantic_search",
 		"arguments": map[string]any{
 			"query": "handle HTTP requests",
 		},
@@ -647,7 +647,7 @@ func TestServer_SemanticSearchMissingQuery(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name":      "semantic_search",
+		"name":      "kodit_semantic_search",
 		"arguments": map[string]any{},
 	})
 
@@ -708,7 +708,7 @@ func TestServer_SemanticSearch_AbsolutePathNormalized(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "semantic_search",
+		"name": "kodit_semantic_search",
 		"arguments": map[string]any{
 			"query": "bigquery client",
 		},
@@ -789,7 +789,7 @@ func TestServer_SemanticSearch_LanguageFilterDotPrefix(t *testing.T) {
 	// User passes ".py" (with dot) but enrichment stores "py" (without dot).
 	// The filter should normalize and match.
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "semantic_search",
+		"name": "kodit_semantic_search",
 		"arguments": map[string]any{
 			"query":    "bigquery client",
 			"language": ".py",
@@ -823,7 +823,7 @@ func TestServer_SemanticSearch_SourceRepoFilterApplied(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "semantic_search",
+		"name": "kodit_semantic_search",
 		"arguments": map[string]any{
 			"query":       "handle HTTP requests",
 			"source_repo": "https://github.com/nonexistent/fake-repo-12345",
@@ -853,7 +853,7 @@ func TestServer_SemanticSearch_LimitZeroReturnsEmpty(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "semantic_search",
+		"name": "kodit_semantic_search",
 		"arguments": map[string]any{
 			"query": "handle HTTP requests",
 			"limit": 0,
@@ -880,7 +880,7 @@ func TestServer_SemanticSearch_NegativeLimitReturnsError(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "semantic_search",
+		"name": "kodit_semantic_search",
 		"arguments": map[string]any{
 			"query": "handle HTTP requests",
 			"limit": -1,
@@ -941,7 +941,7 @@ func TestServer_SemanticSearch_LimitCapsResults(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "semantic_search",
+		"name": "kodit_semantic_search",
 		"arguments": map[string]any{
 			"query": "functions",
 			"limit": 2,
@@ -971,7 +971,7 @@ func TestServer_SemanticSearch_EmptyQueryReturnsError(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "semantic_search",
+		"name": "kodit_semantic_search",
 		"arguments": map[string]any{
 			"query": "",
 		},
@@ -1042,7 +1042,7 @@ func TestServer_SemanticSearchThenReadFile(t *testing.T) {
 
 	// Step 1: semantic_search
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "semantic_search",
+		"name": "kodit_semantic_search",
 		"arguments": map[string]any{
 			"query": "handler",
 		},
@@ -1127,7 +1127,7 @@ func TestServer_SemanticSearchThenReadFile_AbsolutePath(t *testing.T) {
 
 	// Step 1: semantic_search
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "semantic_search",
+		"name": "kodit_semantic_search",
 		"arguments": map[string]any{
 			"query": "bigquery client",
 		},
@@ -1206,7 +1206,7 @@ func TestServer_SemanticSearchThenReadFile_WithLineRange(t *testing.T) {
 
 	// Step 1: semantic_search
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "semantic_search",
+		"name": "kodit_semantic_search",
 		"arguments": map[string]any{
 			"query": "core logic",
 		},
@@ -1264,7 +1264,7 @@ func TestServer_SemanticSearchNoResults(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "semantic_search",
+		"name": "kodit_semantic_search",
 		"arguments": map[string]any{
 			"query": "nonexistent code",
 		},
@@ -1326,7 +1326,7 @@ func TestServer_KeywordSearch(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "keyword_search",
+		"name": "kodit_keyword_search",
 		"arguments": map[string]any{
 			"keywords": "handleRequest http",
 		},
@@ -1381,7 +1381,7 @@ func TestServer_KeywordSearch_MissingKeywords(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name":      "keyword_search",
+		"name":      "kodit_keyword_search",
 		"arguments": map[string]any{},
 	})
 
@@ -1402,7 +1402,7 @@ func TestServer_KeywordSearch_WhitespaceOnlyKeywords(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "keyword_search",
+		"name": "kodit_keyword_search",
 		"arguments": map[string]any{
 			"keywords": "   ",
 		},
@@ -1425,7 +1425,7 @@ func TestServer_KeywordSearch_EmptyKeywords(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "keyword_search",
+		"name": "kodit_keyword_search",
 		"arguments": map[string]any{
 			"keywords": "",
 		},
@@ -1448,7 +1448,7 @@ func TestServer_KeywordSearch_NegativeLimit(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "keyword_search",
+		"name": "kodit_keyword_search",
 		"arguments": map[string]any{
 			"keywords": "test",
 			"limit":    -1,
@@ -1468,7 +1468,7 @@ func TestServer_KeywordSearch_ZeroLimit(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "keyword_search",
+		"name": "kodit_keyword_search",
 		"arguments": map[string]any{
 			"keywords": "test",
 			"limit":    0,
@@ -1493,7 +1493,7 @@ func TestServer_KeywordSearch_SourceRepoFilter(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "keyword_search",
+		"name": "kodit_keyword_search",
 		"arguments": map[string]any{
 			"keywords":    "handleRequest",
 			"source_repo": "https://github.com/nonexistent/fake-repo-12345",
@@ -1539,7 +1539,7 @@ func TestServer_KeywordSearch_NoResults(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "keyword_search",
+		"name": "kodit_keyword_search",
 		"arguments": map[string]any{
 			"keywords": "nonexistent",
 		},
@@ -1586,7 +1586,7 @@ func TestServer_KeywordSearch_RawJSON(t *testing.T) {
 		"id": 1,
 		"method": "tools/call",
 		"params": {
-			"name": "keyword_search",
+			"name": "kodit_keyword_search",
 			"arguments": {
 				"keywords": "structured ndarray gets viewed as a mixin",
 				"language": ".py",
@@ -1654,7 +1654,7 @@ func TestServer_KeywordSearchThenReadFile(t *testing.T) {
 
 	// Step 1: keyword_search
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "keyword_search",
+		"name": "kodit_keyword_search",
 		"arguments": map[string]any{
 			"keywords": "handleRequest",
 		},
@@ -1775,7 +1775,7 @@ func TestServer_GetWiki(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "get_wiki",
+		"name": "kodit_wiki",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/example/repo",
 		},
@@ -1808,7 +1808,7 @@ func TestServer_GetWiki_RepoNotFound(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "get_wiki",
+		"name": "kodit_wiki",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/nonexistent/repo",
 		},
@@ -1849,7 +1849,7 @@ func TestServer_GetWiki_NoWiki(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "get_wiki",
+		"name": "kodit_wiki",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/example/repo",
 		},
@@ -1873,7 +1873,7 @@ func TestServer_GetWikiPage(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "get_wiki_page",
+		"name": "kodit_wiki_page",
 		"arguments": map[string]any{
 			"repo_url":  "https://github.com/example/repo",
 			"page_slug": "getting-started",
@@ -1901,7 +1901,7 @@ func TestServer_GetWikiPage_NotFound(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "get_wiki_page",
+		"name": "kodit_wiki_page",
 		"arguments": map[string]any{
 			"repo_url":  "https://github.com/example/repo",
 			"page_slug": "nonexistent-page",
@@ -1926,7 +1926,7 @@ func TestServer_GetWikiPage_MissingSlug(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "get_wiki_page",
+		"name": "kodit_wiki_page",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/example/repo",
 		},
@@ -1976,7 +1976,7 @@ func TestServer_Ls(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "ls",
+		"name": "kodit_ls",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/example/repo",
 			"pattern":  "**/*.go",
@@ -2018,7 +2018,7 @@ func TestServer_Ls_ReturnsFileURIs(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "ls",
+		"name": "kodit_ls",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/example/repo",
 			"pattern":  "**/*",
@@ -2056,7 +2056,7 @@ func TestServer_Ls_NoMatches(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "ls",
+		"name": "kodit_ls",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/example/repo",
 			"pattern":  "**/*.rs",
@@ -2081,7 +2081,7 @@ func TestServer_Ls_MissingPattern(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "ls",
+		"name": "kodit_ls",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/example/repo",
 		},
@@ -2105,7 +2105,7 @@ func TestServer_Ls_EmptyPattern(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "ls",
+		"name": "kodit_ls",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/example/repo",
 			"pattern":  "   ",
@@ -2147,7 +2147,7 @@ func TestServer_Ls_RepoNotFound(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "ls",
+		"name": "kodit_ls",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/unknown/repo",
 			"pattern":  "*.go",
@@ -2238,7 +2238,7 @@ func TestServer_KeywordSearch_HTTP(t *testing.T) {
 	}
 
 	// 2. Call keyword_search — this is the exact JSON the Python CLI sends.
-	toolBody := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"keyword_search","arguments":{"keywords":"handleRequest http","limit":20}}}`)
+	toolBody := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"kodit_keyword_search","arguments":{"keywords":"handleRequest http","limit":20}}}`)
 	toolResp := post(toolBody, sessionID)
 	if toolResp.Code != http.StatusOK {
 		t.Fatalf("keyword_search: status=%d, body=%s", toolResp.Code, toolResp.Body.String())
@@ -2319,7 +2319,7 @@ func TestServer_Grep(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "grep",
+		"name": "kodit_grep",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/example/repo",
 			"pattern":  "func.*\\(",
@@ -2374,7 +2374,7 @@ func TestServer_Grep_MissingPattern(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "grep",
+		"name": "kodit_grep",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/example/repo",
 		},
@@ -2397,7 +2397,7 @@ func TestServer_Grep_EmptyPattern(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "grep",
+		"name": "kodit_grep",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/example/repo",
 			"pattern":  "   ",
@@ -2438,7 +2438,7 @@ func TestServer_Grep_NoResults(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "grep",
+		"name": "kodit_grep",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/example/repo",
 			"pattern":  "nonexistent",
@@ -2462,7 +2462,7 @@ func TestServer_ReadResource(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "read_resource",
+		"name": "kodit_read_resource",
 		"arguments": map[string]any{
 			"uri": "file://1/main/README.md",
 		},
@@ -2486,7 +2486,7 @@ func TestServer_ReadResource_WithLines(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "read_resource",
+		"name": "kodit_read_resource",
 		"arguments": map[string]any{
 			"uri": "file://1/main/README.md?lines=L2-L3&line_numbers=true",
 		},
@@ -2511,7 +2511,7 @@ func TestServer_ReadResource_MissingURI(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name":      "read_resource",
+		"name":      "kodit_read_resource",
 		"arguments": map[string]any{},
 	})
 
@@ -2533,7 +2533,7 @@ func TestServer_ReadResource_InvalidScheme(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "read_resource",
+		"name": "kodit_read_resource",
 		"arguments": map[string]any{
 			"uri": "https://example.com/file.txt",
 		},
@@ -2557,7 +2557,7 @@ func TestServer_Grep_RepoNotFound(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name": "grep",
+		"name": "kodit_grep",
 		"arguments": map[string]any{
 			"repo_url": "https://github.com/nonexistent/repo",
 			"pattern":  "test",
