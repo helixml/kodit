@@ -176,7 +176,7 @@ def cmd_read_file(args):
 
 
 def cmd_semantic_search(args):
-    """Execute the semantic_search tool."""
+    """Execute the kodit_semantic_search tool."""
     arguments = {"query": args.query}
     if args.language:
         arguments["language"] = args.language
@@ -184,11 +184,11 @@ def cmd_semantic_search(args):
         arguments["source_repo"] = args.source_repo
     if args.limit:
         arguments["limit"] = args.limit
-    _call_tool("semantic_search", arguments)
+    _call_tool("kodit_semantic_search", arguments)
 
 
 def cmd_keyword_search(args):
-    """Execute the keyword_search tool."""
+    """Execute the kodit_keyword_search tool."""
     arguments = {"keywords": args.keywords}
     if args.language:
         arguments["language"] = args.language
@@ -196,57 +196,57 @@ def cmd_keyword_search(args):
         arguments["source_repo"] = args.source_repo
     if args.limit:
         arguments["limit"] = args.limit
-    _call_tool("keyword_search", arguments)
+    _call_tool("kodit_keyword_search", arguments)
 
 
 def cmd_version(_args):
-    """Execute the get_version tool."""
-    _call_tool("get_version", {})
+    """Execute the kodit_version tool."""
+    _call_tool("kodit_version", {})
 
 
 def cmd_list_repositories(_args):
-    """Execute the list_repositories tool."""
-    _call_tool("list_repositories", {})
+    """Execute the kodit_repositories tool."""
+    _call_tool("kodit_repositories", {})
 
 
 def cmd_architecture(args):
-    """Execute the get_architecture_docs tool."""
+    """Execute the kodit_architecture_docs tool."""
     arguments = {"repo_url": args.repo_url}
     if args.commit_sha:
         arguments["commit_sha"] = args.commit_sha
-    _call_tool("get_architecture_docs", arguments)
+    _call_tool("kodit_architecture_docs", arguments)
 
 
 def cmd_api_docs(args):
-    """Execute the get_api_docs tool."""
+    """Execute the kodit_api_docs tool."""
     arguments = {"repo_url": args.repo_url}
     if args.commit_sha:
         arguments["commit_sha"] = args.commit_sha
-    _call_tool("get_api_docs", arguments)
+    _call_tool("kodit_api_docs", arguments)
 
 
 def cmd_commit_description(args):
-    """Execute the get_commit_description tool."""
+    """Execute the kodit_commit_description tool."""
     arguments = {"repo_url": args.repo_url}
     if args.commit_sha:
         arguments["commit_sha"] = args.commit_sha
-    _call_tool("get_commit_description", arguments)
+    _call_tool("kodit_commit_description", arguments)
 
 
 def cmd_database_schema(args):
-    """Execute the get_database_schema tool."""
+    """Execute the kodit_database_schema tool."""
     arguments = {"repo_url": args.repo_url}
     if args.commit_sha:
         arguments["commit_sha"] = args.commit_sha
-    _call_tool("get_database_schema", arguments)
+    _call_tool("kodit_database_schema", arguments)
 
 
 def cmd_cookbook(args):
-    """Execute the get_cookbook tool."""
+    """Execute the kodit_cookbook tool."""
     arguments = {"repo_url": args.repo_url}
     if args.commit_sha:
         arguments["commit_sha"] = args.commit_sha
-    _call_tool("get_cookbook", arguments)
+    _call_tool("kodit_cookbook", arguments)
 
 
 def _add_repo_args(subparser):

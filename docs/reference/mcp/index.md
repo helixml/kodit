@@ -165,18 +165,18 @@ The Kodit MCP server exposes the following tools to AI coding assistants:
 
 | Tool | Description |
 |------|-------------|
-| `list_repositories` | List all indexed repositories. Call this first to discover available repos. |
-| `get_version` | Get the Kodit server version. |
+| `kodit_repositories` | List all indexed repositories. Call this first to discover available repos. |
+| `kodit_version` | Get the Kodit server version. |
 
 ### Repository Knowledge Tools
 
 | Tool | Description |
 |------|-------------|
-| `get_architecture_docs` | Get high-level architecture documentation for a repository. |
-| `get_api_docs` | Get API/interface documentation for a repository. |
-| `get_database_schema` | Get database schema documentation for a repository. |
-| `get_cookbook` | Get usage examples and cookbook entries for a repository. |
-| `get_commit_description` | Get the description of a specific commit. |
+| `kodit_architecture_docs` | Get high-level architecture documentation for a repository. |
+| `kodit_api_docs` | Get API/interface documentation for a repository. |
+| `kodit_database_schema` | Get database schema documentation for a repository. |
+| `kodit_cookbook` | Get usage examples and cookbook entries for a repository. |
+| `kodit_commit_description` | Get the description of a specific commit. |
 
 ### Search Tool
 
