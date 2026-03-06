@@ -82,6 +82,9 @@ type Client struct {
 	Search       *service.Search
 	Grep         *service.Grep
 
+	// MCPServer describes the MCP server's tools and instructions.
+	MCPServer MCPServer
+
 	db         database.Database
 	repoStores handler.RepositoryStores
 
@@ -393,6 +396,9 @@ func New(opts ...Option) (*Client, error) {
 		chunkParams:       cfg.chunkParams,
 		prescribedOps:     prescribedOps,
 	}
+
+	// Populate MCP server metadata
+	client.MCPServer = mcpServerFromDefinitions()
 
 	// Initialize service fields directly
 	client.Repositories = service.NewRepository(repoStore, commitStore, branchStore, tagStore, queue, client.prescribedOps, logger)
