@@ -172,167 +172,33 @@ func NewServer(
 }
 
 // registerTools registers all kodit tools with the MCP server.
+// Tool definitions come from the shared tools() list in catalog.go;
+// this method pairs each tool name with its handler.
 func (s *Server) registerTools(mcpServer *server.MCPServer) {
-	mcpServer.AddTool(mcp.NewTool("get_version",
-		mcp.WithDescription("Get the kodit server version"),
-	), s.handleGetVersion)
+	handlers := map[string]server.ToolHandlerFunc{
+		"get_version":            s.handleGetVersion,
+		"list_repositories":      s.handleListRepositories,
+		"get_architecture_docs":  s.handleGetArchitectureDocs,
+		"get_api_docs":           s.handleGetAPIDocs,
+		"get_commit_description": s.handleGetCommitDescription,
+		"get_database_schema":    s.handleGetDatabaseSchema,
+		"get_cookbook":           s.handleGetCookbook,
+		"get_wiki":               s.handleGetWiki,
+		"get_wiki_page":          s.handleGetWikiPage,
+		"semantic_search":        s.handleSemanticSearch,
+		"keyword_search":         s.handleKeywordSearch,
+		"grep":                   s.handleGrep,
+		"read_resource":          s.handleReadResource,
+		"ls":                     s.handleLs,
+	}
 
-	mcpServer.AddTool(mcp.NewTool("list_repositories",
-		mcp.WithDescription("List all repositories tracked by kodit"),
-	), s.handleListRepositories)
-
-	mcpServer.AddTool(mcp.NewTool("get_architecture_docs",
-		mcp.WithDescription("Get high-level architecture documentation for a repository"),
-		mcp.WithString("repo_url",
-			mcp.Required(),
-			mcp.Description("The remote URL of the repository"),
-		),
-		mcp.WithString("commit_sha",
-			mcp.Description("The commit SHA to get docs for (defaults to latest)"),
-		),
-	), s.handleGetArchitectureDocs)
-
-	mcpServer.AddTool(mcp.NewTool("get_api_docs",
-		mcp.WithDescription("Get API documentation for a repository"),
-		mcp.WithString("repo_url",
-			mcp.Required(),
-			mcp.Description("The remote URL of the repository"),
-		),
-		mcp.WithString("commit_sha",
-			mcp.Description("The commit SHA to get docs for (defaults to latest)"),
-		),
-	), s.handleGetAPIDocs)
-
-	mcpServer.AddTool(mcp.NewTool("get_commit_description",
-		mcp.WithDescription("Get commit description for a repository"),
-		mcp.WithString("repo_url",
-			mcp.Required(),
-			mcp.Description("The remote URL of the repository"),
-		),
-		mcp.WithString("commit_sha",
-			mcp.Description("The commit SHA to get docs for (defaults to latest)"),
-		),
-	), s.handleGetCommitDescription)
-
-	mcpServer.AddTool(mcp.NewTool("get_database_schema",
-		mcp.WithDescription("Get database schema documentation for a repository"),
-		mcp.WithString("repo_url",
-			mcp.Required(),
-			mcp.Description("The remote URL of the repository"),
-		),
-		mcp.WithString("commit_sha",
-			mcp.Description("The commit SHA to get docs for (defaults to latest)"),
-		),
-	), s.handleGetDatabaseSchema)
-
-	mcpServer.AddTool(mcp.NewTool("get_cookbook",
-		mcp.WithDescription("Get cookbook with usage examples for a repository"),
-		mcp.WithString("repo_url",
-			mcp.Required(),
-			mcp.Description("The remote URL of the repository"),
-		),
-		mcp.WithString("commit_sha",
-			mcp.Description("The commit SHA to get docs for (defaults to latest)"),
-		),
-	), s.handleGetCookbook)
-
-	mcpServer.AddTool(mcp.NewTool("get_wiki",
-		mcp.WithDescription("Get the table of contents for a repository's wiki"),
-		mcp.WithString("repo_url",
-			mcp.Required(),
-			mcp.Description("The remote URL of the repository"),
-		),
-		mcp.WithString("commit_sha",
-			mcp.Description("The commit SHA to get the wiki for (defaults to latest)"),
-		),
-	), s.handleGetWiki)
-
-	mcpServer.AddTool(mcp.NewTool("get_wiki_page",
-		mcp.WithDescription("Get the content of a specific wiki page"),
-		mcp.WithString("repo_url",
-			mcp.Required(),
-			mcp.Description("The remote URL of the repository"),
-		),
-		mcp.WithString("page_slug",
-			mcp.Required(),
-			mcp.Description("The slug of the wiki page to retrieve"),
-		),
-		mcp.WithString("commit_sha",
-			mcp.Description("The commit SHA to get the wiki for (defaults to latest)"),
-		),
-	), s.handleGetWikiPage)
-
-	mcpServer.AddTool(mcp.NewTool("semantic_search",
-		mcp.WithDescription("Search indexed files using semantic similarity and return file resource URIs"),
-		mcp.WithString("query",
-			mcp.Required(),
-			mcp.Description("Natural language description of what you are looking for"),
-		),
-		mcp.WithString("language",
-			mcp.Description("Filter by file extension (e.g. .go, .py)"),
-		),
-		mcp.WithString("source_repo",
-			mcp.Description("Filter by source repository URL"),
-		),
-		mcp.WithNumber("limit",
-			mcp.Description("Maximum number of results (default 10)"),
-		),
-	), s.handleSemanticSearch)
-
-	mcpServer.AddTool(mcp.NewTool("keyword_search",
-		mcp.WithDescription("Search indexed files using keyword-based BM25 search and return file resource URIs"),
-		mcp.WithString("keywords",
-			mcp.Required(),
-			mcp.Description("Keywords to search for"),
-		),
-		mcp.WithString("source_repo",
-			mcp.Description("Filter by source repository URL"),
-		),
-		mcp.WithString("language",
-			mcp.Description("Filter by programming language"),
-		),
-		mcp.WithNumber("limit",
-			mcp.Description("Maximum number of results (default 10)"),
-		),
-	), s.handleKeywordSearch)
-
-	mcpServer.AddTool(mcp.NewTool("grep",
-		mcp.WithDescription("Search file contents in a repository using git grep with regex patterns. Returns matching file URIs with line numbers. Use for exact/regex matching; use keyword_search for fuzzy/semantic matching."),
-		mcp.WithString("repo_url",
-			mcp.Required(),
-			mcp.Description("The remote URL of the repository"),
-		),
-		mcp.WithString("pattern",
-			mcp.Required(),
-			mcp.Description("Regex pattern to search for (git grep syntax)"),
-		),
-		mcp.WithString("glob",
-			mcp.Description("File path filter (e.g. \"*.go\", \"src/**/*.ts\")"),
-		),
-		mcp.WithNumber("limit",
-			mcp.Description("Maximum number of file results (default 50)"),
-		),
-	), s.handleGrep)
-
-	mcpServer.AddTool(mcp.NewTool("read_resource",
-		mcp.WithDescription("Read the contents of a file resource URI. Use this to fetch file content from URIs returned by semantic_search, keyword_search, grep, and ls."),
-		mcp.WithString("uri",
-			mcp.Required(),
-			mcp.Description("The file resource URI (e.g. file://1/main/src/foo.go?lines=L17-L26&line_numbers=true)"),
-		),
-	), s.handleReadResource)
-
-	mcpServer.AddTool(mcp.NewTool("ls",
-		mcp.WithDescription("List files matching a glob pattern in a repository"),
-		mcp.WithString("repo_url",
-			mcp.Required(),
-			mcp.Description("The remote URL of the repository"),
-		),
-		mcp.WithString("pattern",
-			mcp.Required(),
-			mcp.Description("Glob pattern to match files (e.g. **/*.go, src/*.py)"),
-		),
-	), s.handleLs)
+	for _, def := range tools() {
+		handler, ok := handlers[def.name]
+		if !ok {
+			continue
+		}
+		mcpServer.AddTool(mcpTool(def), handler)
+	}
 }
 
 // handleGetVersion returns the kodit server version.
