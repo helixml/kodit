@@ -2,7 +2,6 @@ package persistence
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/helixml/kodit/domain/chunk"
@@ -439,12 +438,10 @@ func (m AssociationMapper) ToModel(a enrichment.Association) EnrichmentAssociati
 type TaskMapper struct{}
 
 // ToDomain converts a TaskModel to a domain Task.
-func (m TaskMapper) ToDomain(e TaskModel) (task.Task, error) {
+func (m TaskMapper) ToDomain(e TaskModel) task.Task {
 	var payload map[string]any
 	if len(e.Payload) > 0 {
-		if err := json.Unmarshal(e.Payload, &payload); err != nil {
-			return task.Task{}, fmt.Errorf("failed to unmarshal task payload: %w", err)
-		}
+		_ = json.Unmarshal(e.Payload, &payload)
 	}
 	if payload == nil {
 		payload = make(map[string]any)
@@ -458,15 +455,12 @@ func (m TaskMapper) ToDomain(e TaskModel) (task.Task, error) {
 		payload,
 		e.CreatedAt,
 		e.UpdatedAt,
-	), nil
+	)
 }
 
 // ToModel converts a domain Task to a TaskModel.
-func (m TaskMapper) ToModel(t task.Task) (TaskModel, error) {
-	payloadJSON, err := json.Marshal(t.Payload())
-	if err != nil {
-		return TaskModel{}, fmt.Errorf("failed to marshal task payload: %w", err)
-	}
+func (m TaskMapper) ToModel(t task.Task) TaskModel {
+	payloadJSON, _ := json.Marshal(t.Payload())
 
 	return TaskModel{
 		ID:        t.ID(),
@@ -476,7 +470,7 @@ func (m TaskMapper) ToModel(t task.Task) (TaskModel, error) {
 		Priority:  t.Priority(),
 		CreatedAt: t.CreatedAt(),
 		UpdatedAt: t.UpdatedAt(),
-	}, nil
+	}
 }
 
 // TaskStatusMapper maps between domain Status and persistence TaskStatusModel.
