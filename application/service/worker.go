@@ -79,6 +79,7 @@ func (r *Registry) Operations() []task.Operation {
 // Worker processes tasks from the queue.
 type Worker struct {
 	store          task.TaskStore
+	statusStore    task.StatusStore
 	registry       *Registry
 	trackerFactory WorkerTrackerFactory
 	logger         zerolog.Logger
@@ -91,9 +92,10 @@ type Worker struct {
 }
 
 // NewWorker creates a new queue worker.
-func NewWorker(store task.TaskStore, registry *Registry, trackerFactory WorkerTrackerFactory, logger zerolog.Logger) *Worker {
+func NewWorker(store task.TaskStore, statusStore task.StatusStore, registry *Registry, trackerFactory WorkerTrackerFactory, logger zerolog.Logger) *Worker {
 	return &Worker{
 		store:          store,
+		statusStore:    statusStore,
 		registry:       registry,
 		trackerFactory: trackerFactory,
 		logger:         logger,
@@ -109,9 +111,13 @@ func (w *Worker) WithPollPeriod(d time.Duration) *Worker {
 
 // Start begins processing tasks from the queue.
 // The worker runs in a goroutine and can be stopped with Stop().
-func (w *Worker) Start(ctx context.Context) {
+func (w *Worker) Start(ctx context.Context) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+
+	if err := w.recoverStaleStatuses(ctx); err != nil {
+		return fmt.Errorf("recover stale statuses: %w", err)
+	}
 
 	ctx, w.cancel = context.WithCancel(ctx)
 	w.wg.Add(1)
@@ -122,6 +128,26 @@ func (w *Worker) Start(ctx context.Context) {
 	}()
 
 	w.logger.Info().Msg("queue worker started")
+	return nil
+}
+
+// recoverStaleStatuses marks any in_progress/started statuses as failed.
+// This handles the case where the worker crashed mid-task and the status
+// was never updated to a terminal state.
+func (w *Worker) recoverStaleStatuses(ctx context.Context) error {
+	stale, err := w.statusStore.Find(ctx, task.WithActiveState())
+	if err != nil {
+		return err
+	}
+	for _, s := range stale {
+		if _, err := w.statusStore.Save(ctx, s.Fail("worker restarted while task was in progress")); err != nil {
+			return err
+		}
+	}
+	if len(stale) > 0 {
+		w.logger.Warn().Int("count", len(stale)).Msg("recovered stale in-progress statuses on startup")
+	}
+	return nil
 }
 
 // Stop gracefully shuts down the worker.
