@@ -29,7 +29,34 @@ make test-smoke                  # Run smoke tests (needs running Docker env)
 
 ## Repositories and Database Stores
 
-Every store embeds `database.Repository[D, E]` (`internal/database/repository.go`), which provides `Find`, `FindOne`, `Count`, `Exists`, `DeleteBy`, `Mapper()`, and `DB(ctx)`.
+Every store embeds `database.Repository[D, E]` (`internal/database/repository.go`) and implements `repository.Store[T]` (`domain/repository/store.go`).
+
+**Prefer the generic methods from `Repository` and `Store`** — do not add custom query methods to stores. The base types already provide:
+
+| Method | Source | Purpose |
+|---|---|---|
+| `Find(ctx, ...Option)` | Repository | List entities matching options |
+| `FindOne(ctx, ...Option)` | Repository | Single entity or `ErrNotFound` |
+| `Count(ctx, ...Option)` | Repository | Count matching entities |
+| `Exists(ctx, ...Option)` | Repository | Check existence |
+| `DeleteBy(ctx, ...Option)` | Repository | Remove matching entities |
+| `Save(ctx, entity)` | Store impl | Create or update one entity |
+| `Delete(ctx, entity)` | Store impl | Remove one entity |
+| `DB(ctx)` | Repository | Raw GORM session (last resort) |
+| `Mapper()` | Repository | Access the entity mapper |
+
+**Use options to express queries** — not one-off methods. Define options in `domain/<domain>/options.go` using `repository.WithCondition`:
+
+```go
+func WithSHA(sha string) Option { return WithCondition("commit_sha", sha) }
+
+commits, err := store.Find(ctx, repository.WithRepoID(id), repository.WithSHA(sha))
+one, err := store.FindOne(ctx, repository.WithID(id))
+count, err := store.Count(ctx, repository.WithRepoID(id))
+exists, err := store.Exists(ctx, repository.WithSHA(sha))
+err := store.DeleteBy(ctx, repository.WithRepoID(id))
+saved, err := store.Save(ctx, commit)
+```
 
 ```go
 type CommitStore struct {
@@ -43,18 +70,9 @@ func NewCommitStore(db database.Database) CommitStore {
 }
 ```
 
-**Use `Find` with options** — not raw GORM queries or one-off methods. Define options in `domain/<domain>/options.go` using `repository.WithCondition`:
-
-```go
-func WithSHA(sha string) Option { return WithCondition("commit_sha", sha) }
-
-commits, err := store.Find(ctx, repository.WithRepoID(id), repository.WithSHA(sha))
-one, err := store.FindOne(ctx, repository.WithID(id))
-```
-
 For JOINs, use `repository.WithParam` and override `Find` in the store. See `EnrichmentStore`.
 
-**Do not:** add `Get`/`GetBy` methods, store separate `db`/`mapper` fields, write raw `WHERE` clauses for equality filters, or rewrite `Find`/`FindOne`/`Count` unless JOINs are needed.
+**Do not:** add `Get`/`GetBy`/`FindBy`/`DeleteByX` methods, store separate `db`/`mapper` fields, write raw `WHERE` clauses for equality filters, or rewrite `Find`/`FindOne`/`Count`/`Save`/`Delete`/`Exists`/`DeleteBy` unless JOINs are needed. If a query can be expressed with options, use the generic methods.
 
 ## Testing
 
