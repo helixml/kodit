@@ -55,7 +55,8 @@ func TestWorker_ProcessOne(t *testing.T) {
 	}))
 
 	factory := &recordingTrackerFactory{}
-	worker := NewWorker(store, registry, factory, zerolog.Nop())
+	statusStore := persistence.NewStatusStore(db)
+	worker := NewWorker(store, statusStore, registry, factory, zerolog.Nop())
 
 	found, err := worker.ProcessOne(ctx)
 	require.NoError(t, err)
@@ -85,7 +86,8 @@ func TestWorker_ProcessOne_FailedHandler(t *testing.T) {
 	}))
 
 	factory := &recordingTrackerFactory{}
-	worker := NewWorker(store, registry, factory, zerolog.Nop())
+	statusStore := persistence.NewStatusStore(db)
+	worker := NewWorker(store, statusStore, registry, factory, zerolog.Nop())
 
 	found, err := worker.ProcessOne(ctx)
 	require.NoError(t, err)
@@ -104,7 +106,8 @@ func TestWorker_ProcessOne_EmptyQueue(t *testing.T) {
 	store := persistence.NewTaskStore(db)
 
 	registry := NewRegistry()
-	worker := NewWorker(store, registry, nil, zerolog.Nop())
+	statusStore := persistence.NewStatusStore(db)
+	worker := NewWorker(store, statusStore, registry, nil, zerolog.Nop())
 
 	found, err := worker.ProcessOne(context.Background())
 	require.NoError(t, err)
@@ -121,7 +124,8 @@ func TestWorker_ProcessOne_UnregisteredHandler(t *testing.T) {
 	require.NoError(t, err)
 
 	registry := NewRegistry()
-	worker := NewWorker(store, registry, nil, zerolog.Nop())
+	statusStore := persistence.NewStatusStore(db)
+	worker := NewWorker(store, statusStore, registry, nil, zerolog.Nop())
 
 	found, err := worker.ProcessOne(ctx)
 	require.NoError(t, err)
@@ -130,6 +134,57 @@ func TestWorker_ProcessOne_UnregisteredHandler(t *testing.T) {
 	count, err := store.Count(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), count)
+}
+
+func TestWorker_Start_RecoverStaleStatuses(t *testing.T) {
+	db := testdb.New(t)
+	store := persistence.NewTaskStore(db)
+	statusStore := persistence.NewStatusStore(db)
+	ctx := context.Background()
+
+	started := task.NewStatus("op_a", nil, task.TrackableTypeRepository, 1)
+	inProgress := task.NewStatus("op_b", nil, task.TrackableTypeRepository, 2).
+		SetCurrent(5, "working")
+	completed := task.NewStatus("op_c", nil, task.TrackableTypeRepository, 3).
+		Complete()
+
+	for _, s := range []task.Status{started, inProgress, completed} {
+		_, err := statusStore.Save(ctx, s)
+		require.NoError(t, err)
+	}
+
+	registry := NewRegistry()
+	worker := NewWorker(store, statusStore, registry, nil, zerolog.Nop())
+
+	err := worker.Start(ctx)
+	require.NoError(t, err)
+	worker.Stop()
+
+	all, err := statusStore.Find(ctx)
+	require.NoError(t, err)
+	require.Len(t, all, 3)
+
+	states := map[task.Operation]task.ReportingState{}
+	for _, s := range all {
+		states[s.Operation()] = s.State()
+	}
+	assert.Equal(t, task.ReportingStateFailed, states["op_a"])
+	assert.Equal(t, task.ReportingStateFailed, states["op_b"])
+	assert.Equal(t, task.ReportingStateCompleted, states["op_c"])
+}
+
+func TestWorker_Start_NoStaleStatuses(t *testing.T) {
+	db := testdb.New(t)
+	store := persistence.NewTaskStore(db)
+	statusStore := persistence.NewStatusStore(db)
+	ctx := context.Background()
+
+	registry := NewRegistry()
+	worker := NewWorker(store, statusStore, registry, nil, zerolog.Nop())
+
+	err := worker.Start(ctx)
+	require.NoError(t, err)
+	worker.Stop()
 }
 
 func TestWorker_ProcessOne_HighestPriorityFirst(t *testing.T) {

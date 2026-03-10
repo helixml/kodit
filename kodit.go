@@ -326,7 +326,7 @@ func New(opts ...Option) (*Client, error) {
 		reporters: reporters,
 		logger:    logger,
 	}
-	worker := service.NewWorker(taskStore, registry, &workerTrackerAdapter{trackerFactory}, logger)
+	worker := service.NewWorker(taskStore, statusStore, registry, &workerTrackerAdapter{trackerFactory}, logger)
 	if cfg.workerPollPeriod > 0 {
 		worker.WithPollPeriod(cfg.workerPollPeriod)
 	}
@@ -428,7 +428,10 @@ func New(opts ...Option) (*Client, error) {
 	}
 
 	// Start the background worker and periodic sync
-	worker.Start(ctx)
+	if err := worker.Start(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("start worker: %w", err)
+	}
 	periodicSync.Start(ctx)
 
 	// If embedding tables were rebuilt (dimension change), enqueue a sync for
