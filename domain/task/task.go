@@ -95,6 +95,12 @@ func (t Task) WithID(id int64) Task {
 	return t
 }
 
+// WithPriority returns a copy of the task with the given priority.
+func (t Task) WithPriority(priority int) Task {
+	t.priority = priority
+	return t
+}
+
 // WithTimestamps returns a copy of the task with the given timestamps.
 func (t Task) WithTimestamps(createdAt, updatedAt time.Time) Task {
 	t.createdAt = createdAt

@@ -101,6 +101,21 @@ func (s *Queue) Get(ctx context.Context, id int64) (task.Task, error) {
 	return s.store.FindOne(ctx, repository.WithID(id))
 }
 
+// Remove deletes a task from the queue by ID.
+func (s *Queue) Remove(ctx context.Context, id int64) error {
+	return s.store.DeleteBy(ctx, repository.WithID(id))
+}
+
+// Reprioritize updates the priority of a task by ID.
+func (s *Queue) Reprioritize(ctx context.Context, id int64, priority int) error {
+	t, err := s.store.FindOne(ctx, repository.WithID(id))
+	if err != nil {
+		return fmt.Errorf("find task %d: %w", id, err)
+	}
+	_, err = s.store.Save(ctx, t.WithPriority(priority))
+	return err
+}
+
 // DrainForRepository removes all pending tasks whose payload contains
 // the given repository_id. This prevents stale enrichment/indexing tasks
 // from blocking a repository deletion.
