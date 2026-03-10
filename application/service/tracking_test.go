@@ -14,10 +14,45 @@ import (
 
 type fakeStatusStore struct {
 	statuses map[int64][]task.Status
+	all      []task.Status
 }
 
-func (f *fakeStatusStore) Find(_ context.Context, _ ...repository.Option) ([]task.Status, error) {
-	return nil, nil
+func (f *fakeStatusStore) Find(_ context.Context, options ...repository.Option) ([]task.Status, error) {
+	q := repository.Build(options...)
+	result := make([]task.Status, 0, len(f.all))
+	for _, s := range f.all {
+		if matchesConditions(s, q.Conditions()) {
+			result = append(result, s)
+		}
+	}
+	return result, nil
+}
+
+func matchesConditions(s task.Status, conditions []repository.Condition) bool {
+	for _, c := range conditions {
+		if c.Field() != "state" {
+			continue
+		}
+		if c.In() {
+			vals, ok := c.Value().([]string)
+			if !ok {
+				return false
+			}
+			found := false
+			for _, v := range vals {
+				if string(s.State()) == v {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return false
+			}
+		} else if string(s.State()) != c.Value() {
+			return false
+		}
+	}
+	return true
 }
 
 func (f *fakeStatusStore) FindOne(_ context.Context, _ ...repository.Option) (task.Status, error) {
@@ -45,6 +80,32 @@ func (f *fakeStatusStore) LoadWithHierarchy(_ context.Context, _ task.TrackableT
 		return nil, nil
 	}
 	return f.statuses[trackableID], nil
+}
+
+func TestTracking_ActiveStatuses(t *testing.T) {
+	epoch := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	statusStore := &fakeStatusStore{
+		all: []task.Status{
+			task.NewStatusFull("s1", task.ReportingStateStarted, "sync", "", epoch, epoch, 0, 0, "", nil, 1, task.TrackableTypeRepository),
+			task.NewStatusFull("s2", task.ReportingStateInProgress, "index", "", epoch, epoch, 10, 3, "", nil, 2, task.TrackableTypeRepository),
+			task.NewStatusFull("s3", task.ReportingStateCompleted, "enrich", "", epoch, epoch, 5, 5, "", nil, 1, task.TrackableTypeRepository),
+			task.NewStatusFull("s4", task.ReportingStateFailed, "sync", "boom", epoch, epoch, 0, 0, "", nil, 3, task.TrackableTypeRepository),
+			task.NewStatusFull("s5", task.ReportingStateStarted, "enrich", "", epoch, epoch, 0, 0, "", nil, 3, task.TrackableTypeRepository),
+		},
+	}
+
+	tracking := NewTracking(statusStore, nil)
+
+	statuses, err := tracking.ActiveStatuses(context.Background())
+	require.NoError(t, err)
+
+	assert.Len(t, statuses, 3)
+	ids := make([]string, len(statuses))
+	for i, s := range statuses {
+		ids[i] = s.ID()
+	}
+	assert.ElementsMatch(t, []string{"s1", "s2", "s5"}, ids)
 }
 
 func TestTracking_Summary_PendingCountScopedToRepository(t *testing.T) {

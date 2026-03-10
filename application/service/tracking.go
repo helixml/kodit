@@ -24,6 +24,11 @@ func NewTracking(
 	}
 }
 
+// ActiveStatuses returns all task statuses in started or in_progress state.
+func (s *Tracking) ActiveStatuses(ctx context.Context) ([]task.Status, error) {
+	return s.statusStore.Find(ctx, task.WithActiveState())
+}
+
 // Statuses returns all task statuses for a repository.
 func (s *Tracking) Statuses(ctx context.Context, repositoryID int64) ([]task.Status, error) {
 	return s.statusStore.LoadWithHierarchy(

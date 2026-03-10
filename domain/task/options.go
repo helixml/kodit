@@ -17,3 +17,11 @@ func WithTrackable(trackableType TrackableType, trackableID int64) []repository.
 		repository.WithCondition("trackable_id", trackableID),
 	}
 }
+
+// WithActiveState filters for statuses in started or in_progress state.
+func WithActiveState() repository.Option {
+	return repository.WithConditionIn("state", []string{
+		string(ReportingStateStarted),
+		string(ReportingStateInProgress),
+	})
+}
