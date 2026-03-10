@@ -56,20 +56,22 @@ type fakeTaskStore struct {
 	tasks []task.Task
 }
 
-func (f *fakeTaskStore) Get(_ context.Context, _ int64) (task.Task, error) {
+func (f *fakeTaskStore) Find(_ context.Context, _ ...repository.Option) ([]task.Task, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	result := make([]task.Task, len(f.tasks))
+	copy(result, f.tasks)
+	return result, nil
+}
+
+func (f *fakeTaskStore) FindOne(_ context.Context, _ ...repository.Option) (task.Task, error) {
 	return task.Task{}, nil
 }
 
-func (f *fakeTaskStore) FindAll(_ context.Context) ([]task.Task, error) {
+func (f *fakeTaskStore) Count(_ context.Context, _ ...repository.Option) (int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.tasks, nil
-}
-
-func (f *fakeTaskStore) FindPending(_ context.Context, _ ...repository.Option) ([]task.Task, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.tasks, nil
+	return int64(len(f.tasks)), nil
 }
 
 func (f *fakeTaskStore) Save(_ context.Context, t task.Task) (task.Task, error) {
@@ -79,32 +81,19 @@ func (f *fakeTaskStore) Save(_ context.Context, t task.Task) (task.Task, error) 
 	return t, nil
 }
 
-func (f *fakeTaskStore) SaveBulk(_ context.Context, tasks []task.Task) ([]task.Task, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.tasks = append(f.tasks, tasks...)
-	return tasks, nil
-}
-
 func (f *fakeTaskStore) Delete(_ context.Context, _ task.Task) error {
 	return nil
 }
 
-func (f *fakeTaskStore) DeleteAll(_ context.Context) error {
+func (f *fakeTaskStore) Exists(_ context.Context, _ ...repository.Option) (bool, error) {
+	return false, nil
+}
+
+func (f *fakeTaskStore) DeleteBy(_ context.Context, _ ...repository.Option) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.tasks = nil
 	return nil
-}
-
-func (f *fakeTaskStore) CountPending(_ context.Context, _ ...repository.Option) (int64, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return int64(len(f.tasks)), nil
-}
-
-func (f *fakeTaskStore) Exists(_ context.Context, _ int64) (bool, error) {
-	return false, nil
 }
 
 func (f *fakeTaskStore) Dequeue(_ context.Context) (task.Task, bool, error) {

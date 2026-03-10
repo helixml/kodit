@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/stretchr/testify/assert"
@@ -15,32 +16,28 @@ type fakeStatusStore struct {
 	statuses map[int64][]task.Status
 }
 
-func (f *fakeStatusStore) Get(_ context.Context, _ string) (task.Status, error) {
+func (f *fakeStatusStore) Find(_ context.Context, _ ...repository.Option) ([]task.Status, error) {
+	return nil, nil
+}
+
+func (f *fakeStatusStore) FindOne(_ context.Context, _ ...repository.Option) (task.Status, error) {
 	return task.Status{}, nil
 }
 
-func (f *fakeStatusStore) FindByTrackable(_ context.Context, _ task.TrackableType, _ int64) ([]task.Status, error) {
-	return nil, nil
+func (f *fakeStatusStore) Count(_ context.Context, _ ...repository.Option) (int64, error) {
+	return 0, nil
 }
 
 func (f *fakeStatusStore) Save(_ context.Context, s task.Status) (task.Status, error) {
 	return s, nil
 }
 
-func (f *fakeStatusStore) SaveBulk(_ context.Context, statuses []task.Status) ([]task.Status, error) {
-	return statuses, nil
+func (f *fakeStatusStore) Exists(_ context.Context, _ ...repository.Option) (bool, error) {
+	return false, nil
 }
 
-func (f *fakeStatusStore) Delete(_ context.Context, _ task.Status) error {
+func (f *fakeStatusStore) DeleteBy(_ context.Context, _ ...repository.Option) error {
 	return nil
-}
-
-func (f *fakeStatusStore) DeleteByTrackable(_ context.Context, _ task.TrackableType, _ int64) error {
-	return nil
-}
-
-func (f *fakeStatusStore) Count(_ context.Context) (int64, error) {
-	return 0, nil
 }
 
 func (f *fakeStatusStore) LoadWithHierarchy(_ context.Context, _ task.TrackableType, trackableID int64) ([]task.Status, error) {
