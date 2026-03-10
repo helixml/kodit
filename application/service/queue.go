@@ -67,13 +67,13 @@ func (s *Queue) EnqueueOperations(
 // List returns tasks matching the given params.
 // Tasks are sorted by priority (highest first) then by created_at (oldest first).
 func (s *Queue) List(ctx context.Context, params *TaskListParams) ([]task.Task, error) {
-	var options []repository.Option
+	options := append([]repository.Option{}, task.WithPriorityOrder()...)
 
 	if params != nil && params.Limit > 0 {
 		options = append(options, repository.WithPagination(params.Limit, params.Offset)...)
 	}
 
-	tasks, err := s.store.FindPending(ctx, options...)
+	tasks, err := s.store.Find(ctx, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -93,19 +93,19 @@ func (s *Queue) List(ctx context.Context, params *TaskListParams) ([]task.Task, 
 
 // Count returns the total number of pending tasks.
 func (s *Queue) Count(ctx context.Context) (int64, error) {
-	return s.store.CountPending(ctx)
+	return s.store.Count(ctx)
 }
 
 // Get retrieves a task by ID.
 func (s *Queue) Get(ctx context.Context, id int64) (task.Task, error) {
-	return s.store.Get(ctx, id)
+	return s.store.FindOne(ctx, repository.WithID(id))
 }
 
 // DrainForRepository removes all pending tasks whose payload contains
 // the given repository_id. This prevents stale enrichment/indexing tasks
 // from blocking a repository deletion.
 func (s *Queue) DrainForRepository(ctx context.Context, repoID int64) (int, error) {
-	tasks, err := s.store.FindAll(ctx)
+	tasks, err := s.store.Find(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("find pending tasks: %w", err)
 	}

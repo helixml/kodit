@@ -62,7 +62,7 @@ func TestWorker_ProcessOne(t *testing.T) {
 	assert.True(t, found)
 	assert.True(t, executed)
 
-	count, err := store.CountPending(ctx)
+	count, err := store.Count(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), count)
 
@@ -91,7 +91,7 @@ func TestWorker_ProcessOne_FailedHandler(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, found)
 
-	count, err := store.CountPending(ctx)
+	count, err := store.Count(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), count)
 
@@ -127,7 +127,7 @@ func TestWorker_ProcessOne_UnregisteredHandler(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, found)
 
-	count, err := store.CountPending(ctx)
+	count, err := store.Count(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), count)
 }

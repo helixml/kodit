@@ -53,7 +53,7 @@ func TestRescan_DeletesOldStatuses(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify the status exists.
-	statuses, err := statusStore.FindByTrackable(ctx, task.TrackableTypeRepository, repoID)
+	statuses, err := statusStore.Find(ctx, task.WithTrackable(task.TrackableTypeRepository, repoID)...)
 	require.NoError(t, err)
 	assert.Len(t, statuses, 1)
 
@@ -69,7 +69,7 @@ func TestRescan_DeletesOldStatuses(t *testing.T) {
 	require.NoError(t, err)
 
 	// Old statuses should be gone.
-	statuses, err = statusStore.FindByTrackable(ctx, task.TrackableTypeRepository, repoID)
+	statuses, err = statusStore.Find(ctx, task.WithTrackable(task.TrackableTypeRepository, repoID)...)
 	require.NoError(t, err)
 	assert.Empty(t, statuses)
 

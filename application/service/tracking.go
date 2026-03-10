@@ -53,7 +53,7 @@ func (s *Tracking) pendingTaskCount(ctx context.Context, repositoryID int64) (in
 		return 0, nil
 	}
 
-	tasks, err := s.taskStore.FindPending(ctx)
+	tasks, err := s.taskStore.Find(ctx)
 	if err != nil {
 		return 0, err
 	}
