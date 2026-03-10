@@ -293,6 +293,87 @@ func TestCreateSummaryHandler(t *testing.T) {
 	})
 }
 
+type fakeWikiContextGatherer struct{}
+
+func (f *fakeWikiContextGatherer) Gather(_ context.Context, _ string, _ []repository.File, _ []enrichment.Enrichment) (string, string, string, error) {
+	return "readme", "file-tree", "enrichments", nil
+}
+
+func (f *fakeWikiContextGatherer) FileContent(_, _ string, _ int) string {
+	return "file content"
+}
+
+func TestWikiHandler(t *testing.T) {
+	ctx := context.Background()
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
+
+	t.Run("skips when wiki already exists for commit", func(t *testing.T) {
+		db := testdb.New(t)
+		repoStore := persistence.NewRepositoryStore(db)
+		commitStore := persistence.NewCommitStore(db)
+		fileStore := persistence.NewFileStore(db)
+		enrichmentStore := persistence.NewEnrichmentStore(db)
+		associationStore := persistence.NewAssociationStore(db)
+
+		enricher := &fakeEnricher{}
+		enrichCtx := newEnrichmentContext(enrichmentStore, associationStore, enricher, logger)
+
+		// Seed a repository with a working copy.
+		repo, err := repository.NewRepository("https://github.com/test/wiki-repo")
+		require.NoError(t, err)
+		repo = repo.WithWorkingCopy(repository.NewWorkingCopy("/tmp/wiki-repo", "https://github.com/test/wiki-repo"))
+		savedRepo, err := repoStore.Save(ctx, repo)
+		require.NoError(t, err)
+
+		// Seed a commit for the repository.
+		now := time.Now()
+		author := repository.NewAuthor("Test", "test@test.com")
+		commit := repository.NewCommit("abc123", savedRepo.ID(), "test commit", author, author, now, now)
+		_, err = commitStore.Save(ctx, commit)
+		require.NoError(t, err)
+
+		// Seed a file so the handler doesn't skip due to "no files".
+		file := repository.NewFile("abc123", "main.go", "go", 100)
+		_, err = fileStore.Save(ctx, file)
+		require.NoError(t, err)
+
+		// Seed an existing wiki enrichment for this commit.
+		wikiEnrichment := enrichment.NewWiki(`{"pages":[]}`)
+		savedWiki, err := enrichmentStore.Save(ctx, wikiEnrichment)
+		require.NoError(t, err)
+		_, err = associationStore.Save(ctx, enrichment.CommitAssociation(savedWiki.ID(), "abc123"))
+		require.NoError(t, err)
+
+		countBefore, err := enrichmentStore.Count(ctx,
+			enrichment.WithCommitSHA("abc123"),
+			enrichment.WithType(enrichment.TypeUsage),
+			enrichment.WithSubtype(enrichment.SubtypeWiki),
+		)
+		require.NoError(t, err)
+		require.Equal(t, int64(1), countBefore)
+
+		h, err := NewWiki(repoStore, commitStore, fileStore, enrichCtx, &fakeWikiContextGatherer{})
+		require.NoError(t, err)
+
+		payload := map[string]any{
+			"repository_id": savedRepo.ID(),
+			"commit_sha":    "abc123",
+		}
+
+		err = h.Execute(ctx, payload)
+		require.NoError(t, err)
+
+		// The wiki should NOT have been regenerated — count should remain 1.
+		countAfter, err := enrichmentStore.Count(ctx,
+			enrichment.WithCommitSHA("abc123"),
+			enrichment.WithType(enrichment.TypeUsage),
+			enrichment.WithSubtype(enrichment.SubtypeWiki),
+		)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), countAfter)
+	})
+}
+
 func TestTruncateDiff(t *testing.T) {
 	t.Run("returns short diff unchanged", func(t *testing.T) {
 		diff := "short diff"

@@ -155,6 +155,19 @@ func (h *Wiki) Execute(ctx context.Context, payload map[string]any) error {
 		payload,
 	)
 
+	count, err := h.enrichCtx.Enrichments.Count(ctx,
+		enrichment.WithCommitSHA(cp.CommitSHA()),
+		enrichment.WithType(enrichment.TypeUsage),
+		enrichment.WithSubtype(enrichment.SubtypeWiki),
+	)
+	if err != nil {
+		return fmt.Errorf("check existing wiki: %w", err)
+	}
+	if count > 0 {
+		tracker.Skip(ctx, "Wiki already exists for commit")
+		return nil
+	}
+
 	// Delete any existing wiki for this repository so each repo has at most one.
 	if err := h.deleteExistingWiki(ctx, cp.RepoID()); err != nil {
 		return fmt.Errorf("delete existing wiki: %w", err)
