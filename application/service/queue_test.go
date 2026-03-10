@@ -81,6 +81,46 @@ func TestQueue_ListFiltersByOperation(t *testing.T) {
 	assert.Equal(t, task.OperationSyncRepository, tasks[0].Operation())
 }
 
+func TestQueue_Remove(t *testing.T) {
+	db := testdb.New(t)
+	store := persistence.NewTaskStore(db)
+	queue := NewQueue(store, zerolog.Nop())
+	ctx := context.Background()
+
+	tsk := task.NewTask(task.OperationSyncRepository, int(task.PriorityNormal), map[string]any{"repository_id": int64(1)})
+	require.NoError(t, queue.Enqueue(ctx, tsk))
+
+	tasks, err := queue.List(ctx, nil)
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+
+	require.NoError(t, queue.Remove(ctx, tasks[0].ID()))
+
+	count, err := queue.Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), count)
+}
+
+func TestQueue_Reprioritize(t *testing.T) {
+	db := testdb.New(t)
+	store := persistence.NewTaskStore(db)
+	queue := NewQueue(store, zerolog.Nop())
+	ctx := context.Background()
+
+	tsk := task.NewTask(task.OperationSyncRepository, int(task.PriorityBackground), map[string]any{"repository_id": int64(1)})
+	require.NoError(t, queue.Enqueue(ctx, tsk))
+
+	tasks, err := queue.List(ctx, nil)
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+
+	require.NoError(t, queue.Reprioritize(ctx, tasks[0].ID(), int(task.PriorityCritical)))
+
+	updated, err := queue.Get(ctx, tasks[0].ID())
+	require.NoError(t, err)
+	assert.Equal(t, int(task.PriorityCritical), updated.Priority())
+}
+
 func TestQueue_DrainForRepository(t *testing.T) {
 	db := testdb.New(t)
 	store := persistence.NewTaskStore(db)
