@@ -111,6 +111,14 @@ func NewFilters(opts ...FiltersOption) Filters {
 	return f
 }
 
+// With returns a copy of f with the given options applied.
+func (f Filters) With(opts ...FiltersOption) Filters {
+	for _, opt := range opts {
+		opt(&f)
+	}
+	return f
+}
+
 // Languages returns the language filter.
 func (f Filters) Languages() []string {
 	if f.languages == nil {
