@@ -218,6 +218,7 @@ func testRepo() repository.Repository {
 	return repository.ReconstructRepository(
 		1,
 		"https://github.com/example/repo",
+		"https://github.com/example/repo",
 		repository.WorkingCopy{},
 		repository.NewTrackingConfigForBranch("main"),
 		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),

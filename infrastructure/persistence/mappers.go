@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"encoding/json"
+	"net/url"
 	"time"
 
 	"github.com/helixml/kodit/domain/chunk"
@@ -38,6 +39,7 @@ func (m RepositoryMapper) ToDomain(e RepositoryModel) repository.Repository {
 	return repository.ReconstructRepository(
 		e.ID,
 		e.RemoteURI,
+		e.SanitizedRemoteURI,
 		wc,
 		tc,
 		e.CreatedAt,
@@ -64,7 +66,7 @@ func (m RepositoryMapper) ToModel(r repository.Repository) RepositoryModel {
 
 	return RepositoryModel{
 		ID:                 r.ID(),
-		SanitizedRemoteURI: sanitizeRemoteURI(r.RemoteURL()),
+		SanitizedRemoteURI: sanitizeURI(r.RemoteURL()),
 		RemoteURI:          r.RemoteURL(),
 		ClonedPath:         clonedPath,
 		LastScannedAt:      lastScannedAt,
@@ -101,8 +103,13 @@ func trackingConfigToDB(tc repository.TrackingConfig) (trackingType, trackingNam
 	return "", ""
 }
 
-func sanitizeRemoteURI(uri string) string {
-	return uri
+func sanitizeURI(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.User == nil {
+		return raw
+	}
+	parsed.User = nil
+	return parsed.String()
 }
 
 // CommitMapper maps between domain Commit and persistence CommitModel.

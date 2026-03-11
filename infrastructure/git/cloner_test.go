@@ -84,6 +84,7 @@ func TestUpdate_MissingDirectory(t *testing.T) {
 	repo := repository.ReconstructRepository(
 		1,
 		remoteURI,
+		remoteURI,
 		repository.NewWorkingCopy(missingPath, remoteURI),
 		repository.NewTrackingConfigForBranch("main"),
 		time.Now(), time.Now(), time.Time{},
@@ -136,6 +137,7 @@ func TestUpdate_InaccessibleDirectory(t *testing.T) {
 
 	repo := repository.ReconstructRepository(
 		2,
+		"https://github.com/example/repo.git",
 		"https://github.com/example/repo.git",
 		repository.NewWorkingCopy(child, "https://github.com/example/repo.git"),
 		repository.NewTrackingConfigForBranch("main"),

@@ -15,6 +15,7 @@ var ErrNotCloned = errors.New("repository has not been cloned")
 type Repository struct {
 	id             int64
 	remoteURL      string
+	sanitizedURL   string
 	workingCopy    WorkingCopy
 	trackingConfig TrackingConfig
 	createdAt      time.Time
@@ -39,6 +40,7 @@ func NewRepository(remoteURL string) (Repository, error) {
 func ReconstructRepository(
 	id int64,
 	remoteURL string,
+	sanitizedURL string,
 	workingCopy WorkingCopy,
 	trackingConfig TrackingConfig,
 	createdAt, updatedAt time.Time,
@@ -47,6 +49,7 @@ func ReconstructRepository(
 	return Repository{
 		id:             id,
 		remoteURL:      remoteURL,
+		sanitizedURL:   sanitizedURL,
 		workingCopy:    workingCopy,
 		trackingConfig: trackingConfig,
 		createdAt:      createdAt,
@@ -60,6 +63,9 @@ func (r Repository) ID() int64 { return r.id }
 
 // RemoteURL returns the remote URL.
 func (r Repository) RemoteURL() string { return r.remoteURL }
+
+// SanitizedURL returns the remote URL with credentials stripped.
+func (r Repository) SanitizedURL() string { return r.sanitizedURL }
 
 // WorkingCopy returns the local working copy.
 func (r Repository) WorkingCopy() WorkingCopy { return r.workingCopy }

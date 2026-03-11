@@ -250,7 +250,7 @@ func (f *fakeBlobGitAdapter) Grep(context.Context, string, string, string, strin
 func newTestBlob() (*Blob, *fakeBlobGitAdapter) {
 	now := time.Now()
 	repo := repository.ReconstructRepository(
-		1, "https://github.com/example/repo",
+		1, "https://github.com/example/repo", "https://github.com/example/repo",
 		repository.NewWorkingCopy("/tmp/repo", "https://github.com/example/repo"),
 		repository.NewTrackingConfigForBranch("main"),
 		now, now, time.Time{},
@@ -398,7 +398,7 @@ func TestBlob_ListFiles(t *testing.T) {
 
 	now := time.Now()
 	repo := repository.ReconstructRepository(
-		1, "https://github.com/example/repo",
+		1, "https://github.com/example/repo", "https://github.com/example/repo",
 		repository.NewWorkingCopy(dir, "https://github.com/example/repo"),
 		repository.NewTrackingConfigForBranch("main"),
 		now, now, time.Time{},
@@ -456,7 +456,7 @@ func TestBlob_ListFiles_ClonesWhenMissing(t *testing.T) {
 	now := time.Now()
 	remoteURL := "https://github.com/example/repo"
 	repo := repository.ReconstructRepository(
-		1, remoteURL,
+		1, remoteURL, remoteURL,
 		repository.NewWorkingCopy(dir, remoteURL),
 		repository.NewTrackingConfigForBranch("main"),
 		now, now, time.Time{},
