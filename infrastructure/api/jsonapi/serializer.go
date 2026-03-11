@@ -130,7 +130,7 @@ func (s *Serializer) RepositoryResource(source repository.Source) *Resource {
 	clonedPath := repo.WorkingCopy().Path()
 
 	attrs := &RepositoryAttributes{
-		RemoteURI:   repo.RemoteURL(),
+		RemoteURI:   repo.SanitizedURL(),
 		CreatedAt:   &createdAt,
 		UpdatedAt:   &updatedAt,
 		ClonedPath:  &clonedPath,
