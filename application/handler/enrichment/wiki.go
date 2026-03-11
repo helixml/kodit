@@ -217,7 +217,7 @@ func (h *Wiki) Execute(ctx context.Context, payload map[string]any) error {
 		readme:      readme,
 		fileTree:    fileTree,
 		enrichments: enrichmentText,
-		repoURL:     repo.RemoteURL(),
+		repoURL:     repo.SanitizedURL(),
 		commitSHA:   cp.CommitSHA(),
 	}
 

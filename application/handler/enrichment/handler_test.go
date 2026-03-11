@@ -293,6 +293,23 @@ func TestCreateSummaryHandler(t *testing.T) {
 	})
 }
 
+type capturingEnricher struct {
+	requests []domainservice.EnrichmentRequest
+}
+
+func (c *capturingEnricher) Enrich(_ context.Context, requests []domainservice.EnrichmentRequest, _ ...domainservice.EnrichOption) ([]domainservice.EnrichmentResponse, error) {
+	c.requests = append(c.requests, requests...)
+	var responses []domainservice.EnrichmentResponse
+	for _, r := range requests {
+		if r.ID() == "wiki-plan" {
+			responses = append(responses, domainservice.NewEnrichmentResponse(r.ID(), `{"pages":[{"slug":"overview","title":"Overview","sources":["README.md"],"children":[]}]}`))
+			continue
+		}
+		responses = append(responses, domainservice.NewEnrichmentResponse(r.ID(), "# Page content"))
+	}
+	return responses, nil
+}
+
 type fakeWikiContextGatherer struct{}
 
 func (f *fakeWikiContextGatherer) Gather(_ context.Context, _ string, _ []repository.File, _ []enrichment.Enrichment) (string, string, string, error) {
@@ -371,6 +388,52 @@ func TestWikiHandler(t *testing.T) {
 		)
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), countAfter)
+	})
+
+	t.Run("does not leak access tokens into enrichment prompts", func(t *testing.T) {
+		db := testdb.New(t)
+		repoStore := persistence.NewRepositoryStore(db)
+		commitStore := persistence.NewCommitStore(db)
+		fileStore := persistence.NewFileStore(db)
+		enrichmentStore := persistence.NewEnrichmentStore(db)
+		associationStore := persistence.NewAssociationStore(db)
+
+		capturing := &capturingEnricher{}
+		enrichCtx := newEnrichmentContext(enrichmentStore, associationStore, capturing, logger)
+
+		tokenURL := "https://x-access-token:ghs_s3cr3tT0k3n@github.com/test/wiki-repo"
+		repo, err := repository.NewRepository(tokenURL)
+		require.NoError(t, err)
+		repo = repo.WithWorkingCopy(repository.NewWorkingCopy("/tmp/wiki-repo", tokenURL))
+		savedRepo, err := repoStore.Save(ctx, repo)
+		require.NoError(t, err)
+
+		now := time.Now()
+		author := repository.NewAuthor("Test", "test@test.com")
+		commit := repository.NewCommit("def456", savedRepo.ID(), "test commit", author, author, now, now)
+		_, err = commitStore.Save(ctx, commit)
+		require.NoError(t, err)
+
+		file := repository.NewFile("def456", "main.go", "go", 100)
+		_, err = fileStore.Save(ctx, file)
+		require.NoError(t, err)
+
+		h, err := NewWiki(repoStore, commitStore, fileStore, enrichCtx, &fakeWikiContextGatherer{})
+		require.NoError(t, err)
+
+		payload := map[string]any{
+			"repository_id": savedRepo.ID(),
+			"commit_sha":    "def456",
+		}
+
+		err = h.Execute(ctx, payload)
+		require.NoError(t, err)
+
+		require.NotEmpty(t, capturing.requests, "enricher should have received requests")
+		for _, req := range capturing.requests {
+			assert.NotContains(t, req.Text(), "ghs_s3cr3tT0k3n",
+				"prompt for %q must not contain access token", req.ID())
+		}
 	})
 }
 
