@@ -6,11 +6,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/domain/chunk"
 	"github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/repository"
 	v1 "github.com/helixml/kodit/infrastructure/api/v1"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
 	"github.com/helixml/kodit/infrastructure/persistence"
@@ -251,6 +253,102 @@ func TestEnrichmentsRouter_Get_WithLineRange(t *testing.T) {
 		t.Error("end_line is nil, want non-nil")
 	} else if *attrs.EndLine != 20 {
 		t.Errorf("end_line = %d, want 20", *attrs.EndLine)
+	}
+}
+
+func TestRepositoriesRouter_List_SanitizesCredentials(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	db := openTestDB(t, dbPath)
+	ctx := httptest.NewRequest(http.MethodGet, "/", nil).Context()
+
+	store := persistence.NewRepositoryStore(db)
+	repo, err := repository.NewRepository("http://user:secret-token@api:8080/git/my-repo")
+	if err != nil {
+		t.Fatalf("new repository: %v", err)
+	}
+	_, err = store.Save(ctx, repo)
+	if err != nil {
+		t.Fatalf("save repository: %v", err)
+	}
+	_ = db.Close()
+
+	client, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithDataDir(tmpDir),
+		kodit.WithSkipProviderValidation(),
+	)
+	if err != nil {
+		t.Fatalf("create client: %v", err)
+	}
+	t.Cleanup(func() { _ = client.Close() })
+
+	router := v1.NewRepositoriesRouter(client)
+	routes := router.Routes()
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	routes.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status code = %v, want %v; body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	body := w.Body.String()
+	if strings.Contains(body, "secret-token") {
+		t.Errorf("repository list API leaks credentials: %s", body)
+	}
+	if !strings.Contains(body, "http://api:8080/git/my-repo") {
+		t.Errorf("expected sanitized URL in response, got: %s", body)
+	}
+}
+
+func TestRepositoriesRouter_Get_SanitizesCredentials(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	db := openTestDB(t, dbPath)
+	ctx := httptest.NewRequest(http.MethodGet, "/", nil).Context()
+
+	store := persistence.NewRepositoryStore(db)
+	repo, err := repository.NewRepository("http://user:secret-token@api:8080/git/my-repo")
+	if err != nil {
+		t.Fatalf("new repository: %v", err)
+	}
+	saved, err := store.Save(ctx, repo)
+	if err != nil {
+		t.Fatalf("save repository: %v", err)
+	}
+	_ = db.Close()
+
+	client, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithDataDir(tmpDir),
+		kodit.WithSkipProviderValidation(),
+	)
+	if err != nil {
+		t.Fatalf("create client: %v", err)
+	}
+	t.Cleanup(func() { _ = client.Close() })
+
+	router := v1.NewRepositoriesRouter(client)
+	routes := router.Routes()
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/%d", saved.ID()), nil)
+	w := httptest.NewRecorder()
+	routes.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status code = %v, want %v; body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	body := w.Body.String()
+	if strings.Contains(body, "secret-token") {
+		t.Errorf("repository get API leaks credentials: %s", body)
+	}
+	if !strings.Contains(body, "http://api:8080/git/my-repo") {
+		t.Errorf("expected sanitized URL in response, got: %s", body)
 	}
 }
 

@@ -104,7 +104,7 @@ func (s *Repository) Add(ctx context.Context, params *RepositoryAddParams) (repo
 		s.logger.Warn().Int64("repo_id", repo.ID()).Str("error", err.Error()).Msg("failed to enqueue clone task")
 	}
 
-	s.logger.Info().Int64("repo_id", savedRepo.ID()).Str("url", savedRepo.RemoteURL()).Str("tracking", savedRepo.TrackingConfig().Reference()).Str("local_path", savedRepo.WorkingCopy().Path()).Msg("repository added")
+	s.logger.Info().Int64("repo_id", savedRepo.ID()).Str("url", savedRepo.SanitizedURL()).Str("tracking", savedRepo.TrackingConfig().Reference()).Str("local_path", savedRepo.WorkingCopy().Path()).Msg("repository added")
 
 	return repository.NewSource(savedRepo), true, nil
 }

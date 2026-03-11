@@ -1593,7 +1593,7 @@ func repoToDTO(repo repository.Repository, numCommits, numBranches, numTags int6
 	clonedPath := repo.WorkingCopy().Path()
 
 	attrs := dto.RepositoryAttributes{
-		RemoteURI:   repo.RemoteURL(),
+		RemoteURI:   repo.SanitizedURL(),
 		CreatedAt:   &createdAt,
 		UpdatedAt:   &updatedAt,
 		ClonedPath:  &clonedPath,

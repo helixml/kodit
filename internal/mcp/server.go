@@ -220,7 +220,7 @@ func (s *Server) handleListRepositories(ctx context.Context, _ mcp.CallToolReque
 
 	var b strings.Builder
 	for _, repo := range repos {
-		fmt.Fprintf(&b, "- %s", repo.RemoteURL())
+		fmt.Fprintf(&b, "- %s", repo.SanitizedURL())
 
 		if repo.HasTrackingConfig() {
 			tc := repo.TrackingConfig()

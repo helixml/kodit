@@ -254,6 +254,74 @@ func contains(s, sub string) bool {
 	return false
 }
 
+// TestScopedMCPServer_ListRepositories_SanitizesCredentials verifies that the
+// MCP kodit_repositories tool returns the sanitized URL (without credentials),
+// not the original URL containing embedded secrets.
+func TestScopedMCPServer_ListRepositories_SanitizesCredentials(t *testing.T) {
+	repo := repository.ReconstructRepository(
+		1,
+		"http://user:secret-token@api:8080/git/my-repo",
+		"http://api:8080/git/my-repo",
+		repository.WorkingCopy{},
+		repository.NewTrackingConfigForBranch("main"),
+		time.Now(), time.Now(), time.Time{},
+	)
+	commit := repository.ReconstructCommit(
+		1, "abc123", 1, "init", repository.NewAuthor("A", "a@b.c"),
+		repository.NewAuthor("A", "a@b.c"), time.Now(), time.Now(), time.Now(), "",
+	)
+
+	repos := &scopedFakeRepositoryLister{repos: []repository.Repository{repo}}
+	scopedRepos, scopedFC, scopedSS, scopedKS, scopedG, scopedFL :=
+		mcpinternal.Scope(repos, &scopedFakeFileContentReader{},
+			&scopedFakeSemanticSearcher{}, &scopedFakeKeywordSearcher{},
+			&scopedFakeGrepper{}, &scopedFakeFileLister{}, []int64{1})
+
+	srv := mcpinternal.NewServer(
+		scopedRepos,
+		&scopedFakeCommitFinder{commits: []repository.Commit{commit}},
+		&scopedFakeEnrichmentQuery{},
+		scopedFC,
+		scopedSS,
+		scopedKS,
+		&scopedFakeEnrichmentResolver{
+			sourceFiles: map[string][]int64{}, lineRanges: map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{},
+		},
+		scopedFL,
+		&scopedFakeFileFinder{},
+		scopedG,
+		"test",
+		zerolog.Nop(),
+	)
+
+	send(t, srv, "initialize", 0, map[string]any{
+		"protocolVersion": "2025-06-18",
+		"capabilities":    map[string]any{},
+		"clientInfo":      map[string]any{"name": "test", "version": "0.0.1"},
+	})
+
+	resp := send(t, srv, "tools/call", 1, map[string]any{
+		"name":      "kodit_repositories",
+		"arguments": map[string]any{},
+	})
+
+	var result mcp.CallToolResult
+	marshalResult(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("unexpected error: %+v", result)
+	}
+
+	text := extractText(t, result)
+	if contains(text, "secret-token") {
+		t.Errorf("scoped kodit_repositories leaks credentials: %s", text)
+	}
+	if !contains(text, "http://api:8080/git/my-repo") {
+		t.Errorf("expected sanitized URL in output, got: %s", text)
+	}
+}
+
 // --- fakes (prefixed to avoid collisions with internal/mcp fakes) ---
 
 type scopedFakeRepositoryLister struct {
@@ -291,7 +359,7 @@ func (f *scopedFakeRepositoryLister) Find(_ context.Context, options ...reposito
 			}
 			var filtered []repository.Repository
 			for _, r := range result {
-				if r.RemoteURL() == url {
+				if r.SanitizedURL() == url {
 					filtered = append(filtered, r)
 				}
 			}

@@ -43,7 +43,7 @@ func (f *fakeRepositoryLister) Find(_ context.Context, options ...repository.Opt
 				continue
 			}
 			for _, r := range f.repos {
-				if r.RemoteURL() == url {
+				if r.SanitizedURL() == url {
 					return []repository.Repository{r}, nil
 				}
 			}
@@ -2165,6 +2165,293 @@ func TestServer_Ls_RepoNotFound(t *testing.T) {
 	text := textFromContent(t, result)
 	if !containsStr(text, "not found") {
 		t.Errorf("expected 'not found' error, got: %s", text)
+	}
+}
+
+// testRepoWithCredentials returns a repository whose remoteURL contains
+// embedded credentials (user:secret-token) while the sanitizedURL has them
+// stripped. This simulates the production scenario where repositories are
+// cloned with credential-bearing URLs.
+func testRepoWithCredentials() repository.Repository {
+	return repository.ReconstructRepository(
+		1,
+		"http://user:secret-token@api:8080/git/my-repo",
+		"http://api:8080/git/my-repo",
+		repository.WorkingCopy{},
+		repository.NewTrackingConfigForBranch("main"),
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Time{},
+	)
+}
+
+func credentialServer() *Server {
+	return NewServer(
+		&fakeRepositoryLister{repos: []repository.Repository{testRepoWithCredentials()}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{enrichments: []enrichment.Enrichment{testArchEnrichment()}},
+		&fakeFileContentReader{content: []byte("placeholder"), commitSHA: "abc1234567890"},
+		&fakeSemanticSearcher{},
+		&fakeKeywordSearcher{},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{},
+			lineRanges:    map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{},
+		},
+		&fakeFileLister{},
+		&fakeFileFinder{},
+		&fakeGrepper{},
+		"1.0.0-test",
+		zerolog.Nop(),
+	)
+}
+
+func TestServer_ListRepositories_SanitizesCredentials(t *testing.T) {
+	srv := credentialServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name":      "kodit_repositories",
+		"arguments": map[string]any{},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+
+	if containsStr(text, "secret-token") {
+		t.Errorf("kodit_repositories leaks credentials in output: %s", text)
+	}
+	if !containsStr(text, "http://api:8080/git/my-repo") {
+		t.Errorf("expected sanitized URL in output, got: %s", text)
+	}
+}
+
+func TestServer_GetArchitectureDocs_SanitizesCredentials(t *testing.T) {
+	srv := credentialServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "kodit_architecture_docs",
+		"arguments": map[string]any{
+			"repo_url": "http://api:8080/git/my-repo",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		text := textFromContent(t, result)
+		if containsStr(text, "secret-token") {
+			t.Errorf("error message leaks credentials: %s", text)
+		}
+		return
+	}
+
+	text := textFromContent(t, result)
+	if containsStr(text, "secret-token") {
+		t.Errorf("architecture docs leaks credentials: %s", text)
+	}
+}
+
+func TestServer_GetWiki_SanitizesCredentials(t *testing.T) {
+	srv := NewServer(
+		&fakeRepositoryLister{repos: []repository.Repository{testRepoWithCredentials()}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{enrichments: []enrichment.Enrichment{testWikiEnrichment()}},
+		&fakeFileContentReader{content: []byte("placeholder"), commitSHA: "abc1234567890"},
+		&fakeSemanticSearcher{},
+		&fakeKeywordSearcher{},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{},
+			lineRanges:    map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{},
+		},
+		&fakeFileLister{},
+		&fakeFileFinder{},
+		&fakeGrepper{},
+		"1.0.0-test",
+		zerolog.Nop(),
+	)
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "kodit_wiki",
+		"arguments": map[string]any{
+			"repo_url": "http://api:8080/git/my-repo",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		text := textFromContent(t, result)
+		if containsStr(text, "secret-token") {
+			t.Errorf("wiki error message leaks credentials: %s", text)
+		}
+		return
+	}
+
+	text := textFromContent(t, result)
+	if containsStr(text, "secret-token") {
+		t.Errorf("wiki output leaks credentials: %s", text)
+	}
+}
+
+func TestServer_GetWikiPage_SanitizesCredentials(t *testing.T) {
+	srv := NewServer(
+		&fakeRepositoryLister{repos: []repository.Repository{testRepoWithCredentials()}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{enrichments: []enrichment.Enrichment{testWikiEnrichment()}},
+		&fakeFileContentReader{content: []byte("placeholder"), commitSHA: "abc1234567890"},
+		&fakeSemanticSearcher{},
+		&fakeKeywordSearcher{},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{},
+			lineRanges:    map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{},
+		},
+		&fakeFileLister{},
+		&fakeFileFinder{},
+		&fakeGrepper{},
+		"1.0.0-test",
+		zerolog.Nop(),
+	)
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "kodit_wiki_page",
+		"arguments": map[string]any{
+			"repo_url":  "http://api:8080/git/my-repo",
+			"page_slug": "overview",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		text := textFromContent(t, result)
+		if containsStr(text, "secret-token") {
+			t.Errorf("wiki page error message leaks credentials: %s", text)
+		}
+		return
+	}
+
+	text := textFromContent(t, result)
+	if containsStr(text, "secret-token") {
+		t.Errorf("wiki page output leaks credentials: %s", text)
+	}
+}
+
+func TestServer_Grep_SanitizesCredentials(t *testing.T) {
+	srv := NewServer(
+		&fakeRepositoryLister{repos: []repository.Repository{testRepoWithCredentials()}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{},
+		&fakeFileContentReader{content: []byte("placeholder"), commitSHA: "abc1234567890"},
+		&fakeSemanticSearcher{},
+		&fakeKeywordSearcher{},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{},
+			lineRanges:    map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{},
+		},
+		&fakeFileLister{},
+		&fakeFileFinder{},
+		&fakeGrepper{
+			results: []service.GrepResult{
+				{
+					Path:      "src/main.go",
+					Language:  ".go",
+					CommitSHA: "abc1234567890",
+					RepoID:    1,
+					Matches: []git.GrepMatch{
+						{Path: "src/main.go", Line: 10, Content: "func main() {"},
+					},
+				},
+			},
+		},
+		"1.0.0-test",
+		zerolog.Nop(),
+	)
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "kodit_grep",
+		"arguments": map[string]any{
+			"repo_url": "http://api:8080/git/my-repo",
+			"pattern":  "func",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		text := textFromContent(t, result)
+		if containsStr(text, "secret-token") {
+			t.Errorf("grep error message leaks credentials: %s", text)
+		}
+		return
+	}
+
+	text := textFromContent(t, result)
+	if containsStr(text, "secret-token") {
+		t.Errorf("grep output leaks credentials: %s", text)
+	}
+}
+
+func TestServer_Ls_SanitizesCredentials(t *testing.T) {
+	srv := NewServer(
+		&fakeRepositoryLister{repos: []repository.Repository{testRepoWithCredentials()}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{},
+		&fakeFileContentReader{},
+		&fakeSemanticSearcher{},
+		&fakeKeywordSearcher{},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{},
+			lineRanges:    map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{},
+		},
+		&fakeFileLister{files: []service.FileEntry{{Path: "README.md", Size: 100}}},
+		&fakeFileFinder{},
+		&fakeGrepper{},
+		"1.0.0-test",
+		zerolog.Nop(),
+	)
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "kodit_ls",
+		"arguments": map[string]any{
+			"repo_url": "http://api:8080/git/my-repo",
+			"pattern":  "**/*",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		text := textFromContent(t, result)
+		if containsStr(text, "secret-token") {
+			t.Errorf("ls error message leaks credentials: %s", text)
+		}
+		return
+	}
+
+	text := textFromContent(t, result)
+	if containsStr(text, "secret-token") {
+		t.Errorf("ls output leaks credentials: %s", text)
 	}
 }
 
