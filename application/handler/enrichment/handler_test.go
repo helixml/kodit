@@ -369,7 +369,7 @@ func TestWikiHandler(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, int64(1), countBefore)
 
-		h, err := NewWiki(repoStore, commitStore, fileStore, enrichCtx, &fakeWikiContextGatherer{})
+		h, err := NewWiki(repoStore, fileStore, enrichCtx, &fakeWikiContextGatherer{})
 		require.NoError(t, err)
 
 		payload := map[string]any{
@@ -418,7 +418,7 @@ func TestWikiHandler(t *testing.T) {
 		_, err = fileStore.Save(ctx, file)
 		require.NoError(t, err)
 
-		h, err := NewWiki(repoStore, commitStore, fileStore, enrichCtx, &fakeWikiContextGatherer{})
+		h, err := NewWiki(repoStore, fileStore, enrichCtx, &fakeWikiContextGatherer{})
 		require.NoError(t, err)
 
 		payload := map[string]any{

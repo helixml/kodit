@@ -105,7 +105,6 @@ type wikiGatheredContext struct {
 // Wiki handles the GENERATE_WIKI_FOR_COMMIT operation.
 type Wiki struct {
 	repoStore       repository.RepositoryStore
-	commitStore     repository.CommitStore
 	fileStore       repository.FileStore
 	enrichCtx       handler.EnrichmentContext
 	contextGatherer WikiContextGatherer
@@ -114,16 +113,12 @@ type Wiki struct {
 // NewWiki creates a new Wiki handler.
 func NewWiki(
 	repoStore repository.RepositoryStore,
-	commitStore repository.CommitStore,
 	fileStore repository.FileStore,
 	enrichCtx handler.EnrichmentContext,
 	contextGatherer WikiContextGatherer,
 ) (*Wiki, error) {
 	if repoStore == nil {
 		return nil, fmt.Errorf("NewWiki: nil repoStore")
-	}
-	if commitStore == nil {
-		return nil, fmt.Errorf("NewWiki: nil commitStore")
 	}
 	if fileStore == nil {
 		return nil, fmt.Errorf("NewWiki: nil fileStore")
@@ -136,7 +131,6 @@ func NewWiki(
 	}
 	return &Wiki{
 		repoStore:       repoStore,
-		commitStore:     commitStore,
 		fileStore:       fileStore,
 		enrichCtx:       enrichCtx,
 		contextGatherer: contextGatherer,
@@ -166,11 +160,6 @@ func (h *Wiki) Execute(ctx context.Context, payload map[string]any) error {
 	if count > 0 {
 		tracker.Skip(ctx, "Wiki already exists for commit")
 		return nil
-	}
-
-	// Delete any existing wiki for this repository so each repo has at most one.
-	if err := h.deleteExistingWiki(ctx, cp.RepoID()); err != nil {
-		return fmt.Errorf("delete existing wiki: %w", err)
 	}
 
 	repo, err := h.repoStore.FindOne(ctx, repository.WithID(cp.RepoID()))
@@ -274,47 +263,6 @@ func (h *Wiki) Execute(ctx context.Context, payload map[string]any) error {
 	commitAssoc := enrichment.CommitAssociation(saved.ID(), cp.CommitSHA())
 	if _, err := h.enrichCtx.Associations.Save(ctx, commitAssoc); err != nil {
 		return fmt.Errorf("save commit association: %w", err)
-	}
-
-	return nil
-}
-
-// deleteExistingWiki removes any previous wiki enrichments for the repository.
-func (h *Wiki) deleteExistingWiki(ctx context.Context, repoID int64) error {
-	commits, err := h.commitStore.Find(ctx, repository.WithRepoID(repoID))
-	if err != nil {
-		return fmt.Errorf("find commits: %w", err)
-	}
-
-	if len(commits) == 0 {
-		return nil
-	}
-
-	shas := make([]string, 0, len(commits))
-	for _, c := range commits {
-		shas = append(shas, c.SHA())
-	}
-
-	existing, err := h.enrichCtx.Enrichments.Find(ctx,
-		enrichment.WithCommitSHAs(shas),
-		enrichment.WithType(enrichment.TypeUsage),
-		enrichment.WithSubtype(enrichment.SubtypeWiki),
-	)
-	if err != nil {
-		return fmt.Errorf("find existing wikis: %w", err)
-	}
-
-	if len(existing) == 0 {
-		return nil
-	}
-
-	ids := make([]int64, len(existing))
-	for i, e := range existing {
-		ids[i] = e.ID()
-	}
-
-	if err := h.enrichCtx.Enrichments.DeleteBy(ctx, repository.WithIDIn(ids)); err != nil {
-		return fmt.Errorf("delete existing wikis: %w", err)
 	}
 
 	return nil
