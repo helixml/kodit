@@ -220,7 +220,7 @@ func (s *Server) handleListRepositories(ctx context.Context, _ mcp.CallToolReque
 
 	var b strings.Builder
 	for _, repo := range repos {
-		fmt.Fprintf(&b, "- %s", repo.SanitizedURL())
+		fmt.Fprintf(&b, "- %s", repo.UpstreamURL())
 
 		if repo.HasTrackingConfig() {
 			tc := repo.TrackingConfig()
@@ -247,6 +247,20 @@ func (s *Server) handleListRepositories(ctx context.Context, _ mcp.CallToolReque
 	}
 
 	return mcp.NewToolResultText(b.String()), nil
+}
+
+// resolveRepository finds repositories by sanitized URL first, falling back to
+// upstream URL. This lets LLMs use the upstream URL they saw in the repository
+// listing even when the internal sanitized URL differs.
+func (s *Server) resolveRepository(ctx context.Context, repoURL string) ([]repository.Repository, error) {
+	repos, err := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
+	if err != nil {
+		return nil, err
+	}
+	if len(repos) > 0 {
+		return repos, nil
+	}
+	return s.repositories.Find(ctx, repository.WithUpstreamURL(repoURL))
 }
 
 func (s *Server) handleGetArchitectureDocs(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -286,7 +300,7 @@ func (s *Server) handleGetWiki(ctx context.Context, request mcp.CallToolRequest)
 		return mcp.NewToolResultError("repo_url is required"), nil
 	}
 
-	repos, err := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
+	repos, err := s.resolveRepository(ctx, repoURL)
 	if err != nil {
 		s.logger.Error().Str("repo_url", repoURL).Interface("error", err).Msg("failed to find repository")
 		return mcp.NewToolResultError(fmt.Sprintf("failed to find repository: %v", err)), nil
@@ -352,7 +366,7 @@ func (s *Server) handleGetWikiPage(ctx context.Context, request mcp.CallToolRequ
 		return mcp.NewToolResultError("page_slug is required"), nil
 	}
 
-	repos, err := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
+	repos, err := s.resolveRepository(ctx, repoURL)
 	if err != nil {
 		s.logger.Error().Str("repo_url", repoURL).Interface("error", err).Msg("failed to find repository")
 		return mcp.NewToolResultError(fmt.Sprintf("failed to find repository: %v", err)), nil
@@ -429,7 +443,7 @@ func (s *Server) handleEnrichmentDocs(
 		return mcp.NewToolResultError(fmt.Sprintf("repo_url is required: %v", err)), nil
 	}
 
-	repos, err := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
+	repos, err := s.resolveRepository(ctx, repoURL)
 	if err != nil {
 		s.logger.Error().Str("repo_url", repoURL).Interface("error", err).Msg("failed to find repository")
 		return mcp.NewToolResultError(fmt.Sprintf("failed to find repository: %v", err)), nil
@@ -615,7 +629,7 @@ func (s *Server) handleSemanticSearch(ctx context.Context, request mcp.CallToolR
 	// Resolve source_repo URL to a repository ID for post-filtering.
 	var sourceRepoID int64
 	if repoURL := request.GetString("source_repo", ""); repoURL != "" {
-		repos, repoErr := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
+		repos, repoErr := s.resolveRepository(ctx, repoURL)
 		if repoErr != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("resolve source_repo: %v", repoErr)), nil
 		}
@@ -689,7 +703,7 @@ func (s *Server) handleKeywordSearch(ctx context.Context, request mcp.CallToolRe
 	// Resolve source_repo URL to a repository ID for post-filtering.
 	var sourceRepoID int64
 	if repoURL := request.GetString("source_repo", ""); repoURL != "" {
-		repos, repoErr := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
+		repos, repoErr := s.resolveRepository(ctx, repoURL)
 		if repoErr != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("resolve source_repo: %v", repoErr)), nil
 		}
@@ -762,7 +776,7 @@ func (s *Server) handleGrep(ctx context.Context, request mcp.CallToolRequest) (*
 		return mcp.NewToolResultError("pattern must not be empty"), nil
 	}
 
-	repos, err := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
+	repos, err := s.resolveRepository(ctx, repoURL)
 	if err != nil {
 		s.logger.Error().Str("repo_url", repoURL).Interface("error", err).Msg("failed to find repository")
 		return mcp.NewToolResultError(fmt.Sprintf("failed to find repository: %v", err)), nil
@@ -853,7 +867,7 @@ func (s *Server) handleLs(ctx context.Context, request mcp.CallToolRequest) (*mc
 		return mcp.NewToolResultError("pattern must not be empty"), nil
 	}
 
-	repos, err := s.repositories.Find(ctx, repository.WithRemoteURL(repoURL))
+	repos, err := s.resolveRepository(ctx, repoURL)
 	if err != nil {
 		s.logger.Error().Str("repo_url", repoURL).Interface("error", err).Msg("failed to find repository")
 		return mcp.NewToolResultError(fmt.Sprintf("failed to find repository: %v", err)), nil

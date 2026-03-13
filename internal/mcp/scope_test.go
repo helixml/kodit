@@ -56,12 +56,12 @@ func scopeReturn[T any]() T {
 
 func TestScopedRepositories_FindReturnsOnlyScopedRepos(t *testing.T) {
 	repo1 := repository.ReconstructRepository(
-		1, "https://github.com/org/repo1", "https://github.com/org/repo1",
+		1, "https://github.com/org/repo1", "https://github.com/org/repo1", "",
 		repository.WorkingCopy{}, repository.TrackingConfig{},
 		time.Now(), time.Now(), time.Time{},
 	)
 	repo2 := repository.ReconstructRepository(
-		2, "https://github.com/org/repo2", "https://github.com/org/repo2",
+		2, "https://github.com/org/repo2", "https://github.com/org/repo2", "",
 		repository.WorkingCopy{}, repository.TrackingConfig{},
 		time.Now(), time.Now(), time.Time{},
 	)

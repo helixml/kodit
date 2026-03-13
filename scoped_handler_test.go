@@ -21,12 +21,12 @@ import (
 // with scoped decorators only returns repositories in the allowed set.
 func TestScopedMCPServer_RepositoryListFiltered(t *testing.T) {
 	repo1 := repository.ReconstructRepository(
-		1, "https://github.com/org/allowed", "https://github.com/org/allowed",
+		1, "https://github.com/org/allowed", "https://github.com/org/allowed", "",
 		repository.WorkingCopy{}, repository.NewTrackingConfigForBranch("main"),
 		time.Now(), time.Now(), time.Time{},
 	)
 	repo2 := repository.ReconstructRepository(
-		2, "https://github.com/org/forbidden", "https://github.com/org/forbidden",
+		2, "https://github.com/org/forbidden", "https://github.com/org/forbidden", "",
 		repository.WorkingCopy{}, repository.NewTrackingConfigForBranch("main"),
 		time.Now(), time.Now(), time.Time{},
 	)
@@ -97,7 +97,7 @@ func TestScopedMCPServer_RepositoryListFiltered(t *testing.T) {
 // for an out-of-scope repository returns an error.
 func TestScopedMCPServer_ReadResourceBlocked(t *testing.T) {
 	repo1 := repository.ReconstructRepository(
-		1, "https://github.com/org/allowed", "https://github.com/org/allowed",
+		1, "https://github.com/org/allowed", "https://github.com/org/allowed", "",
 		repository.WorkingCopy{}, repository.NewTrackingConfigForBranch("main"),
 		time.Now(), time.Now(), time.Time{},
 	)
@@ -153,12 +153,12 @@ func TestScopedMCPServer_ReadResourceBlocked(t *testing.T) {
 // set results in unscoped behavior.
 func TestScopedMCPServer_NilRepoIDsNoScoping(t *testing.T) {
 	repo1 := repository.ReconstructRepository(
-		1, "https://github.com/org/repo1", "https://github.com/org/repo1",
+		1, "https://github.com/org/repo1", "https://github.com/org/repo1", "",
 		repository.WorkingCopy{}, repository.NewTrackingConfigForBranch("main"),
 		time.Now(), time.Now(), time.Time{},
 	)
 	repo2 := repository.ReconstructRepository(
-		2, "https://github.com/org/repo2", "https://github.com/org/repo2",
+		2, "https://github.com/org/repo2", "https://github.com/org/repo2", "",
 		repository.WorkingCopy{}, repository.NewTrackingConfigForBranch("main"),
 		time.Now(), time.Now(), time.Time{},
 	)
@@ -262,6 +262,7 @@ func TestScopedMCPServer_ListRepositories_SanitizesCredentials(t *testing.T) {
 		1,
 		"http://user:secret-token@api:8080/git/my-repo",
 		"http://api:8080/git/my-repo",
+		"",
 		repository.WorkingCopy{},
 		repository.NewTrackingConfigForBranch("main"),
 		time.Now(), time.Now(), time.Time{},

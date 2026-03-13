@@ -14,6 +14,7 @@ func TestRepositoryResource_SanitizesCredentials(t *testing.T) {
 		1,
 		"http://user:secret-token@api:8080/git/my-repo",
 		"http://api:8080/git/my-repo",
+		"",
 		repository.WorkingCopy{},
 		repository.NewTrackingConfigForBranch("main"),
 		time.Now(), time.Now(), time.Time{},

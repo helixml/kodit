@@ -16,6 +16,7 @@ type Repository struct {
 	id             int64
 	remoteURL      string
 	sanitizedURL   string
+	upstreamURL    string
 	workingCopy    WorkingCopy
 	trackingConfig TrackingConfig
 	createdAt      time.Time
@@ -41,6 +42,7 @@ func ReconstructRepository(
 	id int64,
 	remoteURL string,
 	sanitizedURL string,
+	upstreamURL string,
 	workingCopy WorkingCopy,
 	trackingConfig TrackingConfig,
 	createdAt, updatedAt time.Time,
@@ -50,6 +52,7 @@ func ReconstructRepository(
 		id:             id,
 		remoteURL:      remoteURL,
 		sanitizedURL:   sanitizedURL,
+		upstreamURL:    upstreamURL,
 		workingCopy:    workingCopy,
 		trackingConfig: trackingConfig,
 		createdAt:      createdAt,
@@ -66,6 +69,22 @@ func (r Repository) RemoteURL() string { return r.remoteURL }
 
 // SanitizedURL returns the remote URL with credentials stripped.
 func (r Repository) SanitizedURL() string { return r.sanitizedURL }
+
+// UpstreamURL returns the upstream URL. Falls back to sanitizedURL when
+// no explicit upstream has been set.
+func (r Repository) UpstreamURL() string {
+	if r.upstreamURL != "" {
+		return r.upstreamURL
+	}
+	return r.sanitizedURL
+}
+
+// WithUpstreamURL returns a copy with the given upstream URL.
+func (r Repository) WithUpstreamURL(url string) Repository {
+	r.upstreamURL = url
+	r.updatedAt = time.Now()
+	return r
+}
 
 // WorkingCopy returns the local working copy.
 func (r Repository) WorkingCopy() WorkingCopy { return r.workingCopy }

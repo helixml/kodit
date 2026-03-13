@@ -10,6 +10,7 @@ import (
 // RepositoryAttributes represents repository attributes in JSON:API format.
 type RepositoryAttributes struct {
 	RemoteURI      string     `json:"remote_uri"`
+	UpstreamURL    string     `json:"upstream_url"` // The canonical upstream URL (e.g. github.com/org/repo); falls back to remote_uri when not set
 	CreatedAt      *time.Time `json:"created_at,omitempty"`
 	UpdatedAt      *time.Time `json:"updated_at,omitempty"`
 	LastScannedAt  *time.Time `json:"last_scanned_at,omitempty"`
@@ -63,7 +64,8 @@ type RepositoryDetailsResponse struct {
 
 // RepositoryCreateAttributes represents repository creation attributes.
 type RepositoryCreateAttributes struct {
-	RemoteURI string `json:"remote_uri"`
+	RemoteURI   string `json:"remote_uri"`
+	UpstreamURL string `json:"upstream_url,omitempty"` // Optional canonical upstream URL; used for deduplication when multiple clone URLs point to the same repo
 }
 
 // RepositoryCreateData represents repository creation data.
