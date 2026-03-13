@@ -2504,6 +2504,10 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
+                },
+                "upstream_url": {
+                    "description": "The canonical upstream URL (e.g. github.com/org/repo); falls back to remote_uri when not set",
+                    "type": "string"
                 }
             }
         },
@@ -2542,6 +2546,10 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "remote_uri": {
+                    "type": "string"
+                },
+                "upstream_url": {
+                    "description": "Optional canonical upstream URL; used for deduplication when multiple clone URLs point to the same repo",
                     "type": "string"
                 }
             }

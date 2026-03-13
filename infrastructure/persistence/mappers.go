@@ -36,10 +36,16 @@ func (m RepositoryMapper) ToDomain(e RepositoryModel) repository.Repository {
 		lastSyncedAt = *e.LastScannedAt
 	}
 
+	var upstreamURL string
+	if e.UpstreamURL != nil {
+		upstreamURL = *e.UpstreamURL
+	}
+
 	return repository.ReconstructRepository(
 		e.ID,
 		e.RemoteURI,
 		e.SanitizedRemoteURI,
+		upstreamURL,
 		wc,
 		tc,
 		e.CreatedAt,
@@ -64,10 +70,19 @@ func (m RepositoryMapper) ToModel(r repository.Repository) RepositoryModel {
 		lastScannedAt = &t
 	}
 
+	// Store upstream URL only when it differs from the sanitized URL.
+	// NULL in the DB means "use sanitized URL as upstream".
+	var upstreamURL *string
+	upstream := r.UpstreamURL()
+	if upstream != "" && upstream != sanitizeURI(r.RemoteURL()) {
+		upstreamURL = &upstream
+	}
+
 	return RepositoryModel{
 		ID:                 r.ID(),
 		SanitizedRemoteURI: sanitizeURI(r.RemoteURL()),
 		RemoteURI:          r.RemoteURL(),
+		UpstreamURL:        upstreamURL,
 		ClonedPath:         clonedPath,
 		LastScannedAt:      lastScannedAt,
 		TrackingType:       trackingType,

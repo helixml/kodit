@@ -12,10 +12,11 @@ import (
 
 // RepositoryAddParams configures adding a new repository.
 type RepositoryAddParams struct {
-	URL    string
-	Branch string
-	Tag    string
-	Commit string
+	URL         string
+	UpstreamURL string
+	Branch      string
+	Tag         string
+	Commit      string
 }
 
 // RescanParams configures a commit rescan operation.
@@ -82,9 +83,26 @@ func (s *Repository) Add(ctx context.Context, params *RepositoryAddParams) (repo
 		return repository.NewSource(repo), false, nil
 	}
 
+	if params.UpstreamURL != "" {
+		found, err := s.repoStore.Exists(ctx, repository.WithUpstreamURL(params.UpstreamURL))
+		if err != nil {
+			return repository.Source{}, false, fmt.Errorf("check upstream: %w", err)
+		}
+		if found {
+			repo, err := s.repoStore.FindOne(ctx, repository.WithUpstreamURL(params.UpstreamURL))
+			if err != nil {
+				return repository.Source{}, false, fmt.Errorf("find existing by upstream: %w", err)
+			}
+			return repository.NewSource(repo), false, nil
+		}
+	}
+
 	repo, err := repository.NewRepository(params.URL)
 	if err != nil {
 		return repository.Source{}, false, fmt.Errorf("create repository: %w", err)
+	}
+	if params.UpstreamURL != "" {
+		repo = repo.WithUpstreamURL(params.UpstreamURL)
 	}
 	if params.Branch != "" || params.Tag != "" || params.Commit != "" {
 		repo = repo.WithTrackingConfig(

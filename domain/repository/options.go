@@ -17,6 +17,11 @@ func WithRemoteURL(url string) Option {
 	return WithCondition("sanitized_remote_uri", url)
 }
 
+// WithUpstreamURL filters by the "upstream_url" column.
+func WithUpstreamURL(url string) Option {
+	return WithCondition("upstream_url", url)
+}
+
 // WithDefault filters for the default branch (is_default = true).
 func WithDefault() Option {
 	return WithCondition("is_default", true)

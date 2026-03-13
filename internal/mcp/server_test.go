@@ -49,6 +49,18 @@ func (f *fakeRepositoryLister) Find(_ context.Context, options ...repository.Opt
 			}
 			return nil, nil
 		}
+		if c.Field() == "upstream_url" {
+			url, ok := c.Value().(string)
+			if !ok {
+				continue
+			}
+			for _, r := range f.repos {
+				if r.UpstreamURL() == url {
+					return []repository.Repository{r}, nil
+				}
+			}
+			return nil, nil
+		}
 	}
 	return f.repos, nil
 }
@@ -219,6 +231,7 @@ func testRepo() repository.Repository {
 		1,
 		"https://github.com/example/repo",
 		"https://github.com/example/repo",
+		"",
 		repository.WorkingCopy{},
 		repository.NewTrackingConfigForBranch("main"),
 		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -375,6 +388,104 @@ func TestServer_ListRepositories(t *testing.T) {
 	}
 	if !containsStr(text, "abc1234") {
 		t.Errorf("expected short SHA in output, got: %s", text)
+	}
+}
+
+func TestServer_ListRepositories_DisplaysUpstreamURL(t *testing.T) {
+	repo := repository.ReconstructRepository(
+		1,
+		"http://app.helix.ml/v1/api/git/AAA",
+		"http://app.helix.ml/v1/api/git/AAA",
+		"https://github.com/huggingface/sentence-transformers",
+		repository.WorkingCopy{},
+		repository.NewTrackingConfigForBranch("main"),
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Time{},
+	)
+
+	srv := NewServer(
+		&fakeRepositoryLister{repos: []repository.Repository{repo}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{},
+		&fakeFileContentReader{},
+		&fakeSemanticSearcher{},
+		&fakeKeywordSearcher{},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{},
+			lineRanges:    map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{},
+		},
+		&fakeFileLister{},
+		&fakeFileFinder{},
+		&fakeGrepper{},
+		"1.0.0-test",
+		zerolog.Nop(),
+	)
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name":      "kodit_repositories",
+		"arguments": map[string]any{},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	text := textFromContent(t, result)
+	if !containsStr(text, "https://github.com/huggingface/sentence-transformers") {
+		t.Errorf("expected upstream URL in output, got: %s", text)
+	}
+	if containsStr(text, "app.helix.ml") {
+		t.Errorf("expected internal Helix URL to be hidden, got: %s", text)
+	}
+}
+
+func TestServer_ListRepositories_FallsBackToSanitizedURL(t *testing.T) {
+	// No explicit upstream URL set — UpstreamURL() should return the sanitized URL.
+	repo := repository.ReconstructRepository(
+		1,
+		"https://github.com/example/repo",
+		"https://github.com/example/repo",
+		"",
+		repository.WorkingCopy{},
+		repository.NewTrackingConfigForBranch("main"),
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Time{},
+	)
+
+	srv := NewServer(
+		&fakeRepositoryLister{repos: []repository.Repository{repo}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{},
+		&fakeFileContentReader{},
+		&fakeSemanticSearcher{},
+		&fakeKeywordSearcher{},
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{},
+			lineRanges:    map[string]chunk.LineRange{},
+			repositoryIDs: map[string]int64{},
+		},
+		&fakeFileLister{},
+		&fakeFileFinder{},
+		&fakeGrepper{},
+		"1.0.0-test",
+		zerolog.Nop(),
+	)
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name":      "kodit_repositories",
+		"arguments": map[string]any{},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	text := textFromContent(t, result)
+	if !containsStr(text, "https://github.com/example/repo") {
+		t.Errorf("expected sanitized URL as fallback, got: %s", text)
 	}
 }
 
@@ -2177,6 +2288,7 @@ func testRepoWithCredentials() repository.Repository {
 		1,
 		"http://user:secret-token@api:8080/git/my-repo",
 		"http://api:8080/git/my-repo",
+		"",
 		repository.WorkingCopy{},
 		repository.NewTrackingConfigForBranch("main"),
 		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),

@@ -228,6 +228,10 @@ definitions:
         type: string
       updated_at:
         type: string
+      upstream_url:
+        description: The canonical upstream URL (e.g. github.com/org/repo); falls
+          back to remote_uri when not set
+        type: string
     type: object
   dto.RepositoryBranchData:
     properties:
@@ -252,6 +256,10 @@ definitions:
   dto.RepositoryCreateAttributes:
     properties:
       remote_uri:
+        type: string
+      upstream_url:
+        description: Optional canonical upstream URL; used for deduplication when
+          multiple clone URLs point to the same repo
         type: string
     type: object
   dto.RepositoryCreateData:

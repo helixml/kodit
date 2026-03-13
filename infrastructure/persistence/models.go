@@ -11,6 +11,7 @@ type RepositoryModel struct {
 	ID                 int64      `gorm:"primaryKey;autoIncrement"`
 	SanitizedRemoteURI string     `gorm:"column:sanitized_remote_uri;index;uniqueIndex;size:1024"`
 	RemoteURI          string     `gorm:"column:remote_uri;size:1024"`
+	UpstreamURL        *string    `gorm:"column:upstream_url;index;size:1024"`
 	ClonedPath         *string    `gorm:"column:cloned_path;size:1024"`
 	LastScannedAt      *time.Time `gorm:"column:last_scanned_at"`
 	NumCommits         int        `gorm:"column:num_commits;default:0"`

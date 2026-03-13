@@ -248,7 +248,8 @@ func (r *RepositoriesRouter) Add(w http.ResponseWriter, req *http.Request) {
 	}
 
 	source, created, err := r.client.Repositories.Add(ctx, &service.RepositoryAddParams{
-		URL: body.Data.Attributes.RemoteURI,
+		URL:         body.Data.Attributes.RemoteURI,
+		UpstreamURL: body.Data.Attributes.UpstreamURL,
 	})
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
@@ -1594,6 +1595,7 @@ func repoToDTO(repo repository.Repository, numCommits, numBranches, numTags int6
 
 	attrs := dto.RepositoryAttributes{
 		RemoteURI:   repo.SanitizedURL(),
+		UpstreamURL: repo.UpstreamURL(),
 		CreatedAt:   &createdAt,
 		UpdatedAt:   &updatedAt,
 		ClonedPath:  &clonedPath,
