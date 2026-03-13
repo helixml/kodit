@@ -19,7 +19,6 @@ type Scan struct {
 	commitStore    repository.CommitStore
 	fileStore      repository.FileStore
 	scanner        domainservice.Scanner
-	previous       *handler.PreviousCommit
 	trackerFactory handler.TrackerFactory
 	logger         zerolog.Logger
 }
@@ -30,7 +29,6 @@ func NewScan(
 	commitStore repository.CommitStore,
 	fileStore repository.FileStore,
 	scanner domainservice.Scanner,
-	previous *handler.PreviousCommit,
 	trackerFactory handler.TrackerFactory,
 	logger zerolog.Logger,
 ) *Scan {
@@ -39,7 +37,6 @@ func NewScan(
 		commitStore:    commitStore,
 		fileStore:      fileStore,
 		scanner:        scanner,
-		previous:       previous,
 		trackerFactory: trackerFactory,
 		logger:         logger,
 	}
@@ -99,10 +96,6 @@ func (h *Scan) Execute(ctx context.Context, payload map[string]any) error {
 		if _, err := h.fileStore.SaveAll(ctx, files); err != nil {
 			h.logger.Warn().Str("commit", handler.ShortSHA(cp.CommitSHA())).Str("error", err.Error()).Msg("failed to save files")
 		}
-	}
-
-	if err := h.previous.DeleteFiles(ctx, cp.RepoID(), cp.CommitSHA()); err != nil {
-		return fmt.Errorf("delete old files: %w", err)
 	}
 
 	h.logger.Info().Int64("repo_id", cp.RepoID()).Str("commit", handler.ShortSHA(cp.CommitSHA())).Int64("commit_id", savedCommit.ID()).Int("files", len(files)).Msg("commit scanned successfully")

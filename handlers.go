@@ -20,8 +20,6 @@ import (
 
 // registerHandlers registers all task handlers with the worker registry.
 func (c *Client) registerHandlers() error {
-	previous := handler.NewPreviousCommit(c.Enrichments, c.repoStores.Commits, c.repoStores.Files)
-
 	// Repository handlers (always registered)
 	c.registry.Register(task.OperationCloneRepository, repohandler.NewClone(
 		c.repoStores.Repositories, c.gitInfra.Cloner, c.queue, c.enrichCtx.Tracker, c.logger,
@@ -32,8 +30,11 @@ func (c *Client) registerHandlers() error {
 	c.registry.Register(task.OperationDeleteRepository, repohandler.NewDelete(
 		c.repoStores, c.Enrichments, c.queue, c.enrichCtx.Tracker, c.logger,
 	))
-	c.registry.Register(task.OperationScanCommit, commithandler.NewScan(
-		c.repoStores.Repositories, c.repoStores.Commits, c.repoStores.Files, c.gitInfra.Scanner, previous, c.enrichCtx.Tracker, c.logger,
+	c.registry.Register(task.OperationScanCommit, handler.WithCleanup(
+		commithandler.NewScan(
+			c.repoStores.Repositories, c.repoStores.Commits, c.repoStores.Files, c.gitInfra.Scanner, c.enrichCtx.Tracker, c.logger,
+		),
+		handler.NewFileCleanup(c.repoStores.Commits, c.repoStores.Files),
 	))
 	c.registry.Register(task.OperationRescanCommit, commithandler.NewRescan(
 		c.Enrichments, c.enrichCtx.Associations, c.statusStore, c.enrichCtx.Tracker, c.logger,
@@ -41,19 +42,21 @@ func (c *Client) registerHandlers() error {
 
 	// Indexing handlers — choose between simple chunking and AST-based extraction
 	if c.simpleChunking {
-		c.registry.Register(task.OperationExtractSnippetsForCommit, previous.Handler(
-			enrichment.TypeDevelopment, enrichment.SubtypeChunk,
+		c.registry.Register(task.OperationExtractSnippetsForCommit, handler.WithCleanup(
 			indexinghandler.NewChunkFiles(
 				c.repoStores.Repositories, c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.lineRangeStore,
 				c.repoStores.Files, c.gitInfra.Adapter, c.chunkParams, c.enrichCtx.Tracker, c.logger,
 			),
+			handler.NewEnrichmentCleanup(c.Enrichments, c.repoStores.Commits,
+				enrichment.TypeDevelopment, enrichment.SubtypeChunk),
 		))
 	} else {
-		c.registry.Register(task.OperationExtractSnippetsForCommit, previous.Handler(
-			enrichment.TypeDevelopment, enrichment.SubtypeSnippet,
+		c.registry.Register(task.OperationExtractSnippetsForCommit, handler.WithCleanup(
 			indexinghandler.NewExtractSnippets(
 				c.repoStores.Repositories, c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.repoStores.Files, c.slicer, c.enrichCtx.Tracker, c.logger,
 			),
+			handler.NewEnrichmentCleanup(c.Enrichments, c.repoStores.Commits,
+				enrichment.TypeDevelopment, enrichment.SubtypeSnippet),
 		))
 	}
 
@@ -111,8 +114,9 @@ func (c *Client) registerHandlers() error {
 			if err != nil {
 				return fmt.Errorf("create summary handler: %w", err)
 			}
-			c.registry.Register(task.OperationCreateSummaryEnrichmentForCommit, previous.Handler(
-				enrichment.TypeDevelopment, enrichment.SubtypeSnippetSummary, h,
+			c.registry.Register(task.OperationCreateSummaryEnrichmentForCommit, handler.WithCleanup(
+				h, handler.NewEnrichmentCleanup(c.Enrichments, c.repoStores.Commits,
+					enrichment.TypeDevelopment, enrichment.SubtypeSnippetSummary),
 			))
 		}
 
@@ -120,16 +124,18 @@ func (c *Client) registerHandlers() error {
 		if err != nil {
 			return fmt.Errorf("commit description handler: %w", err)
 		}
-		c.registry.Register(task.OperationCreateCommitDescriptionForCommit, previous.Handler(
-			enrichment.TypeHistory, enrichment.SubtypeCommitDescription, h2,
+		c.registry.Register(task.OperationCreateCommitDescriptionForCommit, handler.WithCleanup(
+			h2, handler.NewEnrichmentCleanup(c.Enrichments, c.repoStores.Commits,
+				enrichment.TypeHistory, enrichment.SubtypeCommitDescription),
 		))
 
 		h3, err := enrichmenthandler.NewArchitectureDiscovery(c.repoStores.Repositories, c.enrichCtx, c.archDiscoverer)
 		if err != nil {
 			return fmt.Errorf("architecture discovery handler: %w", err)
 		}
-		c.registry.Register(task.OperationCreateArchitectureEnrichmentForCommit, previous.Handler(
-			enrichment.TypeArchitecture, enrichment.SubtypePhysical, h3,
+		c.registry.Register(task.OperationCreateArchitectureEnrichmentForCommit, handler.WithCleanup(
+			h3, handler.NewEnrichmentCleanup(c.Enrichments, c.repoStores.Commits,
+				enrichment.TypeArchitecture, enrichment.SubtypePhysical),
 		))
 
 		if !c.simpleChunking {
@@ -137,8 +143,9 @@ func (c *Client) registerHandlers() error {
 			if err != nil {
 				return fmt.Errorf("example summary handler: %w", err)
 			}
-			c.registry.Register(task.OperationCreateExampleSummaryForCommit, previous.Handler(
-				enrichment.TypeDevelopment, enrichment.SubtypeExampleSummary, h4,
+			c.registry.Register(task.OperationCreateExampleSummaryForCommit, handler.WithCleanup(
+				h4, handler.NewEnrichmentCleanup(c.Enrichments, c.repoStores.Commits,
+					enrichment.TypeDevelopment, enrichment.SubtypeExampleSummary),
 			))
 		}
 
@@ -146,40 +153,45 @@ func (c *Client) registerHandlers() error {
 		if err != nil {
 			return fmt.Errorf("database schema handler: %w", err)
 		}
-		c.registry.Register(task.OperationCreateDatabaseSchemaForCommit, previous.Handler(
-			enrichment.TypeArchitecture, enrichment.SubtypeDatabaseSchema, h5,
+		c.registry.Register(task.OperationCreateDatabaseSchemaForCommit, handler.WithCleanup(
+			h5, handler.NewEnrichmentCleanup(c.Enrichments, c.repoStores.Commits,
+				enrichment.TypeArchitecture, enrichment.SubtypeDatabaseSchema),
 		))
 
 		h6, err := enrichmenthandler.NewCookbook(c.repoStores.Repositories, c.repoStores.Files, c.enrichCtx, c.cookbookContext)
 		if err != nil {
 			return fmt.Errorf("cookbook handler: %w", err)
 		}
-		c.registry.Register(task.OperationCreateCookbookForCommit, previous.Handler(
-			enrichment.TypeUsage, enrichment.SubtypeCookbook, h6,
+		c.registry.Register(task.OperationCreateCookbookForCommit, handler.WithCleanup(
+			h6, handler.NewEnrichmentCleanup(c.Enrichments, c.repoStores.Commits,
+				enrichment.TypeUsage, enrichment.SubtypeCookbook),
 		))
 
 		h7, err := enrichmenthandler.NewWiki(c.repoStores.Repositories, c.repoStores.Files, c.enrichCtx, c.wikiContext)
 		if err != nil {
 			return fmt.Errorf("wiki handler: %w", err)
 		}
-		c.registry.Register(task.OperationGenerateWikiForCommit, previous.Handler(
-			enrichment.TypeUsage, enrichment.SubtypeWiki, h7,
+		c.registry.Register(task.OperationGenerateWikiForCommit, handler.WithCleanup(
+			h7, handler.NewEnrichmentCleanup(c.Enrichments, c.repoStores.Commits,
+				enrichment.TypeUsage, enrichment.SubtypeWiki),
 		))
 	}
 
 	// API docs enrichment (AST-based, no LLM dependency)
-	c.registry.Register(task.OperationCreatePublicAPIDocsForCommit, previous.Handler(
-		enrichment.TypeUsage, enrichment.SubtypeAPIDocs,
+	c.registry.Register(task.OperationCreatePublicAPIDocsForCommit, handler.WithCleanup(
 		enrichmenthandler.NewAPIDocs(c.repoStores.Files, c.enrichCtx, c.apiDocService),
+		handler.NewEnrichmentCleanup(c.Enrichments, c.repoStores.Commits,
+			enrichment.TypeUsage, enrichment.SubtypeAPIDocs),
 	))
 
 	// Example extraction handler (no LLM dependency) — disabled when simple chunking is active
 	if !c.simpleChunking {
-		c.registry.Register(task.OperationExtractExamplesForCommit, previous.Handler(
-			enrichment.TypeDevelopment, enrichment.SubtypeExample,
+		c.registry.Register(task.OperationExtractExamplesForCommit, handler.WithCleanup(
 			enrichmenthandler.NewExtractExamples(
 				c.repoStores.Repositories, c.repoStores.Commits, c.gitInfra.Adapter, c.enrichCtx, c.exampleDiscoverer,
 			),
+			handler.NewEnrichmentCleanup(c.Enrichments, c.repoStores.Commits,
+				enrichment.TypeDevelopment, enrichment.SubtypeExample),
 		))
 	}
 

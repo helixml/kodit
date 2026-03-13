@@ -9,42 +9,39 @@ import (
 	"github.com/helixml/kodit/domain/repository"
 )
 
-// PreviousCommit deletes data from old commits after new data has been created.
-// Each handler uses this to clean up its own data type once the replacement
-// data for the current commit is safely persisted.
-type PreviousCommit struct {
-	enrichments *service.Enrichment
-	commits     repository.CommitStore
-	files       repository.FileStore
+// Cleaner removes data from old commits after new data has been created.
+type Cleaner interface {
+	Clean(ctx context.Context, repoID int64, currentSHA string) error
 }
 
-// NewPreviousCommit creates a PreviousCommit.
-func NewPreviousCommit(
+// EnrichmentCleanup removes enrichments of a specific type and subtype from
+// old commits. Each handler gets its own instance configured at construction.
+type EnrichmentCleanup struct {
+	enrichments *service.Enrichment
+	commits     repository.CommitStore
+	typ         enrichment.Type
+	subtype     enrichment.Subtype
+}
+
+// NewEnrichmentCleanup creates an EnrichmentCleanup.
+func NewEnrichmentCleanup(
 	enrichments *service.Enrichment,
 	commits repository.CommitStore,
-	files repository.FileStore,
-) *PreviousCommit {
-	return &PreviousCommit{
+	typ enrichment.Type,
+	subtype enrichment.Subtype,
+) *EnrichmentCleanup {
+	return &EnrichmentCleanup{
 		enrichments: enrichments,
 		commits:     commits,
-		files:       files,
+		typ:         typ,
+		subtype:     subtype,
 	}
 }
 
-// DeleteEnrichments removes enrichments of the given type and subtype from
-// previous commits for the repository. No-op when no old commits exist.
-//
-// Uses a two-step approach (Find then DeleteBy with IDs) because the
-// enrichment store's DeleteBy does not support the commit SHA JOIN that
-// Find uses.
-func (p *PreviousCommit) DeleteEnrichments(
-	ctx context.Context,
-	repoID int64,
-	currentSHA string,
-	typ enrichment.Type,
-	subtype enrichment.Subtype,
-) error {
-	shas, err := p.oldCommitSHAs(ctx, repoID, currentSHA)
+// Clean removes enrichments of the configured type/subtype from previous
+// commits for the repository. No-op when no old commits exist.
+func (c *EnrichmentCleanup) Clean(ctx context.Context, repoID int64, currentSHA string) error {
+	shas, err := oldCommitSHAs(ctx, c.commits, repoID, currentSHA)
 	if err != nil {
 		return err
 	}
@@ -52,10 +49,10 @@ func (p *PreviousCommit) DeleteEnrichments(
 		return nil
 	}
 
-	existing, err := p.enrichments.Find(ctx,
+	existing, err := c.enrichments.Find(ctx,
 		enrichment.WithCommitSHAs(shas),
-		enrichment.WithType(typ),
-		enrichment.WithSubtype(subtype),
+		enrichment.WithType(c.typ),
+		enrichment.WithSubtype(c.subtype),
 	)
 	if err != nil {
 		return fmt.Errorf("find old enrichments: %w", err)
@@ -69,17 +66,32 @@ func (p *PreviousCommit) DeleteEnrichments(
 		ids[i] = e.ID()
 	}
 
-	if err := p.enrichments.DeleteBy(ctx, repository.WithIDIn(ids)); err != nil {
+	if err := c.enrichments.DeleteBy(ctx, repository.WithIDIn(ids)); err != nil {
 		return fmt.Errorf("delete old enrichments: %w", err)
 	}
 
 	return nil
 }
 
-// DeleteFiles removes files associated with previous commits for the
-// repository. No-op when no old commits exist.
-func (p *PreviousCommit) DeleteFiles(ctx context.Context, repoID int64, currentSHA string) error {
-	shas, err := p.oldCommitSHAs(ctx, repoID, currentSHA)
+// FileCleanup removes files from old commits. Used by the scan handler
+// via the WithCleanup decorator.
+type FileCleanup struct {
+	commits repository.CommitStore
+	files   repository.FileStore
+}
+
+// NewFileCleanup creates a FileCleanup.
+func NewFileCleanup(commits repository.CommitStore, files repository.FileStore) *FileCleanup {
+	return &FileCleanup{
+		commits: commits,
+		files:   files,
+	}
+}
+
+// Clean removes files associated with previous commits for the repository.
+// No-op when no old commits exist.
+func (c *FileCleanup) Clean(ctx context.Context, repoID int64, currentSHA string) error {
+	shas, err := oldCommitSHAs(ctx, c.commits, repoID, currentSHA)
 	if err != nil {
 		return err
 	}
@@ -87,36 +99,32 @@ func (p *PreviousCommit) DeleteFiles(ctx context.Context, repoID int64, currentS
 		return nil
 	}
 
-	if err := p.files.DeleteBy(ctx, repository.WithCommitSHAIn(shas)); err != nil {
+	if err := c.files.DeleteBy(ctx, repository.WithCommitSHAIn(shas)); err != nil {
 		return fmt.Errorf("delete old files: %w", err)
 	}
 
 	return nil
 }
 
-// Handler wraps an inner handler with automatic deletion of old enrichments
-// after the inner handler completes successfully.
-func (p *PreviousCommit) Handler(typ enrichment.Type, subtype enrichment.Subtype, inner Handler) Handler {
-	return &previousCommitHandler{
-		inner:         inner,
-		previous:      p,
-		enrichType:    typ,
-		enrichSubtype: subtype,
+// WithCleanup wraps a handler with automatic cleanup of old data after the
+// inner handler completes successfully.
+func WithCleanup(inner Handler, cleanup Cleaner) Handler {
+	return &cleanupHandler{
+		inner:   inner,
+		cleanup: cleanup,
 	}
 }
 
-// previousCommitHandler decorates a Handler to delete old enrichments after
-// the inner handler succeeds.
-type previousCommitHandler struct {
-	inner         Handler
-	previous      *PreviousCommit
-	enrichType    enrichment.Type
-	enrichSubtype enrichment.Subtype
+// cleanupHandler decorates a Handler to run a Cleaner after the inner handler
+// succeeds.
+type cleanupHandler struct {
+	inner   Handler
+	cleanup Cleaner
 }
 
-// Execute runs the inner handler, then deletes old enrichments of the
-// configured type/subtype for the same repository.
-func (h *previousCommitHandler) Execute(ctx context.Context, payload map[string]any) error {
+// Execute runs the inner handler, then cleans up old data for the same
+// repository.
+func (h *cleanupHandler) Execute(ctx context.Context, payload map[string]any) error {
 	if err := h.inner.Execute(ctx, payload); err != nil {
 		return err
 	}
@@ -126,18 +134,18 @@ func (h *previousCommitHandler) Execute(ctx context.Context, payload map[string]
 		return err
 	}
 
-	return h.previous.DeleteEnrichments(ctx, cp.RepoID(), cp.CommitSHA(), h.enrichType, h.enrichSubtype)
+	return h.cleanup.Clean(ctx, cp.RepoID(), cp.CommitSHA())
 }
 
 // oldCommitSHAs returns SHAs of all commits for the repo except the current one.
-func (p *PreviousCommit) oldCommitSHAs(ctx context.Context, repoID int64, currentSHA string) ([]string, error) {
-	commits, err := p.commits.Find(ctx, repository.WithRepoID(repoID))
+func oldCommitSHAs(ctx context.Context, commits repository.CommitStore, repoID int64, currentSHA string) ([]string, error) {
+	all, err := commits.Find(ctx, repository.WithRepoID(repoID))
 	if err != nil {
 		return nil, fmt.Errorf("find commits: %w", err)
 	}
 
 	var shas []string
-	for _, c := range commits {
+	for _, c := range all {
 		if c.SHA() != currentSHA {
 			shas = append(shas, c.SHA())
 		}
