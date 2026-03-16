@@ -16,6 +16,7 @@ import (
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/chunking"
+	"github.com/helixml/kodit/infrastructure/extraction"
 )
 
 // binaryProbeSize is the number of bytes checked for null bytes to detect binary files.
@@ -26,6 +27,11 @@ type FileContentSource interface {
 	FileContent(ctx context.Context, localPath string, commitSHA string, filePath string) ([]byte, error)
 }
 
+// DocumentTextSource extracts text from binary document files.
+type DocumentTextSource interface {
+	Text(path string) (string, error)
+}
+
 // ChunkFiles creates fixed-size text chunks from commit files.
 type ChunkFiles struct {
 	repoStore        repository.RepositoryStore
@@ -34,12 +40,14 @@ type ChunkFiles struct {
 	lineRangeStore   chunk.LineRangeStore
 	fileStore        repository.FileStore
 	fileContent      FileContentSource
+	documentText     DocumentTextSource
 	params           chunking.ChunkParams
 	trackerFactory   handler.TrackerFactory
 	logger           zerolog.Logger
 }
 
 // NewChunkFiles creates a new ChunkFiles handler.
+// When documentText is nil, document files are skipped.
 func NewChunkFiles(
 	repoStore repository.RepositoryStore,
 	enrichmentStore enrichment.EnrichmentStore,
@@ -47,6 +55,7 @@ func NewChunkFiles(
 	lineRangeStore chunk.LineRangeStore,
 	fileStore repository.FileStore,
 	fileContent FileContentSource,
+	documentText DocumentTextSource,
 	params chunking.ChunkParams,
 	trackerFactory handler.TrackerFactory,
 	logger zerolog.Logger,
@@ -58,6 +67,7 @@ func NewChunkFiles(
 		lineRangeStore:   lineRangeStore,
 		fileStore:        fileStore,
 		fileContent:      fileContent,
+		documentText:     documentText,
 		params:           params,
 		trackerFactory:   trackerFactory,
 		logger:           logger,
@@ -125,51 +135,56 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 			continue
 		}
 
+		ext := strings.ToLower(filepath.Ext(f.Path()))
 		relPath := relativeFilePath(f.Path(), clonedPath)
-		content, readErr := h.fileContent.FileContent(ctx, clonedPath, cp.CommitSHA(), relPath)
-		if readErr != nil {
-			h.logger.Warn().Str("path", f.Path()).Str("error", readErr.Error()).Msg("failed to read file content")
-			processed++
-			continue
+
+		var textChunks chunking.TextChunks
+
+		if extraction.IsDocument(ext) {
+			if h.documentText == nil {
+				processed++
+				continue
+			}
+			diskPath := filepath.Join(clonedPath, relPath)
+			text, extractErr := h.documentText.Text(diskPath)
+			if extractErr != nil {
+				h.logger.Warn().Str("path", f.Path()).Str("error", extractErr.Error()).Msg("failed to extract document text")
+				processed++
+				continue
+			}
+			if strings.TrimSpace(text) == "" {
+				processed++
+				continue
+			}
+			var chunkErr error
+			textChunks, chunkErr = chunking.NewTextChunks(text, h.params)
+			if chunkErr != nil {
+				h.logger.Warn().Str("path", f.Path()).Str("error", chunkErr.Error()).Msg("failed to chunk document")
+				processed++
+				continue
+			}
+		} else {
+			content, readErr := h.fileContent.FileContent(ctx, clonedPath, cp.CommitSHA(), relPath)
+			if readErr != nil {
+				h.logger.Warn().Str("path", f.Path()).Str("error", readErr.Error()).Msg("failed to read file content")
+				processed++
+				continue
+			}
+			if isBinary(content) {
+				processed++
+				continue
+			}
+			var chunkErr error
+			textChunks, chunkErr = chunking.NewTextChunks(string(content), h.params)
+			if chunkErr != nil {
+				h.logger.Warn().Str("path", f.Path()).Str("error", chunkErr.Error()).Msg("failed to chunk file")
+				processed++
+				continue
+			}
 		}
 
-		if isBinary(content) {
-			processed++
-			continue
-		}
-
-		textChunks, chunkErr := chunking.NewTextChunks(string(content), h.params)
-		if chunkErr != nil {
-			h.logger.Warn().Str("path", f.Path()).Str("error", chunkErr.Error()).Msg("failed to chunk file")
-			processed++
-			continue
-		}
-
-		for _, ch := range textChunks.All() {
-			e := enrichment.NewChunkEnrichmentWithLanguage(ch.Content(), f.Extension())
-			saved, saveErr := h.enrichmentStore.Save(ctx, e)
-			if saveErr != nil {
-				return fmt.Errorf("save chunk enrichment: %w", saveErr)
-			}
-
-			lr := chunk.NewLineRange(saved.ID(), ch.StartLine(), ch.EndLine())
-			if _, err := h.lineRangeStore.Save(ctx, lr); err != nil {
-				return fmt.Errorf("save chunk line range: %w", err)
-			}
-
-			if _, err := h.associationStore.Save(ctx, enrichment.CommitAssociation(saved.ID(), cp.CommitSHA())); err != nil {
-				return fmt.Errorf("save commit association: %w", err)
-			}
-
-			if f.ID() != 0 {
-				if _, err := h.associationStore.Save(ctx, enrichment.FileAssociation(saved.ID(), strconv.FormatInt(f.ID(), 10))); err != nil {
-					return fmt.Errorf("save file association: %w", err)
-				}
-			}
-
-			if _, err := h.associationStore.Save(ctx, enrichment.RepositoryAssociation(saved.ID(), repoIDStr)); err != nil {
-				return fmt.Errorf("save repository association: %w", err)
-			}
+		if err := h.persistChunks(ctx, textChunks, f, cp.CommitSHA(), repoIDStr); err != nil {
+			return err
 		}
 
 		processed++
@@ -177,6 +192,37 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 
 	h.logger.Info().Int("files", len(files)).Str("commit", handler.ShortSHA(cp.CommitSHA())).Msg("text chunks created")
 
+	return nil
+}
+
+// persistChunks saves enrichments, line ranges, and associations for the given chunks.
+func (h *ChunkFiles) persistChunks(ctx context.Context, textChunks chunking.TextChunks, f repository.File, commitSHA string, repoIDStr string) error {
+	for _, ch := range textChunks.All() {
+		e := enrichment.NewChunkEnrichmentWithLanguage(ch.Content(), f.Extension())
+		saved, saveErr := h.enrichmentStore.Save(ctx, e)
+		if saveErr != nil {
+			return fmt.Errorf("save chunk enrichment: %w", saveErr)
+		}
+
+		lr := chunk.NewLineRange(saved.ID(), ch.StartLine(), ch.EndLine())
+		if _, err := h.lineRangeStore.Save(ctx, lr); err != nil {
+			return fmt.Errorf("save chunk line range: %w", err)
+		}
+
+		if _, err := h.associationStore.Save(ctx, enrichment.CommitAssociation(saved.ID(), commitSHA)); err != nil {
+			return fmt.Errorf("save commit association: %w", err)
+		}
+
+		if f.ID() != 0 {
+			if _, err := h.associationStore.Save(ctx, enrichment.FileAssociation(saved.ID(), strconv.FormatInt(f.ID(), 10))); err != nil {
+				return fmt.Errorf("save file association: %w", err)
+			}
+		}
+
+		if _, err := h.associationStore.Save(ctx, enrichment.RepositoryAssociation(saved.ID(), repoIDStr)); err != nil {
+			return fmt.Errorf("save repository association: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -271,6 +317,9 @@ var indexableExtensions = map[string]bool{
 	".md": true, ".mdx": true, ".rst": true, ".adoc": true, ".tex": true,
 	// IDL / Schema
 	".proto": true, ".graphql": true, ".gql": true, ".thrift": true,
+	// Documents (binary, handled by document text extraction)
+	".pdf": true, ".docx": true, ".odt": true,
+	".xlsx": true, ".pptx": true, ".epub": true,
 }
 
 // isIndexable returns true if the file extension is in the whitelist of
