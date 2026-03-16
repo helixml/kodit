@@ -182,6 +182,9 @@ type DtoRepositoryAttributes struct {
 	RemoteUri      *string `json:"remote_uri,omitempty"`
 	TrackingBranch *string `json:"tracking_branch,omitempty"`
 	UpdatedAt      *string `json:"updated_at,omitempty"`
+
+	// UpstreamUrl The canonical upstream URL (e.g. github.com/org/repo); falls back to remote_uri when not set
+	UpstreamUrl *string `json:"upstream_url,omitempty"`
 }
 
 // DtoRepositoryBranchData defines model for dto.RepositoryBranchData.
@@ -202,6 +205,9 @@ type DtoRepositoryCommitData struct {
 // DtoRepositoryCreateAttributes defines model for dto.RepositoryCreateAttributes.
 type DtoRepositoryCreateAttributes struct {
 	RemoteUri *string `json:"remote_uri,omitempty"`
+
+	// UpstreamUrl Optional canonical upstream URL; used for deduplication when multiple clone URLs point to the same repo
+	UpstreamUrl *string `json:"upstream_url,omitempty"`
 }
 
 // DtoRepositoryCreateData defines model for dto.RepositoryCreateData.
