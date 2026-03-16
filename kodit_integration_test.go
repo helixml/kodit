@@ -1,6 +1,8 @@
 package kodit_test
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"fmt"
 	"net/url"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/database"
 	"github.com/stretchr/testify/assert"
@@ -605,5 +608,178 @@ func TestIntegration_DuplicateSync_DoesNotDuplicateData(t *testing.T) {
 	for table, beforeCount := range baseline {
 		assert.Equal(t, beforeCount, after[table],
 			"table %s should be unchanged after duplicate sync", table)
+	}
+}
+
+// minimalPDF builds a valid PDF containing the given text.
+func minimalPDF(t *testing.T, text string) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+	offsets := make([]int, 6)
+
+	buf.WriteString("%PDF-1.4\n")
+
+	offsets[1] = buf.Len()
+	buf.WriteString("1 0 obj\n<</Type /Catalog /Pages 2 0 R>>\nendobj\n")
+
+	offsets[2] = buf.Len()
+	buf.WriteString("2 0 obj\n<</Type /Pages /Kids [3 0 R] /Count 1>>\nendobj\n")
+
+	offsets[3] = buf.Len()
+	buf.WriteString("3 0 obj\n<</Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources <</Font <</F1 5 0 R>>>>>>\nendobj\n")
+
+	stream := fmt.Sprintf("BT /F1 12 Tf 100 700 Td (%s) Tj ET", text)
+	offsets[4] = buf.Len()
+	fmt.Fprintf(&buf, "4 0 obj\n<</Length %d>>\nstream\n%s\nendstream\nendobj\n", len(stream), stream)
+
+	offsets[5] = buf.Len()
+	buf.WriteString("5 0 obj\n<</Type /Font /Subtype /Type1 /BaseFont /Helvetica>>\nendobj\n")
+
+	xrefOffset := buf.Len()
+	buf.WriteString("xref\n0 6\n")
+	fmt.Fprintf(&buf, "%010d 65535 f \n", 0)
+	for i := 1; i <= 5; i++ {
+		fmt.Fprintf(&buf, "%010d 00000 n \n", offsets[i])
+	}
+	buf.WriteString("trailer\n<</Size 6 /Root 1 0 R>>\nstartxref\n")
+	fmt.Fprintf(&buf, "%d\n", xrefOffset)
+	buf.WriteString("%%EOF\n")
+
+	return buf.Bytes()
+}
+
+// minimalDocx builds a valid DOCX (ZIP archive) containing the given text.
+func minimalDocx(t *testing.T, text string) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+
+	writeZipFile := func(name, content string) {
+		f, err := w.Create(name)
+		require.NoError(t, err)
+		_, err = f.Write([]byte(content))
+		require.NoError(t, err)
+	}
+
+	writeZipFile("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`)
+
+	writeZipFile("_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`)
+
+	writeZipFile("word/document.xml", fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>%s</w:t></w:r></w:p>
+  </w:body>
+</w:document>`, text))
+
+	require.NoError(t, w.Close())
+	return buf.Bytes()
+}
+
+// createTestGitRepoWithDocuments creates a local git repository containing
+// only document files (PDF and DOCX) for testing document text extraction.
+func createTestGitRepoWithDocuments(t *testing.T) string {
+	t.Helper()
+
+	repoDir := filepath.Join(t.TempDir(), "doc-repo")
+	require.NoError(t, os.MkdirAll(repoDir, 0755))
+
+	run := func(args ...string) {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = repoDir
+		out, err := cmd.CombinedOutput()
+		require.NoError(t, err, "%s: %s", args[0], out)
+	}
+
+	run("git", "init")
+	run("git", "config", "user.email", "test@example.com")
+	run("git", "config", "user.name", "Test User")
+
+	docsDir := filepath.Join(repoDir, "docs")
+	require.NoError(t, os.MkdirAll(docsDir, 0755))
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(docsDir, "guide.pdf"),
+		minimalPDF(t, "Installation guide for the project with detailed setup instructions and configuration steps"),
+		0644,
+	))
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(docsDir, "readme.docx"),
+		minimalDocx(t, "Project overview and contribution guidelines covering development workflow and release process"),
+		0644,
+	))
+
+	run("git", "add", "-A")
+	run("git", "commit", "-m", "Add project documentation")
+
+	return repoDir
+}
+
+func TestIntegration_DocumentExtraction(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	dataDir := filepath.Join(tmpDir, "data")
+	cloneDir := filepath.Join(tmpDir, "repos")
+
+	repoPath := createTestGitRepoWithDocuments(t)
+	branch := currentBranch(t, repoPath)
+
+	client, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithDataDir(dataDir),
+		kodit.WithCloneDir(cloneDir),
+		kodit.WithSimpleChunking(),
+		kodit.WithModelDir("infrastructure/provider/models"),
+		kodit.WithWorkerPollPeriod(testPollPeriod),
+	)
+	require.NoError(t, err)
+	defer func() { _ = client.Close() }()
+
+	ctx := context.Background()
+
+	repo, _, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{
+		URL:    fileURI(repoPath),
+		Branch: branch,
+	})
+	require.NoError(t, err)
+
+	waitForTasks(ctx, t, client, 60*time.Second)
+
+	// Verify commits were indexed.
+	commits, err := client.Commits.Find(ctx, repository.WithRepoID(repo.ID()))
+	require.NoError(t, err)
+	require.NotEmpty(t, commits, "expected at least one commit")
+
+	// Query chunk enrichments for the commit.
+	chunkType := enrichment.TypeDevelopment
+	chunkSubtype := enrichment.SubtypeChunk
+	chunks, err := client.Enrichments.List(ctx, &service.EnrichmentListParams{
+		Type:      &chunkType,
+		Subtype:   &chunkSubtype,
+		CommitSHA: commits[0].SHA(),
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, chunks, "document files should produce chunk enrichments")
+	t.Logf("document extraction produced %d chunks", len(chunks))
+
+	// Verify chunk content is non-empty.
+	for _, c := range chunks {
+		assert.NotEmpty(t, c.Content(), "chunk content should not be empty")
 	}
 }
