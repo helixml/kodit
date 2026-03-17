@@ -636,11 +636,6 @@ def mini_run_baseline(  # noqa: PLR0913, PLR0915, C901
     default=Path(__file__).resolve().parents[2] / ".db_cache",
     help="Directory for caching indexed database dumps (set empty to disable)",
 )
-@click.option(
-    "--simple-chunking/--no-simple-chunking",
-    default=False,
-    help="Use simple chunking mode (no AST slicing or snippet summaries)",
-)
 def mini_run_kodit(  # noqa: PLR0913, PLR0915, PLR0912, C901
     dataset_file: Path,
     output_dir: Path,
@@ -663,7 +658,6 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, PLR0912, C901
     stream: bool,  # noqa: FBT001
     evaluate: bool,  # noqa: FBT001
     cache_dir: Path | None,
-    simple_chunking: bool,  # noqa: FBT001
 ) -> None:
     """Run mini-swe-agent with live Kodit MCP access.
 
@@ -681,18 +675,6 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, PLR0912, C901
     if not embedding_api_key:
         embedding_api_key = api_key
     log = structlog.get_logger(__name__)
-
-    # Determine subdirectory, run_id, and cache based on simple_chunking flag
-    if simple_chunking:
-        kodit_subdir = "kodit-simple"
-        eval_run_id = "mini_swe_agent_kodit_simple"
-        if cache_dir is not None:
-            cache_dir = cache_dir.parent / ".db_cache_simple"
-        extra_env: dict[str, str] = {"SIMPLE_CHUNKING_ENABLED": "true"}
-    else:
-        kodit_subdir = "kodit"
-        eval_run_id = "mini_swe_agent_kodit"
-        extra_env = {}
 
     # Load instances
     loader = DatasetLoader()
@@ -712,7 +694,6 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, PLR0912, C901
         "Running mini-swe-agent with Kodit MCP",
         instance_count=len(instances),
         repos_dir=str(repos_dir),
-        simple_chunking=simple_chunking,
     )
 
     # Helper to create a fresh server for each instance
@@ -730,7 +711,6 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, PLR0912, C901
             embedding_api_key=embedding_api_key,
             embedding_parallel_tasks=embedding_parallel_tasks,
             embedding_timeout=embedding_timeout,
-            extra_env=extra_env,
         )
 
     base_url = f"http://{host}:{port}"
@@ -754,7 +734,7 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, PLR0912, C901
         instances=instances,
         server_factory=create_server,
         port=port,
-        condition=kodit_subdir,
+        condition="kodit",
     )
 
     click.echo("\n" + "=" * 60)
@@ -799,7 +779,7 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, PLR0912, C901
                 predictions_path=jsonl_path,
                 dataset_name="princeton-nlp/SWE-bench_Verified",
                 max_workers=1,
-                run_id=eval_run_id,
+                run_id="mini_swe_agent_kodit",
             )
 
             click.echo("\n" + "-" * 60)
@@ -839,12 +819,6 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, PLR0912, C901
     help="Path to Kodit output directory",
 )
 @click.option(
-    "--kodit-simple-dir",
-    type=click.Path(path_type=Path),
-    default=MINI_SWE_AGENT_OUTPUT_DIR / "kodit-simple",
-    help="Path to Kodit simple-chunking output directory",
-)
-@click.option(
     "--baseline-eval",
     type=click.Path(path_type=Path, exists=True),
     default=None,
@@ -857,29 +831,21 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, PLR0912, C901
     help="Path to Kodit evaluation JSON (auto-detected if not specified)",
 )
 @click.option(
-    "--kodit-simple-eval",
-    type=click.Path(path_type=Path, exists=True),
-    default=None,
-    help="Path to Kodit simple evaluation JSON (auto-detected if not specified)",
-)
-@click.option(
     "--output",
     type=click.Path(path_type=Path),
     default=MINI_SWE_AGENT_OUTPUT_DIR / "comparison.json",
     help="Output JSON file for comparison results",
 )
-def mini_compare(  # noqa: PLR0913
+def mini_compare(
     baseline_dir: Path,
     kodit_dir: Path,
-    kodit_simple_dir: Path,
     baseline_eval: Path | None,
     kodit_eval: Path | None,
-    kodit_simple_eval: Path | None,
     output: Path,
 ) -> None:
-    """Compare baseline, Kodit, and Kodit simple-chunking results.
+    """Compare baseline and Kodit results.
 
-    Produces a three-way comparison of pass/fail rates, total costs,
+    Produces a two-way comparison of pass/fail rates, total costs,
     and token usage. Columns with missing data show zeros.
 
     Requires evaluation results to have been generated (run with --evaluate).
@@ -890,12 +856,6 @@ def mini_compare(  # noqa: PLR0913
     run_defs = [
         ("Baseline", baseline_dir, baseline_eval, "mini_swe_agent_baseline"),
         ("Kodit", kodit_dir, kodit_eval, "mini_swe_agent_kodit"),
-        (
-            "Kodit Simple",
-            kodit_simple_dir,
-            kodit_simple_eval,
-            "mini_swe_agent_kodit_simple",
-        ),
     ]
 
     runs: list[tuple[str, dict, dict]] = []

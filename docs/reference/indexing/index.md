@@ -4,7 +4,7 @@ description: Learn how to index Git repositories in Kodit for AI-powered code se
 weight: 1
 ---
 
-Kodit indexes Git repositories to create searchable code databases for AI assistants. The system extracts code snippets with semantic understanding and builds multiple search indexes for different query types.
+Kodit indexes Git repositories to create searchable code databases for AI assistants. The system splits source files into fixed-size text chunks and builds multiple search indexes for different query types.
 
 ## How Indexing Works
 
@@ -12,7 +12,7 @@ Kodit transforms Git repositories through a 5-stage pipeline:
 
 1. **Clone Repository**: Downloads the Git repository locally
 2. **Scan Repository**: Extracts Git metadata (commits, branches, tags)
-3. **Extract Snippets**: Uses Tree-sitter parsing to extract functions, classes, and methods with dependencies
+3. **Chunk Files**: Splits source files into fixed-size, overlapping text chunks
 4. **Build Indexes**: Creates BM25 (keyword), code embeddings (semantic), and text embeddings (natural language) indexes
 5. **AI Enrichment**: Generates summaries using LLM providers for enhanced search
 
@@ -47,18 +47,7 @@ git@github.com:username/repo.git
 
 ## Supported Languages
 
-20+ programming languages with Tree-sitter parsing:
-
-| Language | Extensions | Key Features |
-|----------|------------|-------------|
-| Python | `.py`, `.pyw`, `.pyx` | Decorators, async functions, inheritance |
-| JavaScript/TypeScript | `.js`, `.jsx`, `.ts`, `.tsx` | Arrow functions, ES6 modules, types |
-| Java | `.java` | Annotations, generics, inheritance |
-| Go | `.go` | Interfaces, struct methods, packages |
-| Rust | `.rs` | Traits, ownership patterns, macros |
-| C/C++ | `.c`, `.h`, `.cpp`, `.hpp` | Function pointers, templates |
-| C# | `.cs` | Properties, LINQ, async patterns |
-| HTML/CSS | `.html`, `.css`, `.scss` | Semantic elements, responsive patterns |
+20+ programming languages including Python, JavaScript/TypeScript, Java, Go, Rust, C/C++, C#, HTML/CSS, and more.
 
 ## Advanced Features
 
@@ -67,7 +56,7 @@ git@github.com:username/repo.git
 - Git commit tracking for change detection
 - Only processes new/modified commits
 - Bulk operations for performance
-- Concurrent snippet extraction
+- Concurrent file chunking
 
 ### Task Queue System
 

@@ -50,8 +50,7 @@ code. This index is used to build a snippet library, ready for ingestion into an
 - Index public and private Git repositories (via a PAT)
 - Build comprehensive snippet libraries for LLM ingestion
 - Support for 20+ programming languages including Python, JavaScript/TypeScript, Java, Go, Rust, C/C++, C#, HTML/CSS, and more
-- Advanced code slicing with dependency tracking and call graph generation
-- Intelligent snippet extraction with context-aware dependencies
+- Fixed-size text chunking with configurable size and overlap
 - Efficient indexing with selective reindexing (only processes modified files)
 - Privacy first: respects .gitignore and .noindex files
 - Enhanced Git provider support including Github, Gitlab, Azure DevOps
