@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -215,6 +216,55 @@ func TestSearch_NoStoresConfigured_ReturnsEmpty(t *testing.T) {
 	}
 	if result.Count() != 0 {
 		t.Errorf("expected 0 results, got %d", result.Count())
+	}
+}
+
+func TestSearchCodeWithScores_OrdersByScoreDescending(t *testing.T) {
+	now := time.Now()
+	enrichments := []enrichment.Enrichment{
+		enrichment.ReconstructEnrichment(1, enrichment.TypeDevelopment, enrichment.SubtypeSnippet, enrichment.EntityTypeSnippet, "low", ".go", now, now),
+		enrichment.ReconstructEnrichment(2, enrichment.TypeDevelopment, enrichment.SubtypeSnippet, enrichment.EntityTypeSnippet, "high", ".go", now, now),
+		enrichment.ReconstructEnrichment(3, enrichment.TypeDevelopment, enrichment.SubtypeSnippet, enrichment.EntityTypeSnippet, "mid", ".go", now, now),
+	}
+
+	// Vector store returns results in score order, but enrichment store
+	// returns them in arbitrary (e.g. ID) order — the service must re-sort.
+	vectorStore := fakeEmbeddingStore{
+		results: []search.Result{
+			search.NewResult("2", 0.9),
+			search.NewResult("3", 0.5),
+			search.NewResult("1", 0.1),
+		},
+	}
+
+	svc := NewSearch(
+		fakeEmbedder{vectors: [][]float64{{0.1, 0.2}}},
+		nil,
+		vectorStore,
+		nil,
+		fakeEnrichmentStore{enrichments: enrichments},
+		nil,
+		zerolog.Nop(),
+	)
+
+	results, scores, err := svc.SearchCodeWithScores(context.Background(), "test", 10, search.NewFilters())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
+	}
+
+	// Highest score first.
+	if results[0].ID() != 2 {
+		t.Errorf("expected first result ID=2 (score 0.9), got ID=%d (score %f)", results[0].ID(), scores[strconv.FormatInt(results[0].ID(), 10)])
+	}
+	if results[1].ID() != 3 {
+		t.Errorf("expected second result ID=3 (score 0.5), got ID=%d (score %f)", results[1].ID(), scores[strconv.FormatInt(results[1].ID(), 10)])
+	}
+	if results[2].ID() != 1 {
+		t.Errorf("expected third result ID=1 (score 0.1), got ID=%d (score %f)", results[2].ID(), scores[strconv.FormatInt(results[2].ID(), 10)])
 	}
 }
 
