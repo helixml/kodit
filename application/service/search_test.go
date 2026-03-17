@@ -348,6 +348,218 @@ func TestSearchKeywordsWithScores_NoResults(t *testing.T) {
 	}
 }
 
+// --- Query ---
+
+func TestSearch_Query_ReturnsResults(t *testing.T) {
+	stores := newTestStores(t)
+	enrichments := seedEnrichments(t, stores, []string{"func main()", "func hello()"})
+
+	id1 := strconv.FormatInt(enrichments[0].ID(), 10)
+	id2 := strconv.FormatInt(enrichments[1].ID(), 10)
+
+	vectorStore := fakeEmbeddingStore{
+		results: []search.Result{
+			search.NewResult(id1, 0.9),
+			search.NewResult(id2, 0.5),
+		},
+	}
+
+	// Query sets textQuery == codeQuery, so Search only embeds once via the
+	// textVectorStore path and reuses the embedding for codeVectorStore.
+	// Both stores must be provided for the embedding to trigger.
+	svc := NewSearch(
+		fakeEmbedder{vectors: [][]float64{{0.1, 0.2}}},
+		vectorStore,
+		vectorStore,
+		nil,
+		stores.enrichments,
+		nil,
+		zerolog.Nop(),
+	)
+
+	result, err := svc.Query(context.Background(), "main function")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Count() == 0 {
+		t.Fatal("expected non-empty results")
+	}
+
+	scores := result.Scores()
+	if len(scores) == 0 {
+		t.Fatal("expected non-empty scores")
+	}
+}
+
+func TestSearch_Query_NilStores(t *testing.T) {
+	stores := newTestStores(t)
+	svc := NewSearch(nil, nil, nil, nil, stores.enrichments, nil, zerolog.Nop())
+
+	result, err := svc.Query(context.Background(), "test query")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Count() != 0 {
+		t.Errorf("expected 0 results, got %d", result.Count())
+	}
+}
+
+// --- SearchText ---
+
+func TestSearch_SearchText_ReturnsEnrichments(t *testing.T) {
+	stores := newTestStores(t)
+	enrichments := seedEnrichments(t, stores, []string{"summary one", "summary two"})
+
+	id1 := strconv.FormatInt(enrichments[0].ID(), 10)
+	id2 := strconv.FormatInt(enrichments[1].ID(), 10)
+
+	textVectorStore := fakeEmbeddingStore{
+		results: []search.Result{
+			search.NewResult(id1, 0.8),
+			search.NewResult(id2, 0.6),
+		},
+	}
+
+	svc := NewSearch(
+		fakeEmbedder{vectors: [][]float64{{0.1, 0.2}}},
+		textVectorStore,
+		nil,
+		nil,
+		stores.enrichments,
+		nil,
+		zerolog.Nop(),
+	)
+
+	results, err := svc.SearchText(context.Background(), "summary", 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+}
+
+func TestSearch_SearchText_NilStore(t *testing.T) {
+	stores := newTestStores(t)
+	svc := NewSearch(
+		fakeEmbedder{vectors: [][]float64{{0.1, 0.2}}},
+		nil, // no text vector store
+		nil,
+		nil,
+		stores.enrichments,
+		nil,
+		zerolog.Nop(),
+	)
+
+	results, err := svc.SearchText(context.Background(), "test", 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if results != nil {
+		t.Errorf("expected nil results, got %d", len(results))
+	}
+}
+
+func TestSearch_SearchText_EmbedError(t *testing.T) {
+	stores := newTestStores(t)
+	embedErr := errors.New("embed failed")
+	svc := NewSearch(
+		fakeEmbedder{err: embedErr},
+		fakeEmbeddingStore{},
+		nil,
+		nil,
+		stores.enrichments,
+		nil,
+		zerolog.Nop(),
+	)
+
+	_, err := svc.SearchText(context.Background(), "test", 10)
+	if err == nil {
+		t.Fatal("expected error when embedding fails, got nil")
+	}
+	if !errors.Is(err, embedErr) {
+		t.Errorf("expected error to wrap %v, got %v", embedErr, err)
+	}
+}
+
+// --- SearchCode ---
+
+func TestSearch_SearchCode_ReturnsEnrichments(t *testing.T) {
+	stores := newTestStores(t)
+	enrichments := seedEnrichments(t, stores, []string{"code one", "code two"})
+
+	id1 := strconv.FormatInt(enrichments[0].ID(), 10)
+	id2 := strconv.FormatInt(enrichments[1].ID(), 10)
+
+	codeVectorStore := fakeEmbeddingStore{
+		results: []search.Result{
+			search.NewResult(id1, 0.9),
+			search.NewResult(id2, 0.7),
+		},
+	}
+
+	svc := NewSearch(
+		fakeEmbedder{vectors: [][]float64{{0.1, 0.2}}},
+		nil,
+		codeVectorStore,
+		nil,
+		stores.enrichments,
+		nil,
+		zerolog.Nop(),
+	)
+
+	results, err := svc.SearchCode(context.Background(), "code", 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+}
+
+func TestSearch_SearchCode_NilStore(t *testing.T) {
+	stores := newTestStores(t)
+	svc := NewSearch(
+		fakeEmbedder{vectors: [][]float64{{0.1, 0.2}}},
+		nil,
+		nil, // no code vector store
+		nil,
+		stores.enrichments,
+		nil,
+		zerolog.Nop(),
+	)
+
+	results, err := svc.SearchCode(context.Background(), "test", 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if results != nil {
+		t.Errorf("expected nil results, got %d", len(results))
+	}
+}
+
+func TestSearch_SearchCode_EmbedError(t *testing.T) {
+	stores := newTestStores(t)
+	embedErr := errors.New("embed failed")
+	svc := NewSearch(
+		fakeEmbedder{err: embedErr},
+		nil,
+		fakeEmbeddingStore{},
+		nil,
+		stores.enrichments,
+		nil,
+		zerolog.Nop(),
+	)
+
+	_, err := svc.SearchCode(context.Background(), "test", 10)
+	if err == nil {
+		t.Fatal("expected error when embedding fails, got nil")
+	}
+	if !errors.Is(err, embedErr) {
+		t.Errorf("expected error to wrap %v, got %v", embedErr, err)
+	}
+}
+
 func TestOrderByScore(t *testing.T) {
 	now := time.Now()
 	enrichments := []enrichment.Enrichment{

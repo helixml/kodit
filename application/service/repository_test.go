@@ -193,6 +193,17 @@ func TestRepository_Rescan_EnqueuesOperations(t *testing.T) {
 	assert.Contains(t, operations, task.OperationRescanCommit)
 }
 
+func TestRepository_Rescan_NotFound(t *testing.T) {
+	deps := newRepositoryTestDeps(t)
+	ctx := context.Background()
+
+	err := deps.service.Rescan(ctx, &RescanParams{
+		RepositoryID: 999,
+		CommitSHA:    "abc123",
+	})
+	assert.Error(t, err)
+}
+
 func TestRepository_RescanAll(t *testing.T) {
 	deps := newRepositoryTestDeps(t)
 	ctx := context.Background()
