@@ -53,7 +53,7 @@ func (c *Client) registerHandlers() error {
 	} else {
 		c.registry.Register(task.OperationExtractSnippetsForCommit, handler.WithCleanup(
 			indexinghandler.NewExtractSnippets(
-				c.repoStores.Repositories, c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.repoStores.Files, c.slicer, c.enrichCtx.Tracker, c.logger,
+				c.repoStores.Repositories, c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.repoStores.Files, c.slicer, c.documentText, c.enrichCtx.Tracker, c.logger,
 			),
 			handler.NewEnrichmentCleanup(c.Enrichments, c.repoStores.Commits,
 				enrichment.TypeDevelopment, enrichment.SubtypeSnippet),

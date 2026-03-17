@@ -333,6 +333,7 @@ func TestExtractSnippets_ProcessesExtensionsInSortedOrder(t *testing.T) {
 		associationStore,
 		fileStore,
 		slicer,
+		nil,
 		&recordingTrackerFactory{tracker: rec},
 		logger,
 	)
@@ -411,6 +412,7 @@ func TestExtractSnippets_QueriesFilesInPathOrder(t *testing.T) {
 		associationStore,
 		rec,
 		slicer,
+		nil,
 		&fakeTrackerFactory{},
 		logger,
 	)

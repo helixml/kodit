@@ -17,9 +17,10 @@ import (
 )
 
 const (
-	baseHost  = "127.0.0.1"
-	basePort  = 8080
-	targetURI = "https://gist.github.com/philwinder/11e4c4f7ea48b1c05b7cedea49367f1a.git"
+	baseHost    = "127.0.0.1"
+	basePort    = 8080
+	targetURI   = "https://gist.github.com/philwinder/11e4c4f7ea48b1c05b7cedea49367f1a.git"
+	companyDocs = "https://github.com/helix-acme-corp-demo/company-docs.git"
 )
 
 var baseURL = fmt.Sprintf("http://%s:%d/api/v1", baseHost, basePort)
@@ -872,6 +873,235 @@ func TestSmoke(t *testing.T) {
 		} else {
 			t.Logf("repository deletion task completed but repo still exists (possible FK constraint): id=%d", repoID)
 		}
+	})
+
+	// ── Document extraction smoke tests ────────────────────────────────
+	// Index a repository containing binary documents (PDF, DOCX, PPTX, XLSX, ODT)
+	// and verify that their text is searchable.
+
+	docRepoURI := companyDocs
+	docCreateResp, err := client.PostRepositoriesWithResponse(ctx, kodit.DtoRepositoryCreateRequest{
+		Data: &kodit.DtoRepositoryCreateData{
+			Type: &repoType,
+			Attributes: &kodit.DtoRepositoryCreateAttributes{
+				RemoteUri: &docRepoURI,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create document repository failed: %v", err)
+	}
+	var docRepo *kodit.DtoRepositoryData
+	switch docCreateResp.StatusCode() {
+	case http.StatusCreated:
+		docRepo = docCreateResp.JSON201.Data
+		t.Log("document repository created (201)")
+	case http.StatusOK:
+		docRepo = docCreateResp.JSON200.Data
+		t.Log("document repository already exists (200)")
+	default:
+		t.Fatalf("expected 200 or 201, got %d: %s", docCreateResp.StatusCode(), string(docCreateResp.Body))
+	}
+	docRepoID, err := strconv.Atoi(*docRepo.Id)
+	if err != nil {
+		t.Fatalf("failed to parse document repo ID: %v", err)
+	}
+	t.Logf("document repository: id=%d, uri=%s", docRepoID, companyDocs)
+
+	waitForIndexing(t, client, ctx, docRepoID)
+
+	t.Run("doc_search_parental_leave_pdf", func(t *testing.T) {
+		semanticURL := fmt.Sprintf("%s/search/semantic?query=%s&repository_id=%d",
+			baseURL, url.QueryEscape("What are the rules about Parental Leave?"), docRepoID)
+		resp := getJSON(t, semanticURL)
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		var result struct {
+			Data []struct {
+				Attributes struct {
+					Content struct {
+						Value *string `json:"value"`
+					} `json:"content"`
+				} `json:"attributes"`
+			} `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if len(result.Data) == 0 {
+			t.Fatal("expected at least one result for parental leave query")
+		}
+		found := false
+		for _, r := range result.Data {
+			if r.Attributes.Content.Value != nil && strings.Contains(*r.Attributes.Content.Value, "Parental Leave") {
+				if strings.Contains(*r.Attributes.Content.Value, "16 weeks") {
+					found = true
+					t.Logf("found parental leave snippet: %.120s...", *r.Attributes.Content.Value)
+					break
+				}
+			}
+		}
+		if !found {
+			t.Fatal("expected a result containing 'Parental Leave' and '16 weeks' from the PDF")
+		}
+	})
+
+	t.Run("doc_search_meeting_notes_docx", func(t *testing.T) {
+		semanticURL := fmt.Sprintf("%s/search/semantic?query=%s&repository_id=%d",
+			baseURL, url.QueryEscape("quarterly business review action items"), docRepoID)
+		resp := getJSON(t, semanticURL)
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		var result struct {
+			Data []json.RawMessage `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if len(result.Data) == 0 {
+			t.Fatal("expected at least one result for meeting notes query")
+		}
+		t.Logf("meeting notes search: %d results", len(result.Data))
+	})
+
+	t.Run("doc_search_annual_report_odt", func(t *testing.T) {
+		semanticURL := fmt.Sprintf("%s/search/semantic?query=%s&repository_id=%d",
+			baseURL, url.QueryEscape("annual report revenue growth"), docRepoID)
+		resp := getJSON(t, semanticURL)
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		var result struct {
+			Data []json.RawMessage `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if len(result.Data) == 0 {
+			t.Fatal("expected at least one result for annual report query")
+		}
+		t.Logf("annual report search: %d results", len(result.Data))
+	})
+
+	t.Run("doc_search_presentation_pptx", func(t *testing.T) {
+		semanticURL := fmt.Sprintf("%s/search/semantic?query=%s&repository_id=%d",
+			baseURL, url.QueryEscape("company strategic direction and vision"), docRepoID)
+		resp := getJSON(t, semanticURL)
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		var result struct {
+			Data []json.RawMessage `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if len(result.Data) == 0 {
+			t.Fatal("expected at least one result for presentation query")
+		}
+		t.Logf("presentation search: %d results", len(result.Data))
+	})
+
+	t.Run("doc_search_financial_xlsx", func(t *testing.T) {
+		semanticURL := fmt.Sprintf("%s/search/semantic?query=%s&repository_id=%d",
+			baseURL, url.QueryEscape("financial statements operating expenses"), docRepoID)
+		resp := getJSON(t, semanticURL)
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		var result struct {
+			Data []json.RawMessage `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if len(result.Data) == 0 {
+			t.Fatal("expected at least one result for financial query")
+		}
+		t.Logf("financial search: %d results", len(result.Data))
+	})
+
+	t.Run("doc_files_indexed", func(t *testing.T) {
+		// Verify the document files were discovered by the scanner.
+		docCommitsResp, err := client.GetRepositoriesIdCommitsWithResponse(ctx, docRepoID, nil)
+		if err != nil {
+			t.Fatalf("get commits failed: %v", err)
+		}
+		if docCommitsResp.JSON200 == nil || docCommitsResp.JSON200.Data == nil || len(*docCommitsResp.JSON200.Data) == 0 {
+			t.Fatal("expected at least one commit")
+		}
+		docCommitSHA := *(*docCommitsResp.JSON200.Data)[0].Attributes.CommitSha
+		filesResp, err := client.GetRepositoriesIdCommitsCommitShaFilesWithResponse(ctx, docRepoID, docCommitSHA, nil)
+		if err != nil {
+			t.Fatalf("get files failed: %v", err)
+		}
+		if filesResp.JSON200 == nil || filesResp.JSON200.Data == nil {
+			t.Fatal("expected file data")
+		}
+		files := *filesResp.JSON200.Data
+		expectedExts := map[string]bool{".pdf": false, ".docx": false, ".pptx": false, ".xlsx": false, ".odt": false}
+		for _, f := range files {
+			if f.Attributes == nil || f.Attributes.Path == nil {
+				continue
+			}
+			path := *f.Attributes.Path
+			for ext := range expectedExts {
+				if strings.HasSuffix(path, ext) {
+					expectedExts[ext] = true
+					t.Logf("found %s file: %s", ext, path)
+				}
+			}
+		}
+		for ext, found := range expectedExts {
+			if !found {
+				t.Errorf("expected a %s file in the repository", ext)
+			}
+		}
+	})
+
+	t.Run("delete_document_repository", func(t *testing.T) {
+		resp, err := client.DeleteRepositoriesIdWithResponse(ctx, docRepoID)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		if resp.StatusCode() != http.StatusNoContent {
+			t.Fatalf("expected 204, got %d: %s", resp.StatusCode(), string(resp.Body))
+		}
+		deleted := waitForCondition(t, 2*time.Minute, 500*time.Millisecond, func() bool {
+			r, err := client.GetRepositoriesIdWithResponse(ctx, docRepoID)
+			if err != nil {
+				return false
+			}
+			if r.StatusCode() == http.StatusNotFound {
+				return true
+			}
+			statusResp, err := client.GetRepositoriesIdStatusWithResponse(ctx, docRepoID)
+			if err != nil || statusResp.StatusCode() != http.StatusOK {
+				return false
+			}
+			if statusResp.JSON200 != nil && statusResp.JSON200.Data != nil {
+				for _, task := range *statusResp.JSON200.Data {
+					if task.Attributes == nil || task.Attributes.Step == nil || task.Attributes.State == nil {
+						continue
+					}
+					if *task.Attributes.Step == "kodit.repository.delete" && *task.Attributes.State == "failed" {
+						return true
+					}
+				}
+			}
+			return false
+		})
+		if !deleted {
+			t.Fatal("document repository deletion did not complete within timeout")
+		}
+		t.Logf("document repository deleted: id=%d", docRepoID)
 	})
 
 	t.Log("all smoke tests passed")
