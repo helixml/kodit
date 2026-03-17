@@ -285,12 +285,12 @@ func (ts *TestServer) CreateFile(commitSHA, path, blobSHA, mimeType, extension s
 	return saved
 }
 
-// CreateSnippetEnrichmentForCommit creates a snippet enrichment and associates it with a commit.
+// CreateSnippetEnrichmentForCommit creates a chunk enrichment and associates it with a commit.
 func (ts *TestServer) CreateSnippetEnrichmentForCommit(commitSHA, content, language string) enrichment.Enrichment {
 	ts.t.Helper()
 	ctx := context.Background()
 
-	e := enrichment.NewSnippetEnrichmentWithLanguage(content, language)
+	e := enrichment.NewChunkEnrichmentWithLanguage(content, language)
 	saved, err := ts.enrichmentStore.Save(ctx, e)
 	if err != nil {
 		ts.t.Fatalf("save snippet enrichment: %v", err)

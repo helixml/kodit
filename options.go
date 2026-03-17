@@ -43,7 +43,6 @@ type clientConfig struct {
 	enrichmentParallelism  int
 	enricherParallelism    int
 	periodicSync           config.PeriodicSyncConfig
-	simpleChunking         bool
 	chunkParams            chunking.ChunkParams
 	closers                []io.Closer
 }
@@ -250,14 +249,7 @@ func WithModelDir(dir string) Option {
 	}
 }
 
-// WithSimpleChunking enables fixed-size text chunking instead of AST-based snippet extraction.
-func WithSimpleChunking() Option {
-	return func(c *clientConfig) {
-		c.simpleChunking = true
-	}
-}
-
-// WithChunkParams sets the chunk parameters for simple chunking.
+// WithChunkParams sets the chunk parameters for chunking.
 func WithChunkParams(params chunking.ChunkParams) Option {
 	return func(c *clientConfig) {
 		c.chunkParams = params

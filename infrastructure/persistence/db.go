@@ -119,7 +119,6 @@ func AutoMigrate(db database.Database) error {
 		&BranchModel{},
 		&TagModel{},
 		&FileModel{},
-		&CommitIndexModel{},
 		&EnrichmentModel{},
 		&EnrichmentAssociationModel{},
 		&EmbeddingModel{},
@@ -160,12 +159,6 @@ func postMigrate(db database.Database) error {
 			table:      "git_commit_files",
 			old:        []string{"git_commit_files_commit_sha_fkey"},
 			name:       "fk_commit_files_commit_sha",
-			definition: "FOREIGN KEY (commit_sha) REFERENCES git_commits(commit_sha) ON DELETE CASCADE",
-		},
-		{
-			table:      "commit_indexes",
-			old:        []string{"commit_indexes_commit_sha_fkey"},
-			name:       "fk_commit_indexes_commit_sha",
 			definition: "FOREIGN KEY (commit_sha) REFERENCES git_commits(commit_sha) ON DELETE CASCADE",
 		},
 	}
@@ -217,7 +210,6 @@ func allModels() []interface{} {
 		&BranchModel{},
 		&TagModel{},
 		&FileModel{},
-		&CommitIndexModel{},
 		&EnrichmentModel{},
 		&EnrichmentAssociationModel{},
 		&EmbeddingModel{},

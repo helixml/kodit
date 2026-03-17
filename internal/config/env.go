@@ -83,10 +83,6 @@ type EnvConfig struct {
 	// Env: HTTP_CACHE_DIR
 	HTTPCacheDir string `envconfig:"HTTP_CACHE_DIR"`
 
-	// SimpleChunking enables fixed-size text chunking instead of AST-based snippet extraction.
-	// Env: SIMPLE_CHUNKING_ENABLED (default: true)
-	SimpleChunking bool `envconfig:"SIMPLE_CHUNKING_ENABLED" default:"true"`
-
 	// ChunkSize is the target size in characters for each text chunk.
 	// Env: CHUNK_SIZE (default: 1500)
 	ChunkSize int `envconfig:"CHUNK_SIZE" default:"1500"`
@@ -296,10 +292,7 @@ func (e EnvConfig) ToAppConfig() AppConfig {
 		cfg = applyOption(cfg, WithHTTPCacheDir(e.HTTPCacheDir))
 	}
 
-	// Simple chunking
-	if e.SimpleChunking {
-		cfg = applyOption(cfg, WithSimpleChunking(true))
-	}
+	// Chunk parameters
 	if e.ChunkSize > 0 {
 		cfg = applyOption(cfg, WithChunkSize(e.ChunkSize))
 	}
