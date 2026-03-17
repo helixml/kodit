@@ -1339,6 +1339,7 @@ Search code snippets using semantic similarity
 | remote_uri | string |  |
 | tracking_branch | string |  |
 | updated_at | string |  |
+| upstream_url | string | The canonical upstream URL (e.g. github.com/org/repo); falls back to remote_uri when not set |
 
 
 ### dto.RepositoryBranchData
@@ -1371,6 +1372,7 @@ Search code snippets using semantic similarity
 | Field | Type | Description |
 |-------|------|-------------|
 | remote_uri | string |  |
+| upstream_url | string | Optional canonical upstream URL; used for deduplication when multiple clone URLs point to the same repo |
 
 
 ### dto.RepositoryCreateData
