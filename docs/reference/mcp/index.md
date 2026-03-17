@@ -206,11 +206,11 @@ The search tool combines multiple search strategies with sophisticated ranking:
 3. **Semantic Text Search** - Uses embeddings to find code matching natural language descriptions
 4. **Reciprocal Rank Fusion (RRF)** - Intelligently combines results from multiple search strategies
 5. **Context-Aware Filtering** - Advanced filtering by language, author, date, source, and file path
-6. **Dependency-Aware Results** - Returns code snippets with their dependencies and usage examples
+6. **AI-Enriched Results** - Returns code chunks with LLM-generated summaries
 
 #### Enhanced Result Quality
 
-- **Smart Snippet Selection**: Returns functions with their dependencies and context
+- **Smart Chunk Selection**: Returns relevant code chunks with context
 - **Rich Metadata**: Each result includes file path, language, author, and creation date
 - **Usage Examples**: Includes examples of how functions are used in the codebase
 - **Topological Ordering**: Dependencies are ordered for optimal LLM consumption

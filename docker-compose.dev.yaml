@@ -90,7 +90,6 @@ services:
       - 'ENRICHMENT_ENDPOINT_EXTRA_PARAMS=${ENRICHMENT_ENDPOINT_EXTRA_PARAMS:-{"extra_body": {"think": false, "options": {"num_predict": 200, "temperature": 0.7}}}}'
       - LOG_LEVEL=INFO
       - HTTP_CACHE_DIR=/kodit-data
-      - SIMPLE_CHUNKING_ENABLED=true
     profiles:
       - kodit
     volumes:

@@ -249,7 +249,6 @@ class ServerProcess:
         embedding_timeout: int,
         pid_file: Path = DEFAULT_PID_FILE,
         startup_timeout: int = DEFAULT_STARTUP_TIMEOUT,
-        extra_env: dict[str, str] | None = None,
     ) -> None:
         """Initialize server process manager."""
         self._host = host
@@ -267,7 +266,6 @@ class ServerProcess:
         self._embedding_api_key = embedding_api_key
         self._embedding_parallel_tasks = embedding_parallel_tasks
         self._embedding_timeout = embedding_timeout
-        self._extra_env = extra_env or {}
         self._log = structlog.get_logger(__name__)
 
     @property
@@ -383,8 +381,6 @@ class ServerProcess:
         for key, value in overrides.items():
             if value:
                 env[key] = value
-
-        env.update(self._extra_env)
 
         return env
 
