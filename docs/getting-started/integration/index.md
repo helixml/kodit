@@ -15,12 +15,6 @@ the `/mcp` endpoint.
 See the [MCP Reference](../../reference/mcp/index.md) for comprehensive integration
 instructions for popular coding assistants like Cursor, Claude, Cline, etc.
 
-### Hosted
-
-Configure your AI coding assistant to connect to `https://kodit.helix.ml/mcp`
-
-More information about the hosted service is available in the [hosted Kodit documentation](../../reference/hosted-kodit/index.md).
-
 ### Local
 
 1. Start the Kodit server:

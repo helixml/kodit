@@ -69,19 +69,6 @@ intent. Kodit has been tested to work well with:
 - Hybrid search combining BM25 keyword search with semantic search
 - Enhanced MCP tools with rich context parameters and metadata
 
-### Hosted MCP Server
-
-Try Kodit instantly with our hosted MCP server at [https://kodit.helix.ml/mcp](https://kodit.helix.ml/mcp)! No installation required - just add it to your AI coding assistant and start searching popular codebases immediately.
-
-The hosted server provides:
-
-- Pre-indexed popular open source repositories
-- Zero configuration - works out of the box
-- Same powerful search capabilities as self-hosted Kodit
-- Perfect for trying Kodit before setting up your own instance
-
-Find out more in the [hosted Kodit documentation](https://docs.helix.ml/kodit/reference/hosted-kodit/).
-
 ### Enterprise Ready
 
 Out of the box, Kodit works with a local SQLite database and very small, local models.

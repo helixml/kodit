@@ -40,15 +40,12 @@ comprehensive instructions for all popular coding assistants.
 #### Claude Code Streaming HTTP Mode (recommended)
 
 ```sh
-claude mcp add --transport http kodit https://kodit.helix.ml/mcp
+claude mcp add --transport http kodit http://localhost:8080/mcp
 ```
 
 ### Integration With Cursor
 
 #### Cursor Streaming HTTP Mode (recommended)
-
-![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)
-{class="h-8 inline-block" href="cursor://anysphere.cursor-deeplink/mcp/install?name=kodit&config=eyJ1cmwiOiJodHRwczovL2tvZGl0LmhlbGl4Lm1sL21jcCJ9"}
 
 Add the following to `$HOME/.cursor/mcp.json`:
 
@@ -56,15 +53,14 @@ Add the following to `$HOME/.cursor/mcp.json`:
 {
   "mcpServers": {
     "kodit": {
-      "url": "https://kodit.helix.ml/mcp"
+      "url": "http://localhost:8080/mcp"
     }
   }
 }
 ```
 
 - Or find this configuration in `Cursor Settings` -> `MCP`.
-- `https://kodit.helix.ml` is the URL of the hosted Kodit instance. You can replace this
- with <http://localhost:8080> if you are running locally.
+- Replace `http://localhost:8080` with the URL of your Kodit instance if running remotely.
 
 ### Integration With Cline
 
@@ -86,7 +82,7 @@ Add the following configuration:
       "disabled": false,
       "timeout": 60,
       "type": "streamableHttp",
-      "url": "https://kodit.helix.ml/mcp"
+      "url": "http://localhost:8080/mcp"
     }
   }
 }
@@ -106,7 +102,7 @@ Add the following configuration:
   "mcpServers": {
     "kodit": {
       "type": "streamable-http",
-      "url": "https://kodit.helix.ml/mcp",
+      "url": "http://localhost:8080/mcp",
       "alwaysAllow": [],
       "disabled": false
     }
