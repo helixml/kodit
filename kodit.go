@@ -51,6 +51,7 @@ import (
 	"github.com/helixml/kodit/infrastructure/chunking"
 	"github.com/helixml/kodit/infrastructure/enricher"
 	"github.com/helixml/kodit/infrastructure/enricher/example"
+	"github.com/helixml/kodit/infrastructure/extraction"
 	"github.com/helixml/kodit/infrastructure/git"
 	"github.com/helixml/kodit/infrastructure/persistence"
 	"github.com/helixml/kodit/infrastructure/provider"
@@ -108,6 +109,9 @@ type Client struct {
 
 	// Code slicing (internal)
 	slicer *slicing.Slicer
+
+	// Document text extraction (internal)
+	documentText *extraction.DocumentText
 
 	// Discovery services (each used by exactly one handler)
 	archDiscoverer    *enricher.PhysicalArchitectureService
@@ -353,6 +357,9 @@ func New(opts ...Option) (*Client, error) {
 		Logger:       logger,
 	}
 
+	// Create document text extractor
+	documentText := extraction.NewDocumentText()
+
 	// Create enrichment infrastructure (always available)
 	archDiscoverer := enricher.NewPhysicalArchitectureService()
 	exampleDiscoverer := example.NewDiscovery()
@@ -380,6 +387,7 @@ func New(opts ...Option) (*Client, error) {
 		periodicSync:      periodicSync,
 		registry:          registry,
 		slicer:            slicer,
+		documentText:      documentText,
 		archDiscoverer:    archDiscoverer,
 		exampleDiscoverer: exampleDiscoverer,
 		schemaDiscoverer:  schemaDiscoverer,

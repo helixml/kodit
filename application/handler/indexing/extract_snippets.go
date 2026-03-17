@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/rs/zerolog"
 
@@ -14,27 +15,35 @@ import (
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
+	"github.com/helixml/kodit/infrastructure/chunking"
+	"github.com/helixml/kodit/infrastructure/extraction"
 	"github.com/helixml/kodit/infrastructure/slicing"
 )
 
 // ExtractSnippets extracts code snippets from commit files using AST parsing.
+// When documentText is non-nil, binary document files (PDF, DOCX, etc.) are
+// extracted via tabula, chunked, and saved as snippet enrichments alongside
+// the AST-parsed source code snippets.
 type ExtractSnippets struct {
 	repoStore        repository.RepositoryStore
 	enrichmentStore  enrichment.EnrichmentStore
 	associationStore enrichment.AssociationStore
 	fileStore        repository.FileStore
 	slicer           *slicing.Slicer
+	documentText     DocumentTextSource
 	trackerFactory   handler.TrackerFactory
 	logger           zerolog.Logger
 }
 
 // NewExtractSnippets creates a new ExtractSnippets handler.
+// When documentText is nil, document files are skipped.
 func NewExtractSnippets(
 	repoStore repository.RepositoryStore,
 	enrichmentStore enrichment.EnrichmentStore,
 	associationStore enrichment.AssociationStore,
 	fileStore repository.FileStore,
 	slicerInstance *slicing.Slicer,
+	documentText DocumentTextSource,
 	trackerFactory handler.TrackerFactory,
 	logger zerolog.Logger,
 ) *ExtractSnippets {
@@ -44,6 +53,7 @@ func NewExtractSnippets(
 		associationStore: associationStore,
 		fileStore:        fileStore,
 		slicer:           slicerInstance,
+		documentText:     documentText,
 		trackerFactory:   trackerFactory,
 		logger:           logger,
 	}
@@ -94,7 +104,52 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 		return nil
 	}
 
-	langFiles := h.groupFilesByExtension(files)
+	// Separate document files (PDF, DOCX, etc.) from source code files.
+	// Documents are extracted via tabula and chunked; source code goes through the AST slicer.
+	var codeFiles []repository.File
+	if h.documentText != nil {
+		for _, f := range files {
+			ext := strings.ToLower(filepath.Ext(f.Path()))
+			if !extraction.IsDocument(ext) {
+				codeFiles = append(codeFiles, f)
+				continue
+			}
+			relPath := relativeFilePath(f.Path(), clonedPath)
+			diskPath := filepath.Join(clonedPath, relPath)
+			text, extractErr := h.documentText.Text(diskPath)
+			if extractErr != nil {
+				h.logger.Warn().Str("path", f.Path()).Str("error", extractErr.Error()).Msg("failed to extract document text")
+				continue
+			}
+			if strings.TrimSpace(text) == "" {
+				continue
+			}
+			textChunks, chunkErr := chunking.NewTextChunks(text, chunking.DefaultChunkParams())
+			if chunkErr != nil {
+				h.logger.Warn().Str("path", f.Path()).Str("error", chunkErr.Error()).Msg("failed to chunk document")
+				continue
+			}
+			for _, ch := range textChunks.All() {
+				e := enrichment.NewSnippetEnrichmentWithLanguage(ch.Content(), f.Extension())
+				saved, saveErr := h.enrichmentStore.Save(ctx, e)
+				if saveErr != nil {
+					return fmt.Errorf("save document snippet: %w", saveErr)
+				}
+				if _, err := h.associationStore.Save(ctx, enrichment.CommitAssociation(saved.ID(), cp.CommitSHA())); err != nil {
+					return fmt.Errorf("save commit association: %w", err)
+				}
+				if f.ID() != 0 {
+					if _, err := h.associationStore.Save(ctx, enrichment.FileAssociation(saved.ID(), strconv.FormatInt(f.ID(), 10))); err != nil {
+						return fmt.Errorf("save file association: %w", err)
+					}
+				}
+			}
+		}
+	} else {
+		codeFiles = files
+	}
+
+	langFiles := h.groupFilesByExtension(codeFiles)
 
 	tracker.SetTotal(ctx, len(langFiles))
 

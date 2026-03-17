@@ -2,8 +2,11 @@ package indexing
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/rs/zerolog"
@@ -66,7 +69,7 @@ func TestChunkFiles_SkipsWhenEnrichmentsExist(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		&fakeGitAdapter{},
+		&fakeGitAdapter{}, nil,
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -126,7 +129,7 @@ func TestChunkFiles_CreatesEnrichmentsForTextFiles(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		adapter,
+		adapter, nil,
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -219,7 +222,7 @@ func TestChunkFiles_SkipsBinaryFiles(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		adapter,
+		adapter, nil,
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -281,7 +284,7 @@ func TestChunkFiles_ContinuesOnFileContentError(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		adapter,
+		adapter, nil,
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -389,7 +392,7 @@ func TestChunkFiles_HandlesAbsoluteFilePaths(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		adapter,
+		adapter, nil,
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -489,7 +492,7 @@ func TestChunkFiles_OnlyIndexesSourceAndDocFiles(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		&fakeGitAdapter{files: adapterFiles},
+		&fakeGitAdapter{files: adapterFiles}, nil,
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -547,7 +550,7 @@ func TestChunkFiles_SetsLanguageFromExtension(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		adapter,
+		adapter, nil,
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -606,7 +609,7 @@ func TestChunkFiles_PersistsLineRanges(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		adapter,
+		adapter, nil,
 		chunking.ChunkParams{Size: 25, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -648,4 +651,215 @@ func TestChunkFiles_PersistsLineRanges(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 3, r2[0].StartLine())
 	assert.Equal(t, 3, r2[0].EndLine())
+}
+
+// fakeDocumentText implements DocumentTextSource for testing.
+type fakeDocumentText struct {
+	texts map[string]string
+	err   error
+}
+
+func (f *fakeDocumentText) Text(path string) (string, error) {
+	if f.err != nil {
+		return "", f.err
+	}
+	text, ok := f.texts[path]
+	if !ok {
+		return "", fmt.Errorf("no text for %s", path)
+	}
+	return text, nil
+}
+
+func TestChunkFiles_ExtractsDocumentFiles(t *testing.T) {
+	ctx := context.Background()
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
+	db := testdb.New(t)
+
+	enrichmentStore := persistence.NewEnrichmentStore(db)
+	associationStore := persistence.NewAssociationStore(db)
+	lineRangeStore := persistence.NewChunkLineRangeStore(db)
+	repoStore := persistence.NewRepositoryStore(db)
+	fileStore := persistence.NewFileStore(db)
+
+	commitSHA := "doc111doc222"
+	tmpDir := t.TempDir()
+
+	repo, err := repository.NewRepository("https://github.com/test/repo")
+	require.NoError(t, err)
+	repo = repo.
+		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
+	savedRepo, err := repoStore.Save(ctx, repo)
+	require.NoError(t, err)
+
+	f := repository.NewFileWithDetails(commitSHA, "manual.pdf", "abc123", "application/pdf", ".pdf", 5000)
+	savedFile, err := fileStore.Save(ctx, f)
+	require.NoError(t, err)
+
+	extractedText := strings.Repeat("Document content. ", 10)
+	diskPath := filepath.Join(tmpDir, "manual.pdf")
+	docText := &fakeDocumentText{texts: map[string]string{diskPath: extractedText}}
+
+	h := NewChunkFiles(
+		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
+		&fakeGitAdapter{}, docText,
+		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
+		&fakeTrackerFactory{},
+		logger,
+	)
+
+	payload := map[string]any{
+		"repository_id": savedRepo.ID(),
+		"commit_sha":    commitSHA,
+	}
+
+	err = h.Execute(ctx, payload)
+	require.NoError(t, err)
+
+	chunks, err := enrichmentStore.Find(ctx,
+		enrichment.WithCommitSHA(commitSHA),
+		enrichment.WithType(enrichment.TypeDevelopment),
+		enrichment.WithSubtype(enrichment.SubtypeChunk),
+	)
+	require.NoError(t, err)
+	assert.NotEmpty(t, chunks, "document files should produce chunks")
+
+	// Verify associations exist for each chunk.
+	for _, c := range chunks {
+		commitAssocs, err := associationStore.Find(ctx,
+			enrichment.WithEnrichmentID(c.ID()),
+			enrichment.WithEntityType(enrichment.EntityTypeCommit),
+		)
+		require.NoError(t, err)
+		assert.Len(t, commitAssocs, 1)
+
+		fileAssocs, err := associationStore.Find(ctx,
+			enrichment.WithEnrichmentID(c.ID()),
+			enrichment.WithEntityType(enrichment.EntityTypeFile),
+		)
+		require.NoError(t, err)
+		assert.Len(t, fileAssocs, 1)
+		assert.Equal(t, strconv.FormatInt(savedFile.ID(), 10), fileAssocs[0].EntityID())
+
+		repoAssocs, err := associationStore.Find(ctx,
+			enrichment.WithEnrichmentID(c.ID()),
+			enrichment.WithEntityType(enrichment.EntityTypeRepository),
+		)
+		require.NoError(t, err)
+		assert.Len(t, repoAssocs, 1)
+		assert.Equal(t, strconv.FormatInt(savedRepo.ID(), 10), repoAssocs[0].EntityID())
+	}
+}
+
+func TestChunkFiles_SkipsDocumentsWhenExtractorNil(t *testing.T) {
+	ctx := context.Background()
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
+	db := testdb.New(t)
+
+	enrichmentStore := persistence.NewEnrichmentStore(db)
+	associationStore := persistence.NewAssociationStore(db)
+	lineRangeStore := persistence.NewChunkLineRangeStore(db)
+	repoStore := persistence.NewRepositoryStore(db)
+	fileStore := persistence.NewFileStore(db)
+
+	commitSHA := "nodoc111222"
+	tmpDir := t.TempDir()
+
+	repo, err := repository.NewRepository("https://github.com/test/repo")
+	require.NoError(t, err)
+	repo = repo.
+		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
+	savedRepo, err := repoStore.Save(ctx, repo)
+	require.NoError(t, err)
+
+	f := repository.NewFileWithDetails(commitSHA, "report.pdf", "abc123", "application/pdf", ".pdf", 5000)
+	_, err = fileStore.Save(ctx, f)
+	require.NoError(t, err)
+
+	h := NewChunkFiles(
+		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
+		&fakeGitAdapter{}, nil,
+		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
+		&fakeTrackerFactory{},
+		logger,
+	)
+
+	payload := map[string]any{
+		"repository_id": savedRepo.ID(),
+		"commit_sha":    commitSHA,
+	}
+
+	err = h.Execute(ctx, payload)
+	require.NoError(t, err)
+
+	chunks, err := enrichmentStore.Find(ctx,
+		enrichment.WithCommitSHA(commitSHA),
+		enrichment.WithType(enrichment.TypeDevelopment),
+		enrichment.WithSubtype(enrichment.SubtypeChunk),
+	)
+	require.NoError(t, err)
+	assert.Empty(t, chunks, "document files should be skipped when extractor is nil")
+}
+
+func TestChunkFiles_ContinuesOnDocumentExtractionError(t *testing.T) {
+	ctx := context.Background()
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
+	db := testdb.New(t)
+
+	enrichmentStore := persistence.NewEnrichmentStore(db)
+	associationStore := persistence.NewAssociationStore(db)
+	lineRangeStore := persistence.NewChunkLineRangeStore(db)
+	repoStore := persistence.NewRepositoryStore(db)
+	fileStore := persistence.NewFileStore(db)
+
+	commitSHA := "docerr111222"
+	tmpDir := t.TempDir()
+
+	repo, err := repository.NewRepository("https://github.com/test/repo")
+	require.NoError(t, err)
+	repo = repo.
+		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
+	savedRepo, err := repoStore.Save(ctx, repo)
+	require.NoError(t, err)
+
+	// A PDF that will fail extraction, and a Go file that should succeed.
+	f1 := repository.NewFileWithDetails(commitSHA, "bad.pdf", "aaa", "application/pdf", ".pdf", 5000)
+	_, err = fileStore.Save(ctx, f1)
+	require.NoError(t, err)
+	f2 := repository.NewFileWithDetails(commitSHA, "good.go", "bbb", "text/x-go", ".go", 100)
+	_, err = fileStore.Save(ctx, f2)
+	require.NoError(t, err)
+
+	goodContent := make([]byte, 100)
+	for i := range goodContent {
+		goodContent[i] = 'G'
+	}
+
+	docText := &fakeDocumentText{err: fmt.Errorf("corrupt PDF")}
+
+	h := NewChunkFiles(
+		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
+		&fakeGitAdapter{files: map[string][]byte{"good.go": goodContent}}, docText,
+		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
+		&fakeTrackerFactory{},
+		logger,
+	)
+
+	payload := map[string]any{
+		"repository_id": savedRepo.ID(),
+		"commit_sha":    commitSHA,
+	}
+
+	err = h.Execute(ctx, payload)
+	require.NoError(t, err)
+
+	chunks, err := enrichmentStore.Find(ctx,
+		enrichment.WithCommitSHA(commitSHA),
+		enrichment.WithType(enrichment.TypeDevelopment),
+		enrichment.WithSubtype(enrichment.SubtypeChunk),
+	)
+	require.NoError(t, err)
+	assert.Len(t, chunks, 1, "should create chunks for the Go file despite PDF extraction error")
 }
