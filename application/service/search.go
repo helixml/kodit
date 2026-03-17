@@ -544,7 +544,7 @@ func (s Search) SearchCodeWithScores(ctx context.Context, query string, topK int
 		return nil, nil, fmt.Errorf("fetch enrichments: %w", err)
 	}
 
-	return enrichments, scores, nil
+	return orderByScore(enrichments, scores), scores, nil
 }
 
 // SearchKeywordsWithScores performs BM25 keyword search and returns enrichments
