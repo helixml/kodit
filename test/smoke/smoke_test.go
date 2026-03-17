@@ -671,7 +671,7 @@ func TestSmoke(t *testing.T) {
 	mcpSessionID := initMCPSession(t)
 
 	t.Run("mcp_semantic_search", func(t *testing.T) {
-		results := callMCPTool(t, mcpSessionID, "semantic_search", 2, map[string]any{
+		results := callMCPTool(t, mcpSessionID, "kodit_semantic_search", 2, map[string]any{
 			"query": "HTTP server orders JSON",
 		})
 		if len(results) == 0 {
@@ -681,7 +681,7 @@ func TestSmoke(t *testing.T) {
 	})
 
 	t.Run("mcp_keyword_search", func(t *testing.T) {
-		results := callMCPTool(t, mcpSessionID, "keyword_search", 3, map[string]any{
+		results := callMCPTool(t, mcpSessionID, "kodit_keyword_search", 3, map[string]any{
 			"keywords": "orders GET json",
 		})
 		if len(results) == 0 {
@@ -711,7 +711,7 @@ func TestSmoke(t *testing.T) {
 
 	t.Run("mcp_read_resource", func(t *testing.T) {
 		// First get a URI from semantic_search, then read it via read_resource.
-		results := callMCPTool(t, mcpSessionID, "semantic_search", 5, map[string]any{
+		results := callMCPTool(t, mcpSessionID, "kodit_semantic_search", 5, map[string]any{
 			"query": "HTTP server orders JSON",
 			"limit": 1,
 		})
@@ -721,7 +721,7 @@ func TestSmoke(t *testing.T) {
 		uri := results[0].URI
 		t.Logf("reading resource: %s", uri)
 
-		text := callMCPToolText(t, mcpSessionID, "read_resource", 6, map[string]any{
+		text := callMCPToolText(t, mcpSessionID, "kodit_read_resource", 6, map[string]any{
 			"uri": uri,
 		})
 		if text == "" {
@@ -1169,7 +1169,7 @@ type mcpLsResult struct {
 func callMCPLs(t *testing.T, sessionID string, id int, args map[string]any) []mcpLsResult {
 	t.Helper()
 	body := mcpJSONRPC("tools/call", id, map[string]any{
-		"name":      "ls",
+		"name":      "kodit_ls",
 		"arguments": args,
 	})
 	httpClient := &http.Client{Timeout: 30 * time.Second}
