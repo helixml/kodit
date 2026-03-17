@@ -317,9 +317,12 @@ var indexableExtensions = map[string]bool{
 	".md": true, ".mdx": true, ".rst": true, ".adoc": true, ".tex": true,
 	// IDL / Schema
 	".proto": true, ".graphql": true, ".gql": true, ".thrift": true,
-	// Documents (binary, handled by document text extraction)
-	".pdf": true, ".docx": true, ".odt": true,
-	".xlsx": true, ".pptx": true, ".epub": true,
+}
+
+func init() {
+	for _, ext := range extraction.Extensions() {
+		indexableExtensions[ext] = true
+	}
 }
 
 // isIndexable returns true if the file extension is in the whitelist of
