@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,286 +13,72 @@ import (
 	"github.com/helixml/kodit/internal/database"
 )
 
-type fakeBlobCommitStore struct {
-	commits []repository.Commit
+type blobTestDeps struct {
+	blob   *Blob
+	git    *fakeGitAdapter
+	stores testStores
 }
 
-func (f *fakeBlobCommitStore) Find(_ context.Context, opts ...repository.Option) ([]repository.Commit, error) {
-	return f.commits, nil
+func newBlobTestDeps(t *testing.T) blobTestDeps {
+	t.Helper()
+	stores := newTestStores(t)
+	gitAdapter := &fakeGitAdapter{content: map[string][]byte{}}
+	blob := NewBlob(stores.repos, stores.commits, stores.tags, stores.branches, gitAdapter)
+	return blobTestDeps{blob: blob, git: gitAdapter, stores: stores}
 }
 
-func (f *fakeBlobCommitStore) FindOne(_ context.Context, _ ...repository.Option) (repository.Commit, error) {
-	if len(f.commits) > 0 {
-		return f.commits[0], nil
+// seedBlobFixtures creates a repo with working copy, commit, tag, and branch,
+// and configures the git adapter with file content for each.
+func seedBlobFixtures(t *testing.T, deps blobTestDeps) int64 {
+	t.Helper()
+	ctx := context.Background()
+
+	remoteURL := "https://github.com/example/repo"
+	repo, err := repository.NewRepository(remoteURL)
+	if err != nil {
+		t.Fatalf("new repo: %v", err)
 	}
-	return repository.Commit{}, fmt.Errorf("not found")
-}
-
-func (f *fakeBlobCommitStore) Count(_ context.Context, _ ...repository.Option) (int64, error) {
-	return int64(len(f.commits)), nil
-}
-
-func (f *fakeBlobCommitStore) Save(_ context.Context, c repository.Commit) (repository.Commit, error) {
-	return c, nil
-}
-
-func (f *fakeBlobCommitStore) Delete(_ context.Context, _ repository.Commit) error { return nil }
-
-func (f *fakeBlobCommitStore) Exists(_ context.Context, opts ...repository.Option) (bool, error) {
-	q := repository.Build(opts...)
-	for _, cond := range q.Conditions() {
-		if cond.Field() == "commit_sha" {
-			sha, ok := cond.Value().(string)
-			if !ok {
-				continue
-			}
-			for _, c := range f.commits {
-				if c.SHA() == sha {
-					return true, nil
-				}
-			}
-			return false, nil
-		}
+	repo = repo.WithWorkingCopy(repository.NewWorkingCopy("/tmp/test-repo", remoteURL))
+	saved, err := deps.stores.repos.Save(ctx, repo)
+	if err != nil {
+		t.Fatalf("save repo: %v", err)
 	}
-	return false, nil
-}
 
-func (f *fakeBlobCommitStore) SaveAll(_ context.Context, commits []repository.Commit) ([]repository.Commit, error) {
-	return commits, nil
-}
-
-type fakeBlobTagStore struct {
-	tags []repository.Tag
-}
-
-func (f *fakeBlobTagStore) Find(_ context.Context, opts ...repository.Option) ([]repository.Tag, error) {
-	q := repository.Build(opts...)
-	for _, cond := range q.Conditions() {
-		if cond.Field() == "name" {
-			name, ok := cond.Value().(string)
-			if !ok {
-				continue
-			}
-			for _, t := range f.tags {
-				if t.Name() == name {
-					return []repository.Tag{t}, nil
-				}
-			}
-			return nil, nil
-		}
-	}
-	return f.tags, nil
-}
-
-func (f *fakeBlobTagStore) FindOne(_ context.Context, _ ...repository.Option) (repository.Tag, error) {
-	if len(f.tags) > 0 {
-		return f.tags[0], nil
-	}
-	return repository.Tag{}, fmt.Errorf("not found")
-}
-
-func (f *fakeBlobTagStore) Count(_ context.Context, _ ...repository.Option) (int64, error) {
-	return int64(len(f.tags)), nil
-}
-
-func (f *fakeBlobTagStore) Save(_ context.Context, t repository.Tag) (repository.Tag, error) {
-	return t, nil
-}
-
-func (f *fakeBlobTagStore) Delete(_ context.Context, _ repository.Tag) error { return nil }
-
-func (f *fakeBlobTagStore) SaveAll(_ context.Context, tags []repository.Tag) ([]repository.Tag, error) {
-	return tags, nil
-}
-
-type fakeBlobBranchStore struct {
-	branches []repository.Branch
-}
-
-func (f *fakeBlobBranchStore) Find(_ context.Context, opts ...repository.Option) ([]repository.Branch, error) {
-	q := repository.Build(opts...)
-	for _, cond := range q.Conditions() {
-		if cond.Field() == "name" {
-			name, ok := cond.Value().(string)
-			if !ok {
-				continue
-			}
-			for _, b := range f.branches {
-				if b.Name() == name {
-					return []repository.Branch{b}, nil
-				}
-			}
-			return nil, nil
-		}
-	}
-	return f.branches, nil
-}
-
-func (f *fakeBlobBranchStore) FindOne(_ context.Context, _ ...repository.Option) (repository.Branch, error) {
-	if len(f.branches) > 0 {
-		return f.branches[0], nil
-	}
-	return repository.Branch{}, fmt.Errorf("not found")
-}
-
-func (f *fakeBlobBranchStore) Count(_ context.Context, _ ...repository.Option) (int64, error) {
-	return int64(len(f.branches)), nil
-}
-
-func (f *fakeBlobBranchStore) Save(_ context.Context, b repository.Branch) (repository.Branch, error) {
-	return b, nil
-}
-
-func (f *fakeBlobBranchStore) Delete(_ context.Context, _ repository.Branch) error { return nil }
-
-func (f *fakeBlobBranchStore) SaveAll(_ context.Context, branches []repository.Branch) ([]repository.Branch, error) {
-	return branches, nil
-}
-
-type fakeBlobRepoStore struct {
-	repo repository.Repository
-}
-
-func (f *fakeBlobRepoStore) Find(_ context.Context, _ ...repository.Option) ([]repository.Repository, error) {
-	return []repository.Repository{f.repo}, nil
-}
-
-func (f *fakeBlobRepoStore) FindOne(_ context.Context, _ ...repository.Option) (repository.Repository, error) {
-	return f.repo, nil
-}
-
-func (f *fakeBlobRepoStore) Count(_ context.Context, _ ...repository.Option) (int64, error) {
-	return 1, nil
-}
-
-func (f *fakeBlobRepoStore) Save(_ context.Context, r repository.Repository) (repository.Repository, error) {
-	return r, nil
-}
-
-func (f *fakeBlobRepoStore) Delete(_ context.Context, _ repository.Repository) error { return nil }
-
-func (f *fakeBlobRepoStore) Exists(_ context.Context, _ ...repository.Option) (bool, error) {
-	return true, nil
-}
-
-type fakeBlobGitAdapter struct {
-	content     map[string][]byte
-	cloneFn     func(remoteURI, localPath string) error
-	cloneCalled bool
-}
-
-func (f *fakeBlobGitAdapter) FileContent(_ context.Context, _, commitSHA, filePath string) ([]byte, error) {
-	key := commitSHA + ":" + filePath
-	content, ok := f.content[key]
-	if !ok {
-		return nil, fmt.Errorf("get file: %w", git.ErrFileNotFound)
-	}
-	return content, nil
-}
-
-func (f *fakeBlobGitAdapter) CloneRepository(_ context.Context, remoteURI, localPath string) error {
-	f.cloneCalled = true
-	if f.cloneFn != nil {
-		return f.cloneFn(remoteURI, localPath)
-	}
-	return nil
-}
-func (f *fakeBlobGitAdapter) CheckoutCommit(context.Context, string, string) error { return nil }
-func (f *fakeBlobGitAdapter) CheckoutBranch(context.Context, string, string) error { return nil }
-func (f *fakeBlobGitAdapter) FetchRepository(context.Context, string) error        { return nil }
-func (f *fakeBlobGitAdapter) PullRepository(context.Context, string) error         { return nil }
-func (f *fakeBlobGitAdapter) AllBranches(context.Context, string) ([]git.BranchInfo, error) {
-	return nil, nil
-}
-func (f *fakeBlobGitAdapter) BranchCommits(context.Context, string, string) ([]git.CommitInfo, error) {
-	return nil, nil
-}
-func (f *fakeBlobGitAdapter) AllCommitsBulk(context.Context, string, *time.Time) (map[string]git.CommitInfo, error) {
-	return nil, nil
-}
-func (f *fakeBlobGitAdapter) BranchCommitSHAs(context.Context, string, string) ([]string, error) {
-	return nil, nil
-}
-func (f *fakeBlobGitAdapter) AllBranchHeadSHAs(context.Context, string, []string) (map[string]string, error) {
-	return nil, nil
-}
-func (f *fakeBlobGitAdapter) CommitFiles(context.Context, string, string) ([]git.FileInfo, error) {
-	return nil, nil
-}
-func (f *fakeBlobGitAdapter) RepositoryExists(_ context.Context, localPath string) (bool, error) {
-	_, err := os.Stat(localPath)
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return err == nil, err
-}
-func (f *fakeBlobGitAdapter) CommitDetails(context.Context, string, string) (git.CommitInfo, error) {
-	return git.CommitInfo{}, nil
-}
-func (f *fakeBlobGitAdapter) EnsureRepository(context.Context, string, string) error { return nil }
-func (f *fakeBlobGitAdapter) DefaultBranch(context.Context, string) (string, error) {
-	return "main", nil
-}
-func (f *fakeBlobGitAdapter) LatestCommitSHA(context.Context, string, string) (string, error) {
-	return "", nil
-}
-func (f *fakeBlobGitAdapter) AllTags(context.Context, string) ([]git.TagInfo, error) {
-	return nil, nil
-}
-func (f *fakeBlobGitAdapter) CommitDiff(context.Context, string, string) (string, error) {
-	return "", nil
-}
-func (f *fakeBlobGitAdapter) Grep(context.Context, string, string, string, string, int) ([]git.GrepMatch, error) {
-	return nil, nil
-}
-
-func newTestBlob() (*Blob, *fakeBlobGitAdapter) {
 	now := time.Now()
-	repo := repository.ReconstructRepository(
-		1, "https://github.com/example/repo", "https://github.com/example/repo", "",
-		repository.NewWorkingCopy("/tmp/repo", "https://github.com/example/repo"),
-		repository.NewTrackingConfigForBranch("main"),
-		now, now, time.Time{},
-	)
-
-	commit := repository.ReconstructCommit(
-		1, "abc1234567890def", 1, "initial commit",
+	commit := repository.NewCommit(
+		"abc1234567890def", saved.ID(), "initial commit",
 		repository.NewAuthor("Test", "test@test.com"),
 		repository.NewAuthor("Test", "test@test.com"),
-		now, now, now, "",
+		now, now,
 	)
-
-	tag := repository.ReconstructTag(
-		1, 1, "v1.0.0", "def4567890abcdef", "", repository.Author{}, time.Time{}, now,
-	)
-
-	branch := repository.ReconstructBranch(
-		1, 1, "main", "aaa1111222233334444", true, now, now,
-	)
-
-	gitAdapter := &fakeBlobGitAdapter{
-		content: map[string][]byte{
-			"abc1234567890def:README.md":    []byte("# Hello\nWorld"),
-			"def4567890abcdef:README.md":    []byte("# Tagged\nContent"),
-			"aaa1111222233334444:README.md": []byte("# Branch\nContent"),
-		},
+	if _, err := deps.stores.commits.Save(ctx, commit); err != nil {
+		t.Fatalf("save commit: %v", err)
 	}
 
-	blob := NewBlob(
-		&fakeBlobRepoStore{repo: repo},
-		&fakeBlobCommitStore{commits: []repository.Commit{commit}},
-		&fakeBlobTagStore{tags: []repository.Tag{tag}},
-		&fakeBlobBranchStore{branches: []repository.Branch{branch}},
-		gitAdapter,
-	)
+	tag := repository.NewTag(saved.ID(), "v1.0.0", "def4567890abcdef")
+	if _, err := deps.stores.tags.Save(ctx, tag); err != nil {
+		t.Fatalf("save tag: %v", err)
+	}
 
-	return blob, gitAdapter
+	branch := repository.NewBranch(saved.ID(), "main", "aaa1111222233334444", true)
+	if _, err := deps.stores.branches.Save(ctx, branch); err != nil {
+		t.Fatalf("save branch: %v", err)
+	}
+
+	deps.git.content = map[string][]byte{
+		"abc1234567890def:README.md":    []byte("# Hello\nWorld"),
+		"def4567890abcdef:README.md":    []byte("# Tagged\nContent"),
+		"aaa1111222233334444:README.md": []byte("# Branch\nContent"),
+	}
+
+	return saved.ID()
 }
 
 func TestBlob_ResolveCommitSHA(t *testing.T) {
-	blob, _ := newTestBlob()
+	deps := newBlobTestDeps(t)
+	repoID := seedBlobFixtures(t, deps)
 
-	sha, err := blob.Resolve(context.Background(), 1, "abc1234567890def")
+	sha, err := deps.blob.Resolve(context.Background(), repoID, "abc1234567890def")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -303,9 +88,10 @@ func TestBlob_ResolveCommitSHA(t *testing.T) {
 }
 
 func TestBlob_ResolveTag(t *testing.T) {
-	blob, _ := newTestBlob()
+	deps := newBlobTestDeps(t)
+	repoID := seedBlobFixtures(t, deps)
 
-	sha, err := blob.Resolve(context.Background(), 1, "v1.0.0")
+	sha, err := deps.blob.Resolve(context.Background(), repoID, "v1.0.0")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -315,9 +101,10 @@ func TestBlob_ResolveTag(t *testing.T) {
 }
 
 func TestBlob_ResolveBranch(t *testing.T) {
-	blob, _ := newTestBlob()
+	deps := newBlobTestDeps(t)
+	repoID := seedBlobFixtures(t, deps)
 
-	sha, err := blob.Resolve(context.Background(), 1, "main")
+	sha, err := deps.blob.Resolve(context.Background(), repoID, "main")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -327,18 +114,20 @@ func TestBlob_ResolveBranch(t *testing.T) {
 }
 
 func TestBlob_ResolveNotFound(t *testing.T) {
-	blob, _ := newTestBlob()
+	deps := newBlobTestDeps(t)
+	repoID := seedBlobFixtures(t, deps)
 
-	_, err := blob.Resolve(context.Background(), 1, "nonexistent")
+	_, err := deps.blob.Resolve(context.Background(), repoID, "nonexistent")
 	if err == nil {
 		t.Fatal("expected error for nonexistent blob")
 	}
 }
 
 func TestBlob_ContentByCommitSHA(t *testing.T) {
-	blob, _ := newTestBlob()
+	deps := newBlobTestDeps(t)
+	repoID := seedBlobFixtures(t, deps)
 
-	result, err := blob.Content(context.Background(), 1, "abc1234567890def", "README.md")
+	result, err := deps.blob.Content(context.Background(), repoID, "abc1234567890def", "README.md")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -351,9 +140,10 @@ func TestBlob_ContentByCommitSHA(t *testing.T) {
 }
 
 func TestBlob_ContentByTag(t *testing.T) {
-	blob, _ := newTestBlob()
+	deps := newBlobTestDeps(t)
+	repoID := seedBlobFixtures(t, deps)
 
-	result, err := blob.Content(context.Background(), 1, "v1.0.0", "README.md")
+	result, err := deps.blob.Content(context.Background(), repoID, "v1.0.0", "README.md")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -366,9 +156,10 @@ func TestBlob_ContentByTag(t *testing.T) {
 }
 
 func TestBlob_ContentByBranch(t *testing.T) {
-	blob, _ := newTestBlob()
+	deps := newBlobTestDeps(t)
+	repoID := seedBlobFixtures(t, deps)
 
-	result, err := blob.Content(context.Background(), 1, "main", "README.md")
+	result, err := deps.blob.Content(context.Background(), repoID, "main", "README.md")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -377,8 +168,20 @@ func TestBlob_ContentByBranch(t *testing.T) {
 	}
 }
 
+func TestBlob_ContentFileNotFound(t *testing.T) {
+	deps := newBlobTestDeps(t)
+	repoID := seedBlobFixtures(t, deps)
+
+	_, err := deps.blob.Content(context.Background(), repoID, "main", "nonexistent.go")
+	if err == nil {
+		t.Fatal("expected error for nonexistent file")
+	}
+	if !errors.Is(err, database.ErrNotFound) {
+		t.Errorf("expected database.ErrNotFound, got: %v", err)
+	}
+}
+
 func TestBlob_ListFiles(t *testing.T) {
-	// Create a temp directory with sample files to walk.
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "src"), 0o755); err != nil {
 		t.Fatal(err)
@@ -396,24 +199,22 @@ func TestBlob_ListFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	now := time.Now()
-	repo := repository.ReconstructRepository(
-		1, "https://github.com/example/repo", "https://github.com/example/repo", "",
-		repository.NewWorkingCopy(dir, "https://github.com/example/repo"),
-		repository.NewTrackingConfigForBranch("main"),
-		now, now, time.Time{},
-	)
+	deps := newBlobTestDeps(t)
+	ctx := context.Background()
 
-	blob := NewBlob(
-		&fakeBlobRepoStore{repo: repo},
-		&fakeBlobCommitStore{},
-		&fakeBlobTagStore{},
-		&fakeBlobBranchStore{},
-		&fakeBlobGitAdapter{content: map[string][]byte{}},
-	)
+	remoteURL := "https://github.com/example/repo"
+	repo, err := repository.NewRepository(remoteURL)
+	if err != nil {
+		t.Fatalf("new repo: %v", err)
+	}
+	repo = repo.WithWorkingCopy(repository.NewWorkingCopy(dir, remoteURL))
+	saved, err := deps.stores.repos.Save(ctx, repo)
+	if err != nil {
+		t.Fatalf("save repo: %v", err)
+	}
 
 	t.Run("all files", func(t *testing.T) {
-		entries, err := blob.ListFiles(context.Background(), 1, "**")
+		entries, err := deps.blob.ListFiles(ctx, saved.ID(), "**")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -423,7 +224,7 @@ func TestBlob_ListFiles(t *testing.T) {
 	})
 
 	t.Run("glob pattern", func(t *testing.T) {
-		entries, err := blob.ListFiles(context.Background(), 1, "**/*.go")
+		entries, err := deps.blob.ListFiles(ctx, saved.ID(), "**/*.go")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -436,7 +237,7 @@ func TestBlob_ListFiles(t *testing.T) {
 	})
 
 	t.Run("skips .git", func(t *testing.T) {
-		entries, err := blob.ListFiles(context.Background(), 1, "*")
+		entries, err := deps.blob.ListFiles(ctx, saved.ID(), "*")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -449,67 +250,143 @@ func TestBlob_ListFiles(t *testing.T) {
 }
 
 func TestBlob_ListFiles_ClonesWhenMissing(t *testing.T) {
-	// The working copy directory does NOT exist on disk yet.
-	// ListFiles should clone the repository before walking.
 	dir := filepath.Join(t.TempDir(), "nonexistent")
 
-	now := time.Now()
-	remoteURL := "https://github.com/example/repo"
-	repo := repository.ReconstructRepository(
-		1, remoteURL, remoteURL, "",
-		repository.NewWorkingCopy(dir, remoteURL),
-		repository.NewTrackingConfigForBranch("main"),
-		now, now, time.Time{},
-	)
+	deps := newBlobTestDeps(t)
+	ctx := context.Background()
 
-	// The fake adapter's CloneRepository creates sample files, simulating
-	// what a real clone would do.
-	gitAdapter := &fakeBlobGitAdapter{
-		content: map[string][]byte{},
-		cloneFn: func(_, localPath string) error {
-			if err := os.MkdirAll(filepath.Join(localPath, "src"), 0o755); err != nil {
-				return err
-			}
-			if err := os.WriteFile(filepath.Join(localPath, "README.md"), []byte("# Hello"), 0o644); err != nil {
-				return err
-			}
-			return os.WriteFile(filepath.Join(localPath, "src", "main.go"), []byte("package main"), 0o644)
-		},
+	remoteURL := "https://github.com/example/repo"
+	repo, err := repository.NewRepository(remoteURL)
+	if err != nil {
+		t.Fatalf("new repo: %v", err)
+	}
+	repo = repo.WithWorkingCopy(repository.NewWorkingCopy(dir, remoteURL))
+	saved, err := deps.stores.repos.Save(ctx, repo)
+	if err != nil {
+		t.Fatalf("save repo: %v", err)
 	}
 
-	blob := NewBlob(
-		&fakeBlobRepoStore{repo: repo},
-		&fakeBlobCommitStore{},
-		&fakeBlobTagStore{},
-		&fakeBlobBranchStore{},
-		gitAdapter,
-	)
+	deps.git.cloneFn = func(_, localPath string) error {
+		if err := os.MkdirAll(filepath.Join(localPath, "src"), 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(localPath, "README.md"), []byte("# Hello"), 0o644); err != nil {
+			return err
+		}
+		return os.WriteFile(filepath.Join(localPath, "src", "main.go"), []byte("package main"), 0o644)
+	}
 
-	entries, err := blob.ListFiles(context.Background(), 1, "**/*.go")
+	entries, err := deps.blob.ListFiles(ctx, saved.ID(), "**/*.go")
 	if err != nil {
 		t.Fatalf("expected ListFiles to succeed after cloning, got: %v", err)
 	}
-
 	if len(entries) != 1 {
 		t.Fatalf("expected 1 entry, got %d", len(entries))
 	}
 	if entries[0].Path != "src/main.go" {
 		t.Errorf("expected src/main.go, got %s", entries[0].Path)
 	}
-
-	if !gitAdapter.cloneCalled {
+	if !deps.git.cloneCalled {
 		t.Error("expected CloneRepository to be called")
 	}
 }
 
-func TestBlob_ContentFileNotFound(t *testing.T) {
-	blob, _ := newTestBlob()
+func TestBlob_ListFilesForCommit(t *testing.T) {
+	dir := t.TempDir()
 
-	_, err := blob.Content(context.Background(), 1, "main", "nonexistent.go")
-	if err == nil {
-		t.Fatal("expected error for nonexistent file")
+	deps := newBlobTestDeps(t)
+	ctx := context.Background()
+
+	remoteURL := "https://github.com/example/repo"
+	repo, err := repository.NewRepository(remoteURL)
+	if err != nil {
+		t.Fatalf("new repo: %v", err)
 	}
-	if !errors.Is(err, database.ErrNotFound) {
-		t.Errorf("expected database.ErrNotFound, got: %v", err)
+	repo = repo.WithWorkingCopy(repository.NewWorkingCopy(dir, remoteURL))
+	saved, err := deps.stores.repos.Save(ctx, repo)
+	if err != nil {
+		t.Fatalf("save repo: %v", err)
+	}
+
+	deps.git.commitFiles = []git.FileInfo{
+		{Path: "README.md", BlobSHA: "aaa", Size: 100},
+		{Path: "src/main.go", BlobSHA: "bbb", Size: 200},
+		{Path: "src/util.go", BlobSHA: "ccc", Size: 150},
+		{Path: "docs/guide.txt", BlobSHA: "ddd", Size: 50},
+	}
+
+	t.Run("all files", func(t *testing.T) {
+		entries, err := deps.blob.ListFilesForCommit(ctx, saved.ID(), "abc123", "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(entries) != 4 {
+			t.Fatalf("expected 4 entries, got %d", len(entries))
+		}
+	})
+
+	t.Run("glob filter", func(t *testing.T) {
+		entries, err := deps.blob.ListFilesForCommit(ctx, saved.ID(), "abc123", "**/*.go")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(entries) != 2 {
+			t.Fatalf("expected 2 .go entries, got %d", len(entries))
+		}
+		for _, e := range entries {
+			ext := filepath.Ext(e.Path)
+			if ext != ".go" {
+				t.Errorf("expected .go file, got %s", e.Path)
+			}
+		}
+	})
+
+	t.Run("preserves blob SHA", func(t *testing.T) {
+		entries, err := deps.blob.ListFilesForCommit(ctx, saved.ID(), "abc123", "**")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if entries[0].BlobSHA != "aaa" {
+			t.Errorf("expected BlobSHA aaa, got %s", entries[0].BlobSHA)
+		}
+	})
+}
+
+func TestBlob_ListFilesForCommit_ClonesWhenMissing(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "nonexistent")
+
+	deps := newBlobTestDeps(t)
+	ctx := context.Background()
+
+	remoteURL := "https://github.com/example/repo"
+	repo, err := repository.NewRepository(remoteURL)
+	if err != nil {
+		t.Fatalf("new repo: %v", err)
+	}
+	repo = repo.WithWorkingCopy(repository.NewWorkingCopy(dir, remoteURL))
+	saved, err := deps.stores.repos.Save(ctx, repo)
+	if err != nil {
+		t.Fatalf("save repo: %v", err)
+	}
+
+	deps.git.commitFiles = []git.FileInfo{
+		{Path: "main.go", BlobSHA: "abc", Size: 100},
+	}
+	deps.git.cloneFn = func(_, localPath string) error {
+		return os.MkdirAll(localPath, 0o755)
+	}
+
+	entries, err := deps.blob.ListFilesForCommit(ctx, saved.ID(), "abc123", "")
+	if err != nil {
+		t.Fatalf("expected ListFilesForCommit to succeed after cloning, got: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+	if entries[0].Path != "main.go" {
+		t.Errorf("expected main.go, got %s", entries[0].Path)
+	}
+	if !deps.git.cloneCalled {
+		t.Error("expected CloneRepository to be called")
 	}
 }
