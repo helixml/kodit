@@ -29,7 +29,7 @@ Kodit connects your AI coding assistant to external codebases to provide accurat
 - Integrate with any OpenAI-compatible or custom API/model
 
 If you're an engineer working with AI-powered coding assistants, Kodit helps by
-providing relevant and up-to-date examples of your task so that LLMs make less mistakes
+providing relevant and up-to-date examples of your task so that LLMs make fewer mistakes
 and produce fewer hallucinations.
 
 ## Features
