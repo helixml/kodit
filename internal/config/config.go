@@ -411,7 +411,6 @@ type AppConfig struct {
 	workerCount            int
 	searchLimit            int
 	httpCacheDir           string
-	simpleChunking         bool
 	chunkSize              int
 	chunkOverlap           int
 	chunkMinSize           int
@@ -539,9 +538,6 @@ func (c AppConfig) SearchLimit() int { return c.searchLimit }
 
 // HTTPCacheDir returns the HTTP response cache directory, or empty if disabled.
 func (c AppConfig) HTTPCacheDir() string { return c.httpCacheDir }
-
-// SimpleChunking returns whether fixed-size text chunking is enabled.
-func (c AppConfig) SimpleChunking() bool { return c.simpleChunking }
 
 // ChunkSize returns the target chunk size in characters.
 func (c AppConfig) ChunkSize() int { return c.chunkSize }
@@ -691,11 +687,6 @@ func WithSearchLimit(n int) AppConfigOption {
 // WithHTTPCacheDir sets the HTTP response cache directory.
 func WithHTTPCacheDir(dir string) AppConfigOption {
 	return func(c *AppConfig) { c.httpCacheDir = dir }
-}
-
-// WithSimpleChunking enables or disables fixed-size text chunking.
-func WithSimpleChunking(enabled bool) AppConfigOption {
-	return func(c *AppConfig) { c.simpleChunking = enabled }
 }
 
 // WithChunkSize sets the target chunk size in characters.

@@ -8,7 +8,6 @@ import (
 	"github.com/helixml/kodit/domain/chunk"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
-	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
 )
 
@@ -332,54 +331,6 @@ func (m FileMapper) ToModel(f repository.File) FileModel {
 		Size:      f.Size(),
 		CreatedAt: f.CreatedAt(),
 	}
-}
-
-// CommitIndexMapper maps between domain CommitIndex and persistence CommitIndexModel.
-type CommitIndexMapper struct{}
-
-// ToDomain converts a CommitIndexModel to a domain CommitIndex.
-// Note: snippets are loaded separately as they come from different tables.
-func (m CommitIndexMapper) ToDomain(e CommitIndexModel) snippet.CommitIndex {
-	var indexedAt time.Time
-	if e.IndexedAt.Valid {
-		indexedAt = e.IndexedAt.Time
-	}
-	var errorMessage string
-	if e.ErrorMessage.Valid {
-		errorMessage = e.ErrorMessage.String
-	}
-	return snippet.ReconstructCommitIndex(
-		e.CommitSHA,
-		nil, // snippets - loaded separately via joins
-		snippet.IndexStatus(e.Status),
-		indexedAt,
-		errorMessage,
-		e.FilesProcessed,
-		e.ProcessingTimeSeconds,
-		e.CreatedAt,
-		e.UpdatedAt,
-	)
-}
-
-// ToModel converts a domain CommitIndex to a CommitIndexModel.
-func (m CommitIndexMapper) ToModel(ci snippet.CommitIndex) CommitIndexModel {
-	model := CommitIndexModel{
-		CommitSHA:             ci.CommitSHA(),
-		Status:                string(ci.Status()),
-		FilesProcessed:        ci.FilesProcessed(),
-		ProcessingTimeSeconds: ci.ProcessingTimeSeconds(),
-		CreatedAt:             ci.CreatedAt(),
-		UpdatedAt:             ci.UpdatedAt(),
-	}
-	if !ci.IndexedAt().IsZero() {
-		model.IndexedAt.Valid = true
-		model.IndexedAt.Time = ci.IndexedAt()
-	}
-	if ci.ErrorMessage() != "" {
-		model.ErrorMessage.Valid = true
-		model.ErrorMessage.String = ci.ErrorMessage()
-	}
-	return model
 }
 
 // EnrichmentMapper maps between domain Enrichment and persistence EnrichmentModel.

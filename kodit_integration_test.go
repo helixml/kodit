@@ -744,7 +744,6 @@ func TestIntegration_DocumentExtraction(t *testing.T) {
 		kodit.WithSQLite(dbPath),
 		kodit.WithDataDir(dataDir),
 		kodit.WithCloneDir(cloneDir),
-		kodit.WithSimpleChunking(),
 		kodit.WithModelDir("infrastructure/provider/models"),
 		kodit.WithWorkerPollPeriod(testPollPeriod),
 	)

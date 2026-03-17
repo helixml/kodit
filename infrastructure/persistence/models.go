@@ -1,7 +1,6 @@
 package persistence
 
 import (
-	"database/sql"
 	"encoding/json"
 	"time"
 )
@@ -97,24 +96,6 @@ type FileModel struct {
 // TableName returns the table name.
 func (FileModel) TableName() string {
 	return "git_commit_files"
-}
-
-// CommitIndexModel represents the commit indexing status.
-type CommitIndexModel struct {
-	CommitSHA             string         `gorm:"column:commit_sha;primaryKey"`
-	Commit                CommitModel    `gorm:"foreignKey:CommitSHA;references:CommitSHA;constraint:-"`
-	Status                string         `gorm:"column:status;index"`
-	IndexedAt             sql.NullTime   `gorm:"column:indexed_at"`
-	ErrorMessage          sql.NullString `gorm:"column:error_message"`
-	FilesProcessed        int            `gorm:"column:files_processed;default:0"`
-	ProcessingTimeSeconds float64        `gorm:"column:processing_time_seconds;default:0.0"`
-	CreatedAt             time.Time      `gorm:"column:created_at;not null"`
-	UpdatedAt             time.Time      `gorm:"column:updated_at;not null"`
-}
-
-// TableName returns the table name.
-func (CommitIndexModel) TableName() string {
-	return "commit_indexes"
 }
 
 // EnrichmentModel represents an enrichment in the database.

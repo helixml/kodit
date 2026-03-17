@@ -3,11 +3,7 @@ package indexing
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
 	"strconv"
-	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -19,8 +15,6 @@ import (
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/persistence"
-	"github.com/helixml/kodit/infrastructure/slicing"
-	"github.com/helixml/kodit/infrastructure/slicing/language"
 	"github.com/helixml/kodit/internal/testdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -110,7 +104,7 @@ func (f *failingAssociationStore) Find(ctx context.Context, opts ...repository.O
 
 func TestCreateSummaryEmbeddings_FilterPropagatesError(t *testing.T) {
 	ctx := context.Background()
-	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
+	logger := zerolog.New(zerolog.NewTestWriter(t)).Level(zerolog.ErrorLevel)
 
 	db := testdb.New(t)
 	enrichmentStore := persistence.NewEnrichmentStore(db)
@@ -161,7 +155,7 @@ func TestCreateSummaryEmbeddings_FilterPropagatesError(t *testing.T) {
 
 func TestCreateCodeEmbeddings_OrdersByID(t *testing.T) {
 	ctx := context.Background()
-	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
+	logger := zerolog.New(zerolog.NewTestWriter(t)).Level(zerolog.ErrorLevel)
 
 	db := testdb.New(t)
 	enrichmentStore := persistence.NewEnrichmentStore(db)
@@ -208,7 +202,7 @@ func TestCreateCodeEmbeddings_OrdersByID(t *testing.T) {
 
 func TestCreateSummaryEmbeddings_OrdersByID(t *testing.T) {
 	ctx := context.Background()
-	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
+	logger := zerolog.New(zerolog.NewTestWriter(t)).Level(zerolog.ErrorLevel)
 
 	db := testdb.New(t)
 	enrichmentStore := persistence.NewEnrichmentStore(db)
@@ -267,176 +261,4 @@ func TestCreateSummaryEmbeddings_OrdersByID(t *testing.T) {
 		assert.Equal(t, snippetSHAs[i], doc.SnippetID(),
 			"document %d should reference snippet SHA %s", i, snippetSHAs[i])
 	}
-}
-
-// recordingTracker captures the messages passed to SetCurrent in order.
-type recordingTracker struct {
-	messages []string
-}
-
-func (r *recordingTracker) SetTotal(_ context.Context, _ int) {}
-func (r *recordingTracker) Skip(_ context.Context, _ string)  {}
-func (r *recordingTracker) Fail(_ context.Context, _ string)  {}
-func (r *recordingTracker) Complete(_ context.Context)        {}
-func (r *recordingTracker) SetCurrent(_ context.Context, _ int, msg string) {
-	r.messages = append(r.messages, msg)
-}
-
-type recordingTrackerFactory struct {
-	tracker *recordingTracker
-}
-
-func (f *recordingTrackerFactory) ForOperation(_ task.Operation, _ map[string]any) handler.Tracker {
-	return f.tracker
-}
-
-func TestExtractSnippets_ProcessesExtensionsInSortedOrder(t *testing.T) {
-	ctx := context.Background()
-	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
-
-	db := testdb.New(t)
-	repoStore := persistence.NewRepositoryStore(db)
-	enrichmentStore := persistence.NewEnrichmentStore(db)
-	associationStore := persistence.NewAssociationStore(db)
-	fileStore := persistence.NewFileStore(db)
-
-	// Create a repo with a working copy pointing to a temp dir.
-	tmpDir := t.TempDir()
-	repo, err := repository.NewRepository("https://github.com/test/repo")
-	require.NoError(t, err)
-	repo = repo.
-		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
-		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
-	savedRepo, err := repoStore.Save(ctx, repo)
-	require.NoError(t, err)
-
-	// Create files with 5 extensions in deliberately unsorted order.
-	// The slicer won't find analyzers for these fake extensions, so it
-	// returns empty results for each group — but the tracker still records
-	// the processing order.
-	commitSHA := "fff777ggg888"
-	extensions := []string{".zzz", ".aaa", ".mmm", ".bbb", ".ddd"}
-	for i, ext := range extensions {
-		f := repository.NewFile(commitSHA, fmt.Sprintf("file%d%s", i, ext), "", 100)
-		_, err := fileStore.Save(ctx, f)
-		require.NoError(t, err)
-	}
-
-	langConfig := slicing.NewLanguageConfig()
-	analyzerFactory := language.NewFactory(langConfig)
-	slicer := slicing.NewSlicer(langConfig, analyzerFactory)
-
-	rec := &recordingTracker{}
-	h := NewExtractSnippets(
-		repoStore,
-		enrichmentStore,
-		associationStore,
-		fileStore,
-		slicer,
-		nil,
-		&recordingTrackerFactory{tracker: rec},
-		logger,
-	)
-
-	payload := map[string]any{
-		"repository_id": savedRepo.ID(),
-		"commit_sha":    commitSHA,
-	}
-	err = h.Execute(ctx, payload)
-	require.NoError(t, err)
-
-	// Extract extension from each "Extracting snippets for .xxx" message.
-	require.Len(t, rec.messages, len(extensions),
-		"tracker should receive one SetCurrent per extension")
-
-	var got []string
-	for _, msg := range rec.messages {
-		ext := strings.TrimPrefix(msg, "Extracting snippets for ")
-		got = append(got, ext)
-	}
-
-	expected := []string{".aaa", ".bbb", ".ddd", ".mmm", ".zzz"}
-	assert.Equal(t, expected, got,
-		"extensions must be processed in sorted order for deterministic cache keys")
-}
-
-// recordingFileStore wraps a real FileStore and captures the options passed to
-// Find so tests can verify ordering constraints without depending on downstream
-// slicer determinism (the slicer iterates maps internally).
-type recordingFileStore struct {
-	repository.FileStore
-	findOptions []repository.Option
-}
-
-func (r *recordingFileStore) Find(ctx context.Context, opts ...repository.Option) ([]repository.File, error) {
-	r.findOptions = opts
-	return r.FileStore.Find(ctx, opts...)
-}
-
-func TestExtractSnippets_QueriesFilesInPathOrder(t *testing.T) {
-	ctx := context.Background()
-	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
-
-	db := testdb.New(t)
-	repoStore := persistence.NewRepositoryStore(db)
-	enrichmentStore := persistence.NewEnrichmentStore(db)
-	associationStore := persistence.NewAssociationStore(db)
-	realFileStore := persistence.NewFileStore(db)
-
-	tmpDir := t.TempDir()
-	repo, err := repository.NewRepository("https://github.com/test/repo")
-	require.NoError(t, err)
-	repo = repo.
-		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
-		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
-	savedRepo, err := repoStore.Save(ctx, repo)
-	require.NoError(t, err)
-
-	commitSHA := "hhh999iii000"
-
-	// Create a single Go file so the handler reaches the file query.
-	content := "package example\n\nfunc Hello() {}\n"
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "hello.go"), []byte(content), 0o644))
-	_, err = realFileStore.Save(ctx, repository.NewFile(commitSHA, "hello.go", "go", int64(len(content))))
-	require.NoError(t, err)
-
-	rec := &recordingFileStore{FileStore: realFileStore}
-
-	langConfig := slicing.NewLanguageConfig()
-	analyzerFactory := language.NewFactory(langConfig)
-	slicer := slicing.NewSlicer(langConfig, analyzerFactory)
-
-	h := NewExtractSnippets(
-		repoStore,
-		enrichmentStore,
-		associationStore,
-		rec,
-		slicer,
-		nil,
-		&fakeTrackerFactory{},
-		logger,
-	)
-
-	payload := map[string]any{
-		"repository_id": savedRepo.ID(),
-		"commit_sha":    commitSHA,
-	}
-	err = h.Execute(ctx, payload)
-	require.NoError(t, err)
-
-	// The file query must include ORDER BY path ASC so that files within
-	// each extension group are processed in deterministic order.
-	q := repository.Build(rec.findOptions...)
-	orders := q.Orders()
-	require.NotEmpty(t, orders, "file query must include an explicit ORDER BY")
-
-	found := false
-	for _, o := range orders {
-		if o.Field() == "path" && o.Ascending() {
-			found = true
-			break
-		}
-	}
-	assert.True(t, found,
-		"file query must order by path ASC for deterministic cache keys, got orders: %v", orders)
 }

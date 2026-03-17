@@ -908,7 +908,7 @@ func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http
 	}
 
 	typDev := enrichment.TypeDevelopment
-	subSnippet := enrichment.SubtypeSnippet
+	subSnippet := enrichment.SubtypeChunk
 	params := &service.EnrichmentListParams{
 		CommitSHA: commitSHA,
 		Type:      &typDev,

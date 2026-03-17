@@ -50,13 +50,10 @@ import (
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/chunking"
 	"github.com/helixml/kodit/infrastructure/enricher"
-	"github.com/helixml/kodit/infrastructure/enricher/example"
 	"github.com/helixml/kodit/infrastructure/extraction"
 	"github.com/helixml/kodit/infrastructure/git"
 	"github.com/helixml/kodit/infrastructure/persistence"
 	"github.com/helixml/kodit/infrastructure/provider"
-	"github.com/helixml/kodit/infrastructure/slicing"
-	"github.com/helixml/kodit/infrastructure/slicing/language"
 	"github.com/helixml/kodit/infrastructure/tracking"
 	"github.com/helixml/kodit/internal/config"
 	"github.com/helixml/kodit/internal/database"
@@ -107,32 +104,27 @@ type Client struct {
 	periodicSync *service.PeriodicSync
 	registry     *service.Registry
 
-	// Code slicing (internal)
-	slicer *slicing.Slicer
-
 	// Document text extraction (internal)
 	documentText *extraction.DocumentText
 
 	// Discovery services (each used by exactly one handler)
-	archDiscoverer    *enricher.PhysicalArchitectureService
-	exampleDiscoverer *example.Discovery
-	schemaDiscoverer  *enricher.DatabaseSchemaService
-	apiDocService     *enricher.APIDocService
-	cookbookContext   *enricher.CookbookContextService
-	wikiContext       *enricher.WikiContextService
+	archDiscoverer   *enricher.PhysicalArchitectureService
+	schemaDiscoverer *enricher.DatabaseSchemaService
+	apiDocService    *enricher.APIDocService
+	cookbookContext  *enricher.CookbookContextService
+	wikiContext      *enricher.WikiContextService
 
 	hugotEmbedding *provider.HugotEmbedding
 	closers        []io.Closer
 
-	logger         zerolog.Logger
-	dataDir        string
-	cloneDir       string
-	apiKeys        []string
-	simpleChunking bool
-	chunkParams    chunking.ChunkParams
-	prescribedOps  task.PrescribedOperations
-	closed         atomic.Bool
-	mu             sync.Mutex
+	logger        zerolog.Logger
+	dataDir       string
+	cloneDir      string
+	apiKeys       []string
+	chunkParams   chunking.ChunkParams
+	prescribedOps task.PrescribedOperations
+	closed        atomic.Bool
+	mu            sync.Mutex
 }
 
 // New creates a new Client with the given options.
@@ -315,11 +307,6 @@ func New(opts ...Option) (*Client, error) {
 		Scanner: scannerSvc,
 	}
 
-	// Create slicer for code extraction
-	langConfig := slicing.NewLanguageConfig()
-	analyzerFactory := language.NewFactory(langConfig)
-	slicer := slicing.NewSlicer(langConfig, analyzerFactory)
-
 	// Create tracker factory for progress reporting.
 	// Wrap reporters in cooldowns to limit database writes and log output
 	// to at most once per second per status ID during high-frequency updates.
@@ -335,7 +322,7 @@ func New(opts ...Option) (*Client, error) {
 		worker.WithPollPeriod(cfg.workerPollPeriod)
 	}
 	enrichments := cfg.textProvider != nil
-	prescribedOps := task.NewPrescribedOperations(!cfg.simpleChunking, enrichments)
+	prescribedOps := task.NewPrescribedOperations(false, enrichments)
 	if !enrichments {
 		logger.Warn().Msg("enrichment endpoint not configured — LLM-based enrichments (summaries, architecture docs, commit descriptions, cookbooks, wiki) will be disabled; set ENRICHMENT_ENDPOINT_* environment variables to enable them")
 	}
@@ -362,7 +349,6 @@ func New(opts ...Option) (*Client, error) {
 
 	// Create enrichment infrastructure (always available)
 	archDiscoverer := enricher.NewPhysicalArchitectureService()
-	exampleDiscoverer := example.NewDiscovery()
 	schemaDiscoverer := enricher.NewDatabaseSchemaService()
 	apiDocSvc := enricher.NewAPIDocService()
 	cookbookCtx := enricher.NewCookbookContextService()
@@ -372,37 +358,34 @@ func New(opts ...Option) (*Client, error) {
 	cfg.closers = append(cfg.closers, dbCooldown, logCooldown)
 
 	client := &Client{
-		db:                db,
-		repoStores:        repoStores,
-		taskStore:         taskStore,
-		statusStore:       statusStore,
-		lineRangeStore:    lineRangeStore,
-		enrichCtx:         enrichCtx,
-		codeIndex:         codeIndex,
-		textIndex:         textIndex,
-		gitInfra:          gitInfra,
-		bm25Service:       bm25Svc,
-		queue:             queue,
-		worker:            worker,
-		periodicSync:      periodicSync,
-		registry:          registry,
-		slicer:            slicer,
-		documentText:      documentText,
-		archDiscoverer:    archDiscoverer,
-		exampleDiscoverer: exampleDiscoverer,
-		schemaDiscoverer:  schemaDiscoverer,
-		apiDocService:     apiDocSvc,
-		cookbookContext:   cookbookCtx,
-		wikiContext:       wikiCtx,
-		hugotEmbedding:    hugotEmbedding,
-		closers:           cfg.closers,
-		logger:            logger,
-		dataDir:           dataDir,
-		cloneDir:          cloneDir,
-		apiKeys:           cfg.apiKeys,
-		simpleChunking:    cfg.simpleChunking,
-		chunkParams:       cfg.chunkParams,
-		prescribedOps:     prescribedOps,
+		db:               db,
+		repoStores:       repoStores,
+		taskStore:        taskStore,
+		statusStore:      statusStore,
+		lineRangeStore:   lineRangeStore,
+		enrichCtx:        enrichCtx,
+		codeIndex:        codeIndex,
+		textIndex:        textIndex,
+		gitInfra:         gitInfra,
+		bm25Service:      bm25Svc,
+		queue:            queue,
+		worker:           worker,
+		periodicSync:     periodicSync,
+		registry:         registry,
+		documentText:     documentText,
+		archDiscoverer:   archDiscoverer,
+		schemaDiscoverer: schemaDiscoverer,
+		apiDocService:    apiDocSvc,
+		cookbookContext:  cookbookCtx,
+		wikiContext:      wikiCtx,
+		hugotEmbedding:   hugotEmbedding,
+		closers:          cfg.closers,
+		logger:           logger,
+		dataDir:          dataDir,
+		cloneDir:         cloneDir,
+		apiKeys:          cfg.apiKeys,
+		chunkParams:      cfg.chunkParams,
+		prescribedOps:    prescribedOps,
 	}
 
 	// Populate MCP server metadata
