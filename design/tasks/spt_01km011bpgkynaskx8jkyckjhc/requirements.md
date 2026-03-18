@@ -2,7 +2,7 @@
 
 ## User Stories
 
-**As a user, I want to pass a `file:///path/to/dir` URI when adding a repository so that Kodit indexes a local directory without attempting git operations.**
+**As a user, I want to pass a `file:///path/to/dir` URI when adding a repository so that Kodit indexes a local directory without cloning it.**
 
 ### Acceptance Criteria
 
@@ -12,10 +12,9 @@
    - Sets the `cloned_path` in the database to the local filesystem path extracted from the URI (e.g. `file:///home/user/project` → `/home/user/project`)
 
 2. When syncing a `file://` repository, Kodit:
-   - Skips `git fetch` and `git pull` operations
-   - Still scans branches/commits if the directory is a git repo
-   - Proceeds to the indexing pipeline as normal
+   - If the directory contains a `.git` folder, treats it as a normal git repo: runs `git fetch`, `git pull`, and scans branches/commits as usual
+   - If the directory is **not** a git repo, skips all git operations and proceeds to index whatever files are present
 
-3. A `file://` repository behaves identically to a cloned git repository in all downstream steps (commit scanning, enrichment, MCP search).
+3. A `file://` repository behaves identically to a cloned git repository in all downstream steps (commit scanning, enrichment, MCP search), to the extent the directory supports it.
 
 4. Non-`file://` URIs continue to work exactly as before — no regression.

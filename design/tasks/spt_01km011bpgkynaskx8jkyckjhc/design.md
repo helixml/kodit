@@ -2,12 +2,14 @@
 
 ## Overview
 
-Kodit's repository pipeline has two git-specific phases that must be bypassed for `file://` URIs:
+Kodit's repository pipeline has two git-specific phases to consider for `file://` URIs:
 
-1. **Clone phase** (`application/handler/repository/clone.go`): calls `cloner.Clone()` which runs `git clone`
-2. **Sync/Update phase** (`application/handler/repository/sync.go`): calls `cloner.Update()` which runs `git fetch` + `git pull`
+1. **Clone phase** (`application/handler/repository/clone.go`): calls `cloner.Clone()` which runs `git clone` — always skipped for `file://` (path already exists)
+2. **Sync/Update phase** (`application/handler/repository/sync.go`): calls `cloner.Update()` which runs `git fetch` + `git pull` — only skipped if the local directory is **not** a git repo
 
-For `file://` URIs, the local path is already the working copy. No git network operations are needed.
+A local directory pointed to by a `file://` URI may or may not be a git repository. Both cases must be handled:
+- **Is a git repo** (has `.git/`): skip clone, but still run fetch/pull and scan branches/commits normally
+- **Not a git repo**: skip clone, skip all git operations; index files as-is
 
 ## Key Files
 
@@ -44,15 +46,26 @@ func (c *RepositoryCloner) ClonePathFromURI(uri string) string {
 }
 ```
 
-### 3. `RepositoryCloner.Update()` — skip fetch/pull for file URIs
+### 3. `RepositoryCloner.Update()` — skip fetch/pull only for non-git file URIs
 
-In `Update()`, after checking the path exists and before calling `updateBranch`/`updateTag`, check if the repo is a file URI and return early without pulling:
+In `Update()`, after the path exists check and before calling `updateBranch`/`updateTag`, detect whether the local path is a git repo. If it is a git repo, proceed with fetch/pull as normal. If not, return early:
 
 ```go
-if isFileURI(repo.RemoteURL()) {
-    return clonePath, nil  // local folder; no git pull needed
+if isFileURI(repo.RemoteURL()) && !isGitRepo(clonePath) {
+    return clonePath, nil  // plain local folder; skip git operations
 }
 ```
+
+Add a helper `isGitRepo(path string) bool` that checks for the presence of a `.git` entry:
+
+```go
+func isGitRepo(path string) bool {
+    _, err := os.Stat(filepath.Join(path, ".git"))
+    return err == nil
+}
+```
+
+Also, the relocation fallback in `Update()` (re-clone if stored path is stale) must not trigger for file URIs regardless of git status — the directory is the user's responsibility. Guard that block with `!isFileURI(repo.RemoteURL())`.
 
 ### 4. URI helper
 
