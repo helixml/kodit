@@ -7,7 +7,9 @@ set -euo pipefail
 
 
 echo "🚀 Starting project" 
-sudo apt-get install -y make uv
-make dev
+sudo apt-get install -y make
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
+
+make dev
 echo "✅ Project startup complete"
