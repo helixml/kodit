@@ -517,7 +517,12 @@ func (g *GiteaAdapter) AllTags(ctx context.Context, localPath string) ([]TagInfo
 }
 
 // CommitDiff returns the diff for a specific commit.
+// For non-git local directories there is no diff to return.
 func (g *GiteaAdapter) CommitDiff(ctx context.Context, localPath string, commitSHA string) (string, error) {
+	if !isGitRepo(localPath) {
+		return "", nil
+	}
+
 	repo, err := giteagit.OpenRepository(ctx, localPath)
 	if err != nil {
 		return "", fmt.Errorf("open repository: %w", err)
