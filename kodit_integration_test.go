@@ -17,10 +17,23 @@ import (
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/infrastructure/provider"
 	"github.com/helixml/kodit/internal/database"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// stubEmbedder is a minimal provider.Embedder for tests that do not need real embeddings.
+// It returns a single zero vector per input so the pipeline can complete without a model.
+type stubEmbedder struct{}
+
+func (stubEmbedder) Embed(_ context.Context, req provider.EmbeddingRequest) (provider.EmbeddingResponse, error) {
+	vecs := make([][]float64, len(req.Texts()))
+	for i := range vecs {
+		vecs[i] = []float64{0}
+	}
+	return provider.NewEmbeddingResponse(vecs, provider.Usage{}), nil
+}
 
 const testPollPeriod = 50 * time.Millisecond
 
@@ -781,4 +794,123 @@ func TestIntegration_DocumentExtraction(t *testing.T) {
 	for _, c := range chunks {
 		assert.NotEmpty(t, c.Content(), "chunk content should not be empty")
 	}
+}
+
+func TestIntegration_FileURI_GitRepo_WorkingCopyIsLocalPath(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	dataDir := filepath.Join(tmpDir, "data")
+	cloneDir := filepath.Join(tmpDir, "repos")
+
+	repoPath := createTestGitRepo(t)
+
+	client, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithDataDir(dataDir),
+		kodit.WithCloneDir(cloneDir),
+		kodit.WithEmbeddingProvider(stubEmbedder{}),
+		kodit.WithWorkerPollPeriod(testPollPeriod),
+	)
+	require.NoError(t, err)
+	defer func() { _ = client.Close() }()
+
+	ctx := context.Background()
+
+	repo, _, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(repoPath)})
+	require.NoError(t, err)
+
+	waitForTasks(ctx, t, client, 60*time.Second)
+
+	updated, err := client.Repositories.Get(ctx, repository.WithID(repo.ID()))
+	require.NoError(t, err)
+	require.True(t, updated.HasWorkingCopy(), "repository should have a working copy")
+
+	// The working copy path must be the original local path, not a subdirectory of cloneDir.
+	assert.Equal(t, repoPath, updated.WorkingCopy().Path(),
+		"working copy path should equal the original local path, not a clone dir subdirectory")
+}
+
+func TestIntegration_FileURI_GitRepo_SyncScansBranches(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	dataDir := filepath.Join(tmpDir, "data")
+	cloneDir := filepath.Join(tmpDir, "repos")
+
+	repoPath := createTestGitRepo(t)
+	branch := currentBranch(t, repoPath)
+
+	client, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithDataDir(dataDir),
+		kodit.WithCloneDir(cloneDir),
+		kodit.WithEmbeddingProvider(stubEmbedder{}),
+		kodit.WithWorkerPollPeriod(testPollPeriod),
+	)
+	require.NoError(t, err)
+	defer func() { _ = client.Close() }()
+
+	ctx := context.Background()
+
+	repo, _, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{
+		URL:    fileURI(repoPath),
+		Branch: branch,
+	})
+	require.NoError(t, err)
+
+	waitForTasks(ctx, t, client, 60*time.Second)
+
+	commits, err := client.Commits.Find(ctx, repository.WithRepoID(repo.ID()))
+	require.NoError(t, err)
+	assert.NotEmpty(t, commits, "expected commits to be indexed from local git repo")
+}
+
+func TestIntegration_FileURI_NonGitDirectory_CompletesWithoutError(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	dataDir := filepath.Join(tmpDir, "data")
+	cloneDir := filepath.Join(tmpDir, "repos")
+
+	// Create a plain directory with source files but no git repository.
+	plainDir := filepath.Join(tmpDir, "plain-src")
+	require.NoError(t, os.MkdirAll(plainDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(plainDir, "main.go"), []byte("package main\n"), 0644))
+
+	client, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithDataDir(dataDir),
+		kodit.WithCloneDir(cloneDir),
+		kodit.WithEmbeddingProvider(stubEmbedder{}),
+		kodit.WithWorkerPollPeriod(testPollPeriod),
+	)
+	require.NoError(t, err)
+	defer func() { _ = client.Close() }()
+
+	ctx := context.Background()
+
+	repo, _, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(plainDir)})
+	require.NoError(t, err)
+
+	// Pipeline must complete without timeout or failed tasks.
+	waitForTasks(ctx, t, client, 60*time.Second)
+
+	updated, err := client.Repositories.Get(ctx, repository.WithID(repo.ID()))
+	require.NoError(t, err)
+	require.True(t, updated.HasWorkingCopy(), "repository should have a working copy")
+	assert.Equal(t, plainDir, updated.WorkingCopy().Path(),
+		"working copy path should equal the plain directory path")
 }

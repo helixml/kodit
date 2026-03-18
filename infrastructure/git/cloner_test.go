@@ -3,6 +3,7 @@ package git
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -73,6 +74,145 @@ func (f *fakeAdapter) CommitDiff(_ context.Context, _ string, _ string) (string,
 func (f *fakeAdapter) Grep(_ context.Context, _ string, _ string, _ string, _ string, _ int) ([]GrepMatch, error) {
 	return nil, nil
 }
+
+// ---- file:// URI helpers ----
+
+func TestIsFileURI(t *testing.T) {
+	if !isFileURI("file:///home/user/project") {
+		t.Fatal("expected true for file:// URI")
+	}
+	if isFileURI("https://github.com/example/repo") {
+		t.Fatal("expected false for https:// URI")
+	}
+}
+
+func TestLocalPathFromFileURI(t *testing.T) {
+	got := localPathFromFileURI("file:///home/user/project")
+	if got != "/home/user/project" {
+		t.Fatalf("expected /home/user/project, got %q", got)
+	}
+}
+
+func TestClonePathFromURI_FileURI(t *testing.T) {
+	cloner := NewRepositoryCloner(&fakeAdapter{}, t.TempDir(), zerolog.Nop())
+	localPath := "/home/user/project"
+	uri := "file://" + localPath
+	got := cloner.ClonePathFromURI(uri)
+	if got != localPath {
+		t.Fatalf("expected %q, got %q", localPath, got)
+	}
+}
+
+func TestClone_FileURI_SkipsAdapter(t *testing.T) {
+	fake := &fakeAdapter{}
+	cloner := NewRepositoryCloner(fake, t.TempDir(), zerolog.Nop())
+
+	localPath := t.TempDir()
+	uri := "file://" + localPath
+
+	got, err := cloner.Clone(context.Background(), uri)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != localPath {
+		t.Fatalf("expected %q, got %q", localPath, got)
+	}
+	if fake.cloned {
+		t.Fatal("expected CloneRepository NOT to be called for file:// URI")
+	}
+}
+
+func TestUpdate_FileURI_NonGitDir_SkipsGitOps(t *testing.T) {
+	fake := &fakeAdapter{}
+	cloner := NewRepositoryCloner(fake, t.TempDir(), zerolog.Nop())
+
+	// A plain temp dir — not a git repo.
+	plainDir := t.TempDir()
+	uri := "file://" + plainDir
+
+	repo := repository.ReconstructRepository(
+		3,
+		uri, uri, "",
+		repository.NewWorkingCopy(plainDir, uri),
+		repository.NewTrackingConfigForBranch("main"),
+		time.Now(), time.Now(), time.Time{},
+	)
+
+	gotPath, err := cloner.Update(context.Background(), repo)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotPath != plainDir {
+		t.Fatalf("expected %q, got %q", plainDir, gotPath)
+	}
+	if fake.cloned {
+		t.Fatal("expected CloneRepository NOT to be called for plain file:// dir")
+	}
+	if fake.fetched {
+		t.Fatal("expected FetchRepository NOT to be called for plain file:// dir")
+	}
+}
+
+func TestUpdate_FileURI_GitRepo_RunsFetchPull(t *testing.T) {
+	fake := &fakeAdapter{}
+	cloner := NewRepositoryCloner(fake, t.TempDir(), zerolog.Nop())
+
+	// Create a real git repo in a temp dir so isGitRepo returns true.
+	repoDir := t.TempDir()
+	initCmd := exec.Command("git", "init", repoDir)
+	if out, err := initCmd.CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v: %s", err, out)
+	}
+
+	uri := "file://" + repoDir
+
+	repo := repository.ReconstructRepository(
+		4,
+		uri, uri, "",
+		repository.NewWorkingCopy(repoDir, uri),
+		repository.NewTrackingConfigForBranch("main"),
+		time.Now(), time.Now(), time.Time{},
+	)
+
+	_, err := cloner.Update(context.Background(), repo)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fake.cloned {
+		t.Fatal("expected CloneRepository NOT to be called for file:// git repo")
+	}
+	if !fake.fetched {
+		t.Fatal("expected FetchRepository to be called for file:// git repo")
+	}
+}
+
+func TestUpdate_FileURI_MissingDir_DoesNotReclone(t *testing.T) {
+	fake := &fakeAdapter{}
+	cloner := NewRepositoryCloner(fake, t.TempDir(), zerolog.Nop())
+
+	// A path that doesn't exist.
+	missingDir := filepath.Join(t.TempDir(), "gone")
+	uri := "file://" + missingDir
+
+	repo := repository.ReconstructRepository(
+		5,
+		uri, uri, "",
+		repository.NewWorkingCopy(missingDir, uri),
+		repository.NewTrackingConfigForBranch("main"),
+		time.Now(), time.Now(), time.Time{},
+	)
+
+	// isGitRepo will return false for a missing dir, so we expect early return without cloning.
+	_, err := cloner.Update(context.Background(), repo)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fake.cloned {
+		t.Fatal("expected CloneRepository NOT to be called for missing file:// dir")
+	}
+}
+
+// ---- existing tests ----
 
 func TestUpdate_MissingDirectory(t *testing.T) {
 	fake := &fakeAdapter{}
