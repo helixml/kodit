@@ -9,7 +9,7 @@ set -euo pipefail
 echo "🚀 Starting project" 
 sudo apt-get install -y make
 curl -LsSf https://astral.sh/uv/install.sh | sh
-
+source $HOME/.local/bin/env
 
 make dev
 echo "✅ Project startup complete"
