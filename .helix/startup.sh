@@ -11,5 +11,5 @@ sudo apt-get install -y make
 curl -LsSf https://astral.sh/uv/install.sh | sh
 source $HOME/.local/bin/env
 
-make dev
+cd kodit && make dev
 echo "✅ Project startup complete"
