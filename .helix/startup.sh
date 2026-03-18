@@ -7,6 +7,7 @@ set -euo pipefail
 
 
 echo "🚀 Starting project" 
+sudo apt-get install -y make uv
 make dev
 
 echo "✅ Project startup complete"
