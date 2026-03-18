@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -382,20 +383,12 @@ func (g *GiteaAdapter) EnsureRepository(ctx context.Context, remoteURI string, l
 // For non-git local directories the file is read directly from the filesystem.
 func (g *GiteaAdapter) FileContent(ctx context.Context, localPath string, commitSHA string, filePath string) ([]byte, error) {
 	if !isGitRepo(localPath) {
-		absLocalPath, err := filepath.Abs(localPath)
+		// Use os.DirFS to sandbox reads to localPath. os.DirFS validates that
+		// filePath is a valid fs.FS path (no absolute paths, no ".." components)
+		// before opening, so user-controlled values cannot escape the directory.
+		content, err := fs.ReadFile(os.DirFS(localPath), filePath)
 		if err != nil {
-			return nil, fmt.Errorf("resolve local path: %w", err)
-		}
-		absFilePath, err := filepath.Abs(filepath.Join(absLocalPath, filePath))
-		if err != nil {
-			return nil, fmt.Errorf("resolve file path: %w", err)
-		}
-		if absFilePath != absLocalPath && !strings.HasPrefix(absFilePath, absLocalPath+string(os.PathSeparator)) {
-			return nil, fmt.Errorf("get file %s: %w", filePath, ErrFileNotFound)
-		}
-		content, err := os.ReadFile(absFilePath)
-		if err != nil {
-			if os.IsNotExist(err) {
+			if errors.Is(err, fs.ErrNotExist) || errors.Is(err, fs.ErrInvalid) {
 				return nil, fmt.Errorf("get file %s: %w", filePath, ErrFileNotFound)
 			}
 			return nil, fmt.Errorf("read file: %w", err)
