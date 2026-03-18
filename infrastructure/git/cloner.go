@@ -6,13 +6,34 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/service"
 )
+
+// isFileURI reports whether uri uses the file:// scheme.
+func isFileURI(uri string) bool {
+	return strings.HasPrefix(uri, "file://")
+}
+
+// localPathFromFileURI extracts the filesystem path from a file:// URI.
+// file:///home/user/project → /home/user/project
+func localPathFromFileURI(uri string) string {
+	return strings.TrimPrefix(uri, "file://")
+}
+
+// isGitRepo reports whether path is recognised as a git repository by git itself.
+// It handles regular repos (.git/), bare repos, and worktrees.
+func isGitRepo(path string) bool {
+	cmd := exec.Command("git", "rev-parse", "--git-dir")
+	cmd.Dir = path
+	return cmd.Run() == nil
+}
 
 // RepositoryCloner handles repository cloning and updating operations.
 // Implements domain/service.Cloner interface.
@@ -32,14 +53,26 @@ func NewRepositoryCloner(adapter Adapter, cloneDir string, logger zerolog.Logger
 }
 
 // ClonePathFromURI returns the local clone path for a given repository URI.
+// For file:// URIs the local path is returned directly; for all other URIs
+// a sanitized subdirectory of the configured clone directory is returned.
 func (c *RepositoryCloner) ClonePathFromURI(uri string) string {
+	if isFileURI(uri) {
+		return localPathFromFileURI(uri)
+	}
 	// Sanitize the URI to create a safe directory name
 	sanitized := sanitizeURIForPath(uri)
 	return filepath.Join(c.cloneDir, sanitized)
 }
 
 // Clone clones a repository and returns the local path.
+// For file:// URIs the directory already exists locally; no git clone is performed.
 func (c *RepositoryCloner) Clone(ctx context.Context, remoteURI string) (string, error) {
+	if isFileURI(remoteURI) {
+		localPath := localPathFromFileURI(remoteURI)
+		c.logger.Info().Str("uri", remoteURI).Str("path", localPath).Msg("file:// repository; skipping clone")
+		return localPath, nil
+	}
+
 	clonePath := c.ClonePathFromURI(remoteURI)
 
 	c.logger.Info().Str("uri", remoteURI).Str("path", clonePath).Msg("cloning repository")
@@ -78,20 +111,29 @@ func (c *RepositoryCloner) Update(ctx context.Context, repo repository.Repositor
 
 	clonePath := repo.WorkingCopy().Path()
 
-	// Check if the path exists and is accessible
-	if _, err := os.Stat(clonePath); err != nil {
-		// The stored path is stale (e.g. from a previous container).
-		// Clone to the correct location for the current environment.
-		clonePath = c.ClonePathFromURI(repo.RemoteURL())
-
-		c.logger.Info().Int64("repo_id", repo.ID()).Str("old_path", repo.WorkingCopy().Path()).Str("new_path", clonePath).Msg("relocating repository clone")
-
-		if err := c.adapter.CloneRepository(ctx, repo.RemoteURL(), clonePath); err != nil {
-			_ = os.RemoveAll(clonePath)
-			return "", fmt.Errorf("clone repository: %w", err)
-		}
-
+	// For file:// repositories the directory is owned by the user; never
+	// attempt to re-clone it or run git network operations (fetch/pull) —
+	// there is no remote to fetch from.  The scanner will use git commands
+	// directly on the local path when the directory is a git repo.
+	if isFileURI(repo.RemoteURL()) {
+		c.logger.Debug().Int64("repo_id", repo.ID()).Str("path", clonePath).Msg("file:// repository; skipping fetch/pull")
 		return clonePath, nil
+	} else {
+		// Check if the path exists and is accessible (git repos only).
+		if _, err := os.Stat(clonePath); err != nil {
+			// The stored path is stale (e.g. from a previous container).
+			// Clone to the correct location for the current environment.
+			clonePath = c.ClonePathFromURI(repo.RemoteURL())
+
+			c.logger.Info().Int64("repo_id", repo.ID()).Str("old_path", repo.WorkingCopy().Path()).Str("new_path", clonePath).Msg("relocating repository clone")
+
+			if err := c.adapter.CloneRepository(ctx, repo.RemoteURL(), clonePath); err != nil {
+				_ = os.RemoveAll(clonePath)
+				return "", fmt.Errorf("clone repository: %w", err)
+			}
+
+			return clonePath, nil
+		}
 	}
 
 	if !repo.HasTrackingConfig() {

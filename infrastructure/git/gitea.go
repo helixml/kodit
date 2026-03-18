@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -379,7 +380,22 @@ func (g *GiteaAdapter) EnsureRepository(ctx context.Context, remoteURI string, l
 }
 
 // FileContent returns file content at specific commit.
+// For non-git local directories the file is read directly from the filesystem.
 func (g *GiteaAdapter) FileContent(ctx context.Context, localPath string, commitSHA string, filePath string) ([]byte, error) {
+	if !isGitRepo(localPath) {
+		// Use os.DirFS to sandbox reads to localPath. os.DirFS validates that
+		// filePath is a valid fs.FS path (no absolute paths, no ".." components)
+		// before opening, so user-controlled values cannot escape the directory.
+		content, err := fs.ReadFile(os.DirFS(localPath), filePath)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) || errors.Is(err, fs.ErrInvalid) {
+				return nil, fmt.Errorf("get file %s: %w", filePath, ErrFileNotFound)
+			}
+			return nil, fmt.Errorf("read file: %w", err)
+		}
+		return content, nil
+	}
+
 	repo, err := giteagit.OpenRepository(ctx, localPath)
 	if err != nil {
 		return nil, fmt.Errorf("open repository: %w", err)
@@ -505,7 +521,12 @@ func (g *GiteaAdapter) AllTags(ctx context.Context, localPath string) ([]TagInfo
 }
 
 // CommitDiff returns the diff for a specific commit.
+// For non-git local directories there is no diff to return.
 func (g *GiteaAdapter) CommitDiff(ctx context.Context, localPath string, commitSHA string) (string, error) {
+	if !isGitRepo(localPath) {
+		return "", nil
+	}
+
 	repo, err := giteagit.OpenRepository(ctx, localPath)
 	if err != nil {
 		return "", fmt.Errorf("open repository: %w", err)

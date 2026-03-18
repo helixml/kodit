@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -1105,6 +1107,261 @@ func TestSmoke(t *testing.T) {
 	})
 
 	t.Log("all smoke tests passed")
+}
+
+// TestSmoke_LocalDirectory verifies that a plain (non-git) local directory can
+// be indexed via a file:// URI, that the synthetic commit SHA is stable across
+// re-syncs when files have not changed (idempotency), and that a keyword search
+// returns results from the indexed content.
+//
+// The test writes source files into testdata/smoke-plain-dir/ (relative to the
+// test package directory) and registers them with the kodit server using the
+// container-side path from KODIT_SMOKE_PLAIN_DIR (default: /app/test/smoke/testdata/smoke-plain-dir).
+// In the make-dev Docker environment the repo root is mounted at /app, so the
+// host-side testdata/ directory is visible to kodit at that path.
+func TestSmoke_LocalDirectory(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping smoke test in short mode")
+	}
+
+	// Container-side path of the fixture directory.
+	containerDir := os.Getenv("KODIT_SMOKE_PLAIN_DIR")
+	if containerDir == "" {
+		containerDir = "/app/test/smoke/testdata/smoke-plain-dir"
+	}
+	plainDirURI := "file://" + containerDir
+
+	// Create the fixture directory and files on the host (visible inside the
+	// container via the .:/app volume mount used by make dev).
+	fixtureDir := filepath.Join("testdata", "smoke-plain-dir")
+	if err := os.MkdirAll(fixtureDir, 0o755); err != nil {
+		t.Fatalf("create fixture dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(fixtureDir) })
+
+	const goSource = `package main
+
+import "fmt"
+
+// add returns the sum of two integers.
+func add(a, b int) int {
+	return a + b
+}
+
+// multiply returns the product of two integers.
+func multiply(a, b int) int {
+	return a * b
+}
+
+// subtract returns the difference of two integers.
+func subtract(a, b int) int {
+	return a - b
+}
+
+func main() {
+	fmt.Println(add(1, 2))
+	fmt.Println(multiply(3, 4))
+	fmt.Println(subtract(9, 3))
+}
+`
+	if err := os.WriteFile(filepath.Join(fixtureDir, "main.go"), []byte(goSource), 0o644); err != nil {
+		t.Fatalf("write fixture file: %v", err)
+	}
+
+	client, err := kodit.NewClientWithResponses(baseURL)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+	ctx := context.Background()
+
+	// Register the file:// repository.
+	repoType := "repository"
+	createResp, err := client.PostRepositoriesWithResponse(ctx, kodit.DtoRepositoryCreateRequest{
+		Data: &kodit.DtoRepositoryCreateData{
+			Type: &repoType,
+			Attributes: &kodit.DtoRepositoryCreateAttributes{
+				RemoteUri: &plainDirURI,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create repository failed: %v", err)
+	}
+	var repo *kodit.DtoRepositoryData
+	switch createResp.StatusCode() {
+	case http.StatusCreated:
+		repo = createResp.JSON201.Data
+		t.Log("local-directory repository created (201)")
+	case http.StatusOK:
+		repo = createResp.JSON200.Data
+		t.Log("local-directory repository already exists (200)")
+	default:
+		t.Fatalf("expected 200 or 201, got %d: %s", createResp.StatusCode(), string(createResp.Body))
+	}
+	repoID, err := strconv.Atoi(*repo.Id)
+	if err != nil {
+		t.Fatalf("parse repo ID: %v", err)
+	}
+	t.Logf("local-directory repository: id=%d uri=%s", repoID, plainDirURI)
+
+	t.Cleanup(func() {
+		_, _ = client.DeleteRepositoriesIdWithResponse(ctx, repoID)
+	})
+
+	// Wait for the first indexing pass to finish.
+	waitForIndexing(t, client, ctx, repoID)
+
+	// Fetch the commit list — expect exactly one synthetic commit.
+	commitsResp, err := client.GetRepositoriesIdCommitsWithResponse(ctx, repoID, nil)
+	if err != nil {
+		t.Fatalf("get commits failed: %v", err)
+	}
+	if commitsResp.JSON200 == nil || commitsResp.JSON200.Data == nil || len(*commitsResp.JSON200.Data) == 0 {
+		t.Fatal("expected at least one commit after first sync")
+	}
+	firstSHA := *(*commitsResp.JSON200.Data)[0].Attributes.CommitSha
+	if len(firstSHA) != 40 {
+		t.Fatalf("expected 40-char SHA, got %d: %s", len(firstSHA), firstSHA)
+	}
+	t.Logf("first sync commit SHA: %s", firstSHA)
+
+	t.Run("commit_has_synthetic_metadata", func(t *testing.T) {
+		commit := (*commitsResp.JSON200.Data)[0]
+		msg := commit.Attributes.Message
+		author := commit.Attributes.Author
+		if msg == nil || *msg != "Directory snapshot" {
+			t.Fatalf("expected message 'Directory snapshot', got %v", msg)
+		}
+		if author == nil || *author != "kodit" {
+			t.Fatalf("expected author 'kodit', got %v", author)
+		}
+	})
+
+	// Second sync — files unchanged → same SHA (idempotent).
+	syncResp, err := client.PostRepositoriesIdSync(ctx, repoID)
+	if err != nil {
+		t.Fatalf("trigger second sync: %v", err)
+	}
+	_ = syncResp.Body.Close()
+	if syncResp.StatusCode != http.StatusAccepted {
+		t.Fatalf("expected 202 from sync, got %d", syncResp.StatusCode)
+	}
+
+	waitForIndexing(t, client, ctx, repoID)
+
+	t.Run("second_sync_is_idempotent", func(t *testing.T) {
+		commitsResp2, err := client.GetRepositoriesIdCommitsWithResponse(ctx, repoID, nil)
+		if err != nil {
+			t.Fatalf("get commits after second sync: %v", err)
+		}
+		if commitsResp2.JSON200 == nil || commitsResp2.JSON200.Data == nil || len(*commitsResp2.JSON200.Data) == 0 {
+			t.Fatal("expected commits after second sync")
+		}
+		secondSHA := *(*commitsResp2.JSON200.Data)[0].Attributes.CommitSha
+		if secondSHA != firstSHA {
+			t.Fatalf("expected same SHA after unchanged sync: first=%s second=%s", firstSHA, secondSHA)
+		}
+		t.Logf("second sync SHA unchanged: %s", secondSHA)
+	})
+
+	// File change → new SHA → re-indexed.
+	const updatedSource = `package main
+
+import "fmt"
+
+// add returns the sum of two integers.
+func add(a, b int) int {
+	return a + b
+}
+
+// multiply returns the product of two integers.
+func multiply(a, b int) int {
+	return a * b
+}
+
+// subtract returns the difference of two integers.
+func subtract(a, b int) int {
+	return a - b
+}
+
+// divide returns the integer quotient of a divided by b.
+func divide(a, b int) int {
+	if b == 0 {
+		return 0
+	}
+	return a / b
+}
+
+func main() {
+	fmt.Println(add(1, 2))
+	fmt.Println(multiply(3, 4))
+	fmt.Println(subtract(9, 3))
+	fmt.Println(divide(10, 2))
+}
+`
+	if err := os.WriteFile(filepath.Join(fixtureDir, "main.go"), []byte(updatedSource), 0o644); err != nil {
+		t.Fatalf("update fixture file: %v", err)
+	}
+
+	syncResp2, err := client.PostRepositoriesIdSync(ctx, repoID)
+	if err != nil {
+		t.Fatalf("trigger third sync: %v", err)
+	}
+	_ = syncResp2.Body.Close()
+	if syncResp2.StatusCode != http.StatusAccepted {
+		t.Fatalf("expected 202 from sync, got %d", syncResp2.StatusCode)
+	}
+
+	// Poll the commits endpoint until the SHA changes — this confirms the sync
+	// task has processed the new directory hash and created a new commit record.
+	// Only then is it safe to call waitForIndexing, because by the time the new
+	// commit appears in the DB the commit.scan task will be in the queue.
+	var thirdSHA string
+	gotNewCommit := waitForCondition(t, 2*time.Minute, time.Second, func() bool {
+		resp, err := client.GetRepositoriesIdCommitsWithResponse(ctx, repoID, nil)
+		if err != nil || resp.JSON200 == nil || resp.JSON200.Data == nil || len(*resp.JSON200.Data) == 0 {
+			return false
+		}
+		sha := *(*resp.JSON200.Data)[0].Attributes.CommitSha
+		if sha != firstSHA {
+			thirdSHA = sha
+			return true
+		}
+		return false
+	})
+	if !gotNewCommit {
+		t.Fatal("new commit SHA did not appear after file change (timeout)")
+	}
+	t.Logf("new commit SHA detected: %s → %s", firstSHA[:8], thirdSHA[:8])
+
+	waitForIndexing(t, client, ctx, repoID)
+
+	t.Run("file_change_produces_new_sha", func(t *testing.T) {
+		if len(thirdSHA) != 40 {
+			t.Fatalf("expected 40-char SHA, got %d: %s", len(thirdSHA), thirdSHA)
+		}
+		t.Logf("file change produced new SHA: %s → %s", firstSHA[:8], thirdSHA[:8])
+	})
+
+	t.Run("keyword_search_returns_results", func(t *testing.T) {
+		keywordURL := fmt.Sprintf("%s/search/keyword?keywords=%s&repository_id=%d",
+			baseURL, url.QueryEscape("add multiply"), repoID)
+		resp := getJSON(t, keywordURL)
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		var result struct {
+			Data []json.RawMessage `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			t.Fatalf("decode keyword search response: %v", err)
+		}
+		if len(result.Data) == 0 {
+			t.Fatal("expected at least one keyword search result from local directory")
+		}
+		t.Logf("keyword search: %d results", len(result.Data))
+	})
 }
 
 // validateSearchResults validates the structure of search results.

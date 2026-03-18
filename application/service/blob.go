@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/infrastructure/git"
@@ -15,6 +17,28 @@ import (
 )
 
 var commitSHAPattern = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
+
+// safeRelativePath normalises filePath to a clean, repository-relative,
+// forward-slash form and rejects anything that would escape the root:
+// absolute paths, empty paths, and any path whose clean form starts with "..".
+func safeRelativePath(filePath string) (string, error) {
+	// Normalise to forward slashes then apply path.Clean so that sequences
+	// like "a/../b" become "b" and "a/./b" becomes "a/b".
+	cleaned := path.Clean(filepath.ToSlash(filePath))
+	if cleaned == "" || cleaned == "." {
+		return "", fmt.Errorf("invalid file path %q", filePath)
+	}
+	if filepath.IsAbs(filePath) {
+		return "", fmt.Errorf("absolute file path not allowed: %q", filePath)
+	}
+	// Reject any remaining ".." component after cleaning.
+	for _, part := range strings.Split(cleaned, "/") {
+		if part == ".." {
+			return "", fmt.Errorf("path traversal not allowed: %q", filePath)
+		}
+	}
+	return cleaned, nil
+}
 
 // BlobContent holds the resolved content and metadata for a file at a given blob reference.
 type BlobContent struct {
@@ -205,6 +229,11 @@ func (b *Blob) ListFilesForCommit(ctx context.Context, repoID int64, commitSHA, 
 
 // Content resolves the blob reference and returns the file content at the given path.
 func (b *Blob) Content(ctx context.Context, repoID int64, blobName, filePath string) (BlobContent, error) {
+	safePath, err := safeRelativePath(filePath)
+	if err != nil {
+		return BlobContent{}, fmt.Errorf("%s: %w", filePath, database.ErrNotFound)
+	}
+
 	commitSHA, err := b.Resolve(ctx, repoID, blobName)
 	if err != nil {
 		return BlobContent{}, err
@@ -219,7 +248,7 @@ func (b *Blob) Content(ctx context.Context, repoID int64, blobName, filePath str
 		return BlobContent{}, fmt.Errorf("repository %d has no working copy", repoID)
 	}
 
-	content, err := b.git.FileContent(ctx, repo.WorkingCopy().Path(), commitSHA, filePath)
+	content, err := b.git.FileContent(ctx, repo.WorkingCopy().Path(), commitSHA, safePath)
 	if err != nil {
 		if errors.Is(err, git.ErrFileNotFound) {
 			return BlobContent{}, fmt.Errorf("%s: %w", filePath, database.ErrNotFound)

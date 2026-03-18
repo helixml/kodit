@@ -291,6 +291,46 @@ func TestBlob_ListFiles_ClonesWhenMissing(t *testing.T) {
 	}
 }
 
+func TestSafeRelativePath(t *testing.T) {
+	tests := []struct {
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{input: "main.go", want: "main.go"},
+		{input: "src/main.go", want: "src/main.go"},
+		{input: "a/b/c.go", want: "a/b/c.go"},
+		{input: "a/./b.go", want: "a/b.go"},
+		// traversal attacks
+		{input: "../secret", wantErr: true},
+		{input: "a/../../etc/passwd", wantErr: true},
+		{input: "../../etc/passwd", wantErr: true},
+		// absolute paths
+		{input: "/etc/passwd", wantErr: true},
+		{input: "/root/.ssh/id_rsa", wantErr: true},
+		// empty / dot
+		{input: ".", wantErr: true},
+		{input: "", wantErr: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			got, err := safeRelativePath(tc.input)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error for %q, got %q", tc.input, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error for %q: %v", tc.input, err)
+			}
+			if got != tc.want {
+				t.Fatalf("safeRelativePath(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestBlob_ListFilesForCommit(t *testing.T) {
 	dir := t.TempDir()
 
