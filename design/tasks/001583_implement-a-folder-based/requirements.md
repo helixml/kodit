@@ -1,5 +1,9 @@
 # Requirements: Folder-Based Repository Creation Mode
 
+## Development Approach
+
+Use TDD. Write a single high-level application service e2e test first (in `application/service/`), covering the full flow from `Repository.Add()` through clone/update to the working copy path being set correctly. Make it fail, then implement until it passes.
+
 ## User Stories
 
 **As a developer**, I want to index a local directory by passing a `file://` URI so that Kodit can index code that isn't in a remote git repository.
