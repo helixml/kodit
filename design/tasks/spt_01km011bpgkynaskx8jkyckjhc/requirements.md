@@ -12,8 +12,8 @@
    - Sets the `cloned_path` in the database to the local filesystem path extracted from the URI (e.g. `file:///home/user/project` → `/home/user/project`)
 
 2. When syncing a `file://` repository, Kodit:
-   - If the directory contains a `.git` folder, treats it as a normal git repo: runs `git fetch`, `git pull`, and scans branches/commits as usual
-   - If the directory is **not** a git repo, skips all git operations and proceeds to index whatever files are present
+   - If git recognises the directory as a git repository (i.e. `git rev-parse --git-dir` succeeds), runs `git fetch`, `git pull`, and scans branches/commits as usual
+   - If git does not recognise the directory as a git repository, skips all git operations and proceeds to index whatever files are present
 
 3. A `file://` repository behaves identically to a cloned git repository in all downstream steps (commit scanning, enrichment, MCP search), to the extent the directory supports it.
 
@@ -52,13 +52,14 @@ Use the existing patterns from `kodit_integration_test.go` (full pipeline with a
 // 5. Assert commits are non-empty  (git scanning worked on the local repo)
 ```
 
-### Test 3 — `file://` plain directory (no `.git`): indexing completes without error
+### Test 3 — `file://` directory not recognised by git: indexing completes without error
 
 ```
-// TestIntegration_FileURI_PlainDirectory_CompletesWithoutError
+// TestIntegration_FileURI_NonGitDirectory_CompletesWithoutError
 // In: kodit_integration_test.go
 //
 // 1. t.TempDir() → plainDir; write a couple of source files into it (no git init)
+//    — git rev-parse --git-dir will fail for this directory
 // 2. client.Repositories.Add(ctx, fileURI(plainDir))
 // 3. waitForTasks(...)  — must not timeout or leave failed tasks
 // 4. Get the repo from the store

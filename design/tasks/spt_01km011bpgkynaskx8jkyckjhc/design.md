@@ -8,8 +8,8 @@ Kodit's repository pipeline has two git-specific phases to consider for `file://
 2. **Sync/Update phase** (`application/handler/repository/sync.go`): calls `cloner.Update()` which runs `git fetch` + `git pull` — only skipped if the local directory is **not** a git repo
 
 A local directory pointed to by a `file://` URI may or may not be a git repository. Both cases must be handled:
-- **Is a git repo** (has `.git/`): skip clone, but still run fetch/pull and scan branches/commits normally
-- **Not a git repo**: skip clone, skip all git operations; index files as-is
+- **Git recognises it** (`git rev-parse --git-dir` exits 0): skip clone, but still run fetch/pull and scan branches/commits normally
+- **Git does not recognise it**: skip clone, skip all git operations; index files as-is
 
 ## Key Files
 
@@ -56,12 +56,13 @@ if isFileURI(repo.RemoteURL()) && !isGitRepo(clonePath) {
 }
 ```
 
-Add a helper `isGitRepo(path string) bool` that checks for the presence of a `.git` entry:
+Add a helper `isGitRepo(path string) bool` that asks git itself, so it handles regular repos, bare repos, and worktrees correctly:
 
 ```go
 func isGitRepo(path string) bool {
-    _, err := os.Stat(filepath.Join(path, ".git"))
-    return err == nil
+    cmd := exec.Command("git", "rev-parse", "--git-dir")
+    cmd.Dir = path
+    return cmd.Run() == nil
 }
 ```
 
