@@ -382,7 +382,18 @@ func (g *GiteaAdapter) EnsureRepository(ctx context.Context, remoteURI string, l
 // For non-git local directories the file is read directly from the filesystem.
 func (g *GiteaAdapter) FileContent(ctx context.Context, localPath string, commitSHA string, filePath string) ([]byte, error) {
 	if !isGitRepo(localPath) {
-		content, err := os.ReadFile(filepath.Join(localPath, filePath))
+		absLocalPath, err := filepath.Abs(localPath)
+		if err != nil {
+			return nil, fmt.Errorf("resolve local path: %w", err)
+		}
+		absFilePath, err := filepath.Abs(filepath.Join(absLocalPath, filePath))
+		if err != nil {
+			return nil, fmt.Errorf("resolve file path: %w", err)
+		}
+		if absFilePath != absLocalPath && !strings.HasPrefix(absFilePath, absLocalPath+string(os.PathSeparator)) {
+			return nil, fmt.Errorf("get file %s: %w", filePath, ErrFileNotFound)
+		}
+		content, err := os.ReadFile(absFilePath)
 		if err != nil {
 			if os.IsNotExist(err) {
 				return nil, fmt.Errorf("get file %s: %w", filePath, ErrFileNotFound)
