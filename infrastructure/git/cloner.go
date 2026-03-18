@@ -112,14 +112,12 @@ func (c *RepositoryCloner) Update(ctx context.Context, repo repository.Repositor
 	clonePath := repo.WorkingCopy().Path()
 
 	// For file:// repositories the directory is owned by the user; never
-	// attempt to re-clone it even if the path is temporarily inaccessible.
+	// attempt to re-clone it or run git network operations (fetch/pull) —
+	// there is no remote to fetch from.  The scanner will use git commands
+	// directly on the local path when the directory is a git repo.
 	if isFileURI(repo.RemoteURL()) {
-		if !isGitRepo(clonePath) {
-			// Plain local directory — no git operations to run.
-			c.logger.Debug().Int64("repo_id", repo.ID()).Str("path", clonePath).Msg("file:// repository is not a git repo; skipping fetch/pull")
-			return clonePath, nil
-		}
-		// Fall through to the normal branch/tag update logic below.
+		c.logger.Debug().Int64("repo_id", repo.ID()).Str("path", clonePath).Msg("file:// repository; skipping fetch/pull")
+		return clonePath, nil
 	} else {
 		// Check if the path exists and is accessible (git repos only).
 		if _, err := os.Stat(clonePath); err != nil {

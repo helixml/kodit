@@ -153,7 +153,7 @@ func TestUpdate_FileURI_NonGitDir_SkipsGitOps(t *testing.T) {
 	}
 }
 
-func TestUpdate_FileURI_GitRepo_RunsFetchPull(t *testing.T) {
+func TestUpdate_FileURI_GitRepo_SkipsNetworkOps(t *testing.T) {
 	fake := &fakeAdapter{}
 	cloner := NewRepositoryCloner(fake, t.TempDir(), zerolog.Nop())
 
@@ -174,15 +174,18 @@ func TestUpdate_FileURI_GitRepo_RunsFetchPull(t *testing.T) {
 		time.Now(), time.Now(), time.Time{},
 	)
 
-	_, err := cloner.Update(context.Background(), repo)
+	gotPath, err := cloner.Update(context.Background(), repo)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotPath != repoDir {
+		t.Fatalf("expected %q, got %q", repoDir, gotPath)
 	}
 	if fake.cloned {
 		t.Fatal("expected CloneRepository NOT to be called for file:// git repo")
 	}
-	if !fake.fetched {
-		t.Fatal("expected FetchRepository to be called for file:// git repo")
+	if fake.fetched {
+		t.Fatal("expected FetchRepository NOT to be called for file:// git repo (no remote)")
 	}
 }
 

@@ -874,6 +874,82 @@ func TestIntegration_FileURI_GitRepo_SyncScansBranches(t *testing.T) {
 	assert.NotEmpty(t, commits, "expected commits to be indexed from local git repo")
 }
 
+func TestIntegration_FileURI_NonGitDirectory_SecondSyncIsIdempotent(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	dataDir := filepath.Join(tmpDir, "data")
+	cloneDir := filepath.Join(tmpDir, "repos")
+
+	// Create a plain directory with source files but no git repository.
+	plainDir := filepath.Join(tmpDir, "plain-src")
+	require.NoError(t, os.MkdirAll(plainDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(plainDir, "main.go"), []byte(`package main
+
+// Add adds two numbers and returns the result.
+// This is a simple addition function for testing purposes.
+func Add(a, b int) int {
+	return a + b
+}
+
+// Subtract subtracts b from a and returns the result.
+func Subtract(a, b int) int {
+	return a - b
+}
+
+func main() {
+	result := Add(1, 2)
+	println(result)
+}
+`), 0644))
+
+	client, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithDataDir(dataDir),
+		kodit.WithCloneDir(cloneDir),
+		kodit.WithEmbeddingProvider(stubEmbedder{}),
+		kodit.WithWorkerPollPeriod(testPollPeriod),
+	)
+	require.NoError(t, err)
+	defer func() { _ = client.Close() }()
+
+	ctx := context.Background()
+
+	repo, _, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(plainDir)})
+	require.NoError(t, err)
+
+	// First indexing pass — pipeline must complete without error.
+	waitForTasks(ctx, t, client, 60*time.Second)
+
+	// The directory must have been indexed: at least one commit recorded.
+	commits, err := client.Commits.Find(ctx, repository.WithRepoID(repo.ID()))
+	require.NoError(t, err)
+	require.NotEmpty(t, commits, "non-git directory should produce at least one synthetic commit after first sync")
+
+	baseline := snapshotTableCounts(t, dbPath)
+	t.Logf("baseline counts after first sync: %v", baseline)
+	require.Greater(t, baseline["kodit_bm25_documents"], int64(0), "BM25 index should be populated after first sync")
+
+	// Second sync with identical files — must be a no-op.
+	err = client.Repositories.Sync(ctx, repo.ID())
+	require.NoError(t, err)
+
+	waitForTasks(ctx, t, client, 60*time.Second)
+
+	after := snapshotTableCounts(t, dbPath)
+	t.Logf("counts after second sync: %v", after)
+
+	// All counts must remain the same — nothing was re-indexed.
+	for table, beforeCount := range baseline {
+		assert.Equal(t, beforeCount, after[table],
+			"table %s should be unchanged after duplicate sync of plain directory", table)
+	}
+}
+
 func TestIntegration_FileURI_NonGitDirectory_CompletesWithoutError(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")

@@ -379,7 +379,19 @@ func (g *GiteaAdapter) EnsureRepository(ctx context.Context, remoteURI string, l
 }
 
 // FileContent returns file content at specific commit.
+// For non-git local directories the file is read directly from the filesystem.
 func (g *GiteaAdapter) FileContent(ctx context.Context, localPath string, commitSHA string, filePath string) ([]byte, error) {
+	if !isGitRepo(localPath) {
+		content, err := os.ReadFile(filepath.Join(localPath, filePath))
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil, fmt.Errorf("get file %s: %w", filePath, ErrFileNotFound)
+			}
+			return nil, fmt.Errorf("read file: %w", err)
+		}
+		return content, nil
+	}
+
 	repo, err := giteagit.OpenRepository(ctx, localPath)
 	if err != nil {
 		return nil, fmt.Errorf("open repository: %w", err)

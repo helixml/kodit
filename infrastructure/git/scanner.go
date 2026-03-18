@@ -2,8 +2,13 @@ package git
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io/fs"
+	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -28,8 +33,22 @@ func NewRepositoryScanner(adapter Adapter, logger zerolog.Logger) *RepositorySca
 }
 
 // ScanCommit scans a specific commit and returns commit with its files.
+// For non-git local directories the commit SHA is a directory content hash;
+// files are enumerated by walking the filesystem instead of asking git.
 func (s *RepositoryScanner) ScanCommit(ctx context.Context, clonedPath string, commitSHA string, repoID int64) (service.ScanCommitResult, error) {
 	s.logger.Info().Str("sha", shortSHA(commitSHA)).Str("path", clonedPath).Msg("scanning commit")
+
+	if !isGitRepo(clonedPath) {
+		now := time.Now()
+		author := repository.NewAuthor("kodit", "kodit@local")
+		commit := repository.NewCommit(commitSHA, repoID, "Directory snapshot", author, author, now, now)
+		files, err := s.filesFromDir(clonedPath, commitSHA)
+		if err != nil {
+			return service.ScanCommitResult{}, fmt.Errorf("list directory files: %w", err)
+		}
+		s.logger.Info().Str("sha", shortSHA(commitSHA)).Int("files", len(files)).Msg("scanned local directory")
+		return service.NewScanCommitResult(commit, files), nil
+	}
 
 	commitInfo, err := s.adapter.CommitDetails(ctx, clonedPath, commitSHA)
 	if err != nil {
@@ -70,8 +89,20 @@ func (s *RepositoryScanner) ScanBranch(ctx context.Context, clonedPath string, b
 }
 
 // ScanAllBranches scans metadata for all branches.
+// For non-git local directories a single synthetic branch is returned whose
+// HEAD commit SHA is a hash of the directory's current contents.
 func (s *RepositoryScanner) ScanAllBranches(ctx context.Context, clonedPath string, repoID int64) ([]repository.Branch, error) {
 	s.logger.Info().Str("path", clonedPath).Msg("scanning all branches")
+
+	if !isGitRepo(clonedPath) {
+		hash, err := dirHash(clonedPath)
+		if err != nil {
+			return nil, fmt.Errorf("compute directory hash: %w", err)
+		}
+		branch := repository.NewBranch(repoID, "main", hash, true)
+		s.logger.Info().Str("hash", shortSHA(hash)).Msg("non-git directory: created synthetic branch")
+		return []repository.Branch{branch}, nil
+	}
 
 	branchInfos, err := s.adapter.AllBranches(ctx, clonedPath)
 	if err != nil {
@@ -177,6 +208,88 @@ func (s *RepositoryScanner) filesFromInfo(infos []FileInfo, commitSHA string) []
 	}
 
 	return files
+}
+
+// dirHash computes a stable SHA-256 hash over the contents of a directory.
+// Files are processed in sorted order so the hash is deterministic.
+// Returns the first 40 hex characters (matching the length of a git SHA1).
+func dirHash(path string) (string, error) {
+	type entry struct {
+		rel     string
+		content []byte
+	}
+
+	var entries []entry
+	err := filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(path, p)
+		if err != nil {
+			return err
+		}
+		content, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		entries = append(entries, entry{rel: rel, content: content})
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	sort.Slice(entries, func(i, j int) bool { return entries[i].rel < entries[j].rel })
+
+	h := sha256.New()
+	for _, e := range entries {
+		h.Write([]byte(e.rel))
+		h.Write(e.content)
+	}
+	full := hex.EncodeToString(h.Sum(nil))
+	// Trim to 40 chars so it looks like a git SHA-1.
+	return full[:40], nil
+}
+
+// filesFromDir walks a local directory and returns repository.File entries
+// suitable for storing alongside a synthetic directory-hash commit.
+func (s *RepositoryScanner) filesFromDir(dirPath, commitSHA string) ([]repository.File, error) {
+	now := time.Now()
+	var files []repository.File
+
+	err := filepath.WalkDir(dirPath, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(dirPath, p)
+		if err != nil {
+			return err
+		}
+		content, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+
+		blobSum := sha256.Sum256(content)
+		blobSHA := hex.EncodeToString(blobSum[:])
+		ext := extensionFromPath(rel)
+		lang := languageFromPath(rel)
+		mime := mimeTypeFromExtension(ext)
+
+		files = append(files, repository.ReconstructFile(0, commitSHA, rel, blobSHA, mime, ext, lang, info.Size(), now))
+		return nil
+	})
+	return files, err
 }
 
 func shortSHA(sha string) string {
