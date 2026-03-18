@@ -8,3 +8,4 @@ infrastructure/provider/models/
 !test/smoke/testdata/kodit_dump.sql
 *.tar.gz
 test-data/
+test/smoke/testdata/smoke-plain-dir/
