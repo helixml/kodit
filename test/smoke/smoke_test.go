@@ -1312,20 +1312,31 @@ func main() {
 		t.Fatalf("expected 202 from sync, got %d", syncResp2.StatusCode)
 	}
 
+	// Poll the commits endpoint until the SHA changes — this confirms the sync
+	// task has processed the new directory hash and created a new commit record.
+	// Only then is it safe to call waitForIndexing, because by the time the new
+	// commit appears in the DB the commit.scan task will be in the queue.
+	var thirdSHA string
+	gotNewCommit := waitForCondition(t, 2*time.Minute, time.Second, func() bool {
+		resp, err := client.GetRepositoriesIdCommitsWithResponse(ctx, repoID, nil)
+		if err != nil || resp.JSON200 == nil || resp.JSON200.Data == nil || len(*resp.JSON200.Data) == 0 {
+			return false
+		}
+		sha := *(*resp.JSON200.Data)[0].Attributes.CommitSha
+		if sha != firstSHA {
+			thirdSHA = sha
+			return true
+		}
+		return false
+	})
+	if !gotNewCommit {
+		t.Fatal("new commit SHA did not appear after file change (timeout)")
+	}
+	t.Logf("new commit SHA detected: %s → %s", firstSHA[:8], thirdSHA[:8])
+
 	waitForIndexing(t, client, ctx, repoID)
 
 	t.Run("file_change_produces_new_sha", func(t *testing.T) {
-		commitsResp3, err := client.GetRepositoriesIdCommitsWithResponse(ctx, repoID, nil)
-		if err != nil {
-			t.Fatalf("get commits after file change: %v", err)
-		}
-		if commitsResp3.JSON200 == nil || commitsResp3.JSON200.Data == nil || len(*commitsResp3.JSON200.Data) == 0 {
-			t.Fatal("expected commits after file change sync")
-		}
-		thirdSHA := *(*commitsResp3.JSON200.Data)[0].Attributes.CommitSha
-		if thirdSHA == firstSHA {
-			t.Fatalf("expected new SHA after file change, got same: %s", thirdSHA)
-		}
 		if len(thirdSHA) != 40 {
 			t.Fatalf("expected 40-char SHA, got %d: %s", len(thirdSHA), thirdSHA)
 		}
