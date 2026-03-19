@@ -104,10 +104,12 @@ Add a `KoditRepoID` column to the `Knowledge` DB table:
 
 ```go
 // In types.Knowledge struct:
-KoditRepoID int64 `json:"kodit_repo_id,omitempty" gorm:"default:0"`
+KoditRepoID *int64 `json:"kodit_repo_id,omitempty" gorm:"default:null"`
 ```
 
-GORM AutoMigrate will add the column on next startup (per project conventions). The value is written once in `indexKoditFilestore` via `store.UpdateKnowledge` and read by `KoditRAG.Query` and `KoditRAG.Delete` via a store lookup on `DataEntityID`.
+A pointer allows `nil` to mean "not yet indexed by kodit" and a non-nil value to mean "kodit repo N". Using `0` as a sentinel would be wrong because kodit repo IDs start at 1 but there is no contractual lower bound — `nil` is unambiguous.
+
+GORM AutoMigrate will add the nullable column on next startup (per project conventions). The value is written once in `indexKoditFilestore` via `store.UpdateKnowledge` and read by `KoditRAG.Query` and `KoditRAG.Delete` via a store lookup on `DataEntityID`. Both methods must return an error if `KoditRepoID` is `nil`.
 
 `RAGSettings` already has a nested `Typesense` struct for Typesense-specific connection settings. The kodit repo ID is runtime state (not a user-configurable setting), so it belongs on `Knowledge` directly rather than inside `RAGSettings`.
 

@@ -2,7 +2,7 @@
 
 - [ ] Update `github.com/helixml/kodit` in `go.mod` to commit `417f16b7dfce928b0e9d1a888454cfc6cbe98892` (`go get github.com/helixml/kodit@417f16b && go mod tidy`)
 - [ ] Add `RAGProviderKodit RAGProvider = "kodit"` constant to `api/pkg/config/config.go`
-- [ ] Add `KoditRepoID int64` field to `types.Knowledge` struct (GORM AutoMigrate will add the column)
+- [ ] Add `KoditRepoID *int64` field to `types.Knowledge` struct (nullable; `nil` = not yet indexed, non-nil = kodit repo ID; GORM AutoMigrate will add the column)
 - [ ] Create `api/pkg/rag/rag_kodit.go` with `KoditRAG` struct implementing `rag.RAG`:
   - `Index()` is a no-op
   - `Query()` looks up `Knowledge.KoditRepoID` from the store by `DataEntityID`, then calls `koditClient.Search.Query()` filtered by repo ID
