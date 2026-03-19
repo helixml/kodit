@@ -42,7 +42,7 @@ jobs:
           echo "BUILD_TIME=${BUILD_TIME}" >> $GITHUB_OUTPUT
 
       - name: Build image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           platforms: ${{ matrix.platform }}
           context: .
