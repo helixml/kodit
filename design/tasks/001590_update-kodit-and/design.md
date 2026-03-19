@@ -9,7 +9,7 @@ Reconciler.indexKnowledge()
   └─► [kodit provider] indexKoditFilestore()
         ├─ derive local path from filestore basePath + knowledge source path
         ├─ koditClient.Repositories.Add("file://{localPath}")  → repoID
-        ├─ persist repoID to .kodit_meta.json in the filestore dir
+        ├─ store repoID in knowledge.KoditRepoID (DB update)
         └─ return (kodit worker indexes asynchronously)
 
 Reconciler.getRagClient() → KoditRAG
@@ -19,7 +19,6 @@ KoditRAG.Query(ctx, q)         → koditClient.Search.Query(ctx, q.Prompt,
                                       service.WithRepositories(repoID),
                                       service.WithLimit(n))
 KoditRAG.Delete(ctx, req)      → koditClient.Repositories.Delete(repoID)
-                                  + remove .kodit_meta.json
 ```
 
 ## Key Components
@@ -72,14 +71,13 @@ type KoditRAG struct {
   ```
 
 - **Query method**:
-  1. Resolve repoID from `.kodit_meta.json` at the filestore path for the `DataEntityID`.
+  1. Resolve repoID from `knowledge.KoditRepoID` (looked up via `store.GetKnowledge` by `DataEntityID`).
   2. Call `k.client.Search.Query(ctx, q.Prompt, service.WithRepositories(repoID), service.WithLimit(maxResults))`.
   3. Convert `service.SearchResult` → `*types.SessionRAGResult`.
 
 - **Delete method**:
-  1. Resolve repoID from metadata.
+  1. Resolve repoID via store lookup.
   2. Call `k.client.Repositories.Delete(ctx, repoID)`.
-  3. Remove `.kodit_meta.json`.
 
 ### 4. Indexer integration (`api/pkg/controller/knowledge/knowledge_indexer.go`)
 
@@ -96,21 +94,22 @@ if r.config.RAG.DefaultRagProvider == config.RAGProviderKodit {
 2. Build local path: `filepath.Join(r.config.FileStore.LocalFSPath, k.Source.Filestore.Path)`.
 3. Wait for the directory to exist (retry with timeout, reuse existing `ErrNoFilesFound` pattern).
 4. Call `r.koditClient.Repositories.Add(ctx, &service.RepositoryAddParams{URL: "file://" + localPath})`.
-5. Persist `{repo_id: N}` as `.kodit_meta.json` inside `localPath`.
+5. Store the returned `repoID` in `k.KoditRepoID` and call `r.store.UpdateKnowledge(ctx, k)`.
 6. Wait for the kodit worker to finish indexing (`r.koditClient.WorkerIdle()` poll or event).
 7. Mark knowledge as ready.
 
 ### 5. Metadata storage
 
-Store the mapping as a JSON sidecar file **inside the filestore directory** being indexed:
+Add a `KoditRepoID` column to the `Knowledge` DB table:
 
-```
-{localPath}/.kodit_meta.json
-{ "repo_id": 42 }
+```go
+// In types.Knowledge struct:
+KoditRepoID int64 `json:"kodit_repo_id,omitempty" gorm:"default:0"`
 ```
 
-Pros: co-located with the files, survives helix restarts, survives DB resets.
-Cons: lives inside the user's filestore dir — not a problem since `.kodit_*` prefix is reserved.
+GORM AutoMigrate will add the column on next startup (per project conventions). The value is written once in `indexKoditFilestore` via `store.UpdateKnowledge` and read by `KoditRAG.Query` and `KoditRAG.Delete` via a store lookup on `DataEntityID`.
+
+`RAGSettings` already has a nested `Typesense` struct for Typesense-specific connection settings. The kodit repo ID is runtime state (not a user-configurable setting), so it belongs on `Knowledge` directly rather than inside `RAGSettings`.
 
 ### 6. Reconciler construction
 
@@ -134,7 +133,7 @@ The `Reconciler` struct already holds `filestore filestore.FileStore`. For the l
 | Decision | Choice | Rationale |
 |---|---|---|
 | Where to put kodit RAG impl | `api/pkg/rag/rag_kodit.go` | Consistent with all other backends |
-| Metadata location | `.kodit_meta.json` inside filestore dir | Close to data, survives restarts |
+| Metadata location | `Knowledge.KoditRepoID` DB column | DB is the source of truth; avoids file I/O and sidecar management |
 | Index method | no-op | Kodit handles chunking/embedding internally |
 | Indexing trigger | intercept before `getIndexingData` | Avoids redundant extraction for filestore sources |
 | Non-filestore sources | return error | Kodit file:// only works for local paths; web sources not supported |
