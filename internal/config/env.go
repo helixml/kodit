@@ -94,6 +94,11 @@ type EnvConfig struct {
 	// ChunkMinSize is the minimum chunk size in characters; smaller chunks are dropped.
 	// Env: CHUNK_MIN_SIZE (default: 50)
 	ChunkMinSize int `envconfig:"CHUNK_MIN_SIZE" default:"50"`
+
+	// RAGMode selects the RAG implementation used for directory-based indexing.
+	// Env: RAG_MODE (default: kodit)
+	// Supported values: kodit
+	RAGMode string `envconfig:"RAG_MODE" default:"kodit"`
 }
 
 // EndpointEnv holds environment configuration for an AI endpoint.
@@ -301,6 +306,11 @@ func (e EnvConfig) ToAppConfig() AppConfig {
 	}
 	if e.ChunkMinSize > 0 {
 		cfg = applyOption(cfg, WithChunkMinSize(e.ChunkMinSize))
+	}
+
+	// RAG mode
+	if e.RAGMode != "" {
+		cfg = applyOption(cfg, WithRAGMode(e.RAGMode))
 	}
 
 	return cfg

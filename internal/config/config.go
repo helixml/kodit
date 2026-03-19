@@ -414,6 +414,7 @@ type AppConfig struct {
 	chunkSize              int
 	chunkOverlap           int
 	chunkMinSize           int
+	ragMode                string
 }
 
 // DefaultDataDir returns the default data directory.
@@ -472,6 +473,7 @@ func NewAppConfig() AppConfig {
 		litellmCache:     NewLiteLLMCacheConfig(),
 		workerCount:      DefaultWorkerCount,
 		searchLimit:      DefaultSearchLimit,
+		ragMode:          "kodit",
 	}
 }
 
@@ -547,6 +549,9 @@ func (c AppConfig) ChunkOverlap() int { return c.chunkOverlap }
 
 // ChunkMinSize returns the minimum chunk size in characters.
 func (c AppConfig) ChunkMinSize() int { return c.chunkMinSize }
+
+// RAGMode returns the RAG implementation mode.
+func (c AppConfig) RAGMode() string { return c.ragMode }
 
 // IsRemote returns true if running in remote mode.
 func (c AppConfig) IsRemote() bool {
@@ -702,6 +707,11 @@ func WithChunkOverlap(overlap int) AppConfigOption {
 // WithChunkMinSize sets the minimum chunk size in characters.
 func WithChunkMinSize(minSize int) AppConfigOption {
 	return func(c *AppConfig) { c.chunkMinSize = minSize }
+}
+
+// WithRAGMode sets the RAG implementation mode.
+func WithRAGMode(mode string) AppConfigOption {
+	return func(c *AppConfig) { c.ragMode = mode }
 }
 
 // NewAppConfigWithOptions creates an AppConfig with functional options.
