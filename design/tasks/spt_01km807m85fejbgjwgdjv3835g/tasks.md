@@ -2,14 +2,14 @@
 
 ## Domain & Persistence
 
-- [~] Add `FindAll(ctx context.Context, filters search.Filters) ([]search.Embedding, error)` to `search.EmbeddingStore` interface in `domain/search/store.go`
-- [~] Implement `FindAll()` in `SQLiteEmbeddingStore` (`infrastructure/persistence/embedding_store_sqlite.go`) — reuse `loadVectors()`, convert to `[]search.Embedding`
-- [~] Implement `FindAll()` in `VectorChordEmbeddingStore` (`infrastructure/persistence/embedding_store_vectorchord.go`) — raw GORM query with `database.ApplySearchFilters()`
+- [x] Add `FindAll(ctx context.Context, filters search.Filters) ([]search.Embedding, error)` to `search.EmbeddingStore` interface in `domain/search/store.go`
+- [x] Implement `FindAll()` in `SQLiteEmbeddingStore` (`infrastructure/persistence/embedding_store_sqlite.go`) — reuse `loadVectors()`, convert to `[]search.Embedding`
+- [x] Implement `FindAll()` in `VectorChordEmbeddingStore` (`infrastructure/persistence/embedding_store_vectorchord.go`) — raw GORM query with `database.ApplySearchFilters()`
 
 ## Application Service (TDD)
 
-- [ ] Write failing tests in `application/service/duplicates_test.go`: empty input, identical vectors → sim=1.0, dissimilar vectors below threshold, threshold boundary (inclusive), limit cap, cross-repo pairs
-- [ ] Create `application/service/duplicates.go` with `DuplicateSearch` struct and `FindDuplicates(ctx, repoIDs, threshold, limit) ([]DuplicatePair, bool, error)` — normalize vectors, triangle scan, sort, cap; return `truncated=true` if N > 5000
+- [~] Write failing tests in `application/service/duplicates_test.go`: empty input, identical vectors → sim=1.0, dissimilar vectors below threshold, threshold boundary (inclusive), limit cap, cross-repo pairs
+- [~] Create `application/service/duplicates.go` with `DuplicateSearch` struct and `FindDuplicates(ctx, repoIDs, threshold, limit) ([]DuplicatePair, bool, error)` — normalize vectors, triangle scan, sort, cap; return `truncated=true` if N > 5000
 - [ ] Run tests until all pass (`make test PKG=./application/service/...`)
 
 ## API Layer
