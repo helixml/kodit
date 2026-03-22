@@ -8,16 +8,16 @@
 
 ## Application Service (TDD)
 
-- [~] Write failing tests in `application/service/duplicates_test.go`: empty input, identical vectors → sim=1.0, dissimilar vectors below threshold, threshold boundary (inclusive), limit cap, cross-repo pairs
-- [~] Create `application/service/duplicates.go` with `DuplicateSearch` struct and `FindDuplicates(ctx, repoIDs, threshold, limit) ([]DuplicatePair, bool, error)` — normalize vectors, triangle scan, sort, cap; return `truncated=true` if N > 5000
-- [ ] Run tests until all pass (`make test PKG=./application/service/...`)
+- [x] Write failing tests in `application/service/duplicates_test.go`: empty input, identical vectors → sim=1.0, dissimilar vectors below threshold, threshold boundary (inclusive), limit cap, cross-repo pairs
+- [x] Create `application/service/duplicates.go` with `DuplicateSearch` struct and `FindDuplicates(ctx, repoIDs, threshold, limit) ([]DuplicatePair, bool, error)` — normalize vectors, triangle scan, sort, cap; return `truncated=true` if N > 5000
+- [x] Run tests until all pass (`make test PKG=./application/service/...`)
 
 ## API Layer
 
-- [ ] Add DTOs in `infrastructure/api/v1/dto/duplicates.go`: `DuplicateSearchRequest`, `DuplicatesResponse`, `DuplicatePairData`, `DuplicatesMeta`
-- [ ] Add `Duplicates(w, req)` handler to `SearchRouter` in `infrastructure/api/v1/search.go`
-- [ ] Register route `router.Post("/duplicates", r.Duplicates)` in `SearchRouter.Routes()`
-- [ ] Add Swagger annotations (`@Summary`, `@Description`, `@Accept`, `@Produce`, `@Param`, `@Success`, `@Failure`, `@Router`)
+- [~] Add DTOs in `infrastructure/api/v1/dto/duplicates.go`: `DuplicateSearchRequest`, `DuplicatesResponse`, `DuplicatePairData`, `DuplicatesMeta`
+- [~] Add `Duplicates(w, req)` handler to `SearchRouter` in `infrastructure/api/v1/search.go`
+- [~] Register route `router.Post("/duplicates", r.Duplicates)` in `SearchRouter.Routes()`
+- [~] Add Swagger annotations (`@Summary`, `@Description`, `@Accept`, `@Produce`, `@Param`, `@Success`, `@Failure`, `@Router`)
 
 ## E2E Tests
 
