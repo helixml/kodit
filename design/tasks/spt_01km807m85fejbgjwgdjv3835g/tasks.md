@@ -2,9 +2,9 @@
 
 ## Domain & Persistence
 
-- [ ] Add `FindAll(ctx context.Context, filters search.Filters) ([]search.Embedding, error)` to `search.EmbeddingStore` interface in `domain/search/store.go`
-- [ ] Implement `FindAll()` in `SQLiteEmbeddingStore` (`infrastructure/persistence/embedding_store_sqlite.go`) — reuse `loadVectors()`, convert to `[]search.Embedding`
-- [ ] Implement `FindAll()` in `VectorChordEmbeddingStore` (`infrastructure/persistence/embedding_store_vectorchord.go`) — raw GORM query with `database.ApplySearchFilters()`
+- [~] Add `FindAll(ctx context.Context, filters search.Filters) ([]search.Embedding, error)` to `search.EmbeddingStore` interface in `domain/search/store.go`
+- [~] Implement `FindAll()` in `SQLiteEmbeddingStore` (`infrastructure/persistence/embedding_store_sqlite.go`) — reuse `loadVectors()`, convert to `[]search.Embedding`
+- [~] Implement `FindAll()` in `VectorChordEmbeddingStore` (`infrastructure/persistence/embedding_store_vectorchord.go`) — raw GORM query with `database.ApplySearchFilters()`
 
 ## Application Service (TDD)
 
