@@ -140,7 +140,31 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 
 		var textChunks chunking.TextChunks
 
-		if extraction.IsDocument(ext) {
+		if ext == ".csv" {
+			content, readErr := h.fileContent.FileContent(ctx, clonedPath, cp.CommitSHA(), relPath)
+			if readErr != nil {
+				h.logger.Warn().Str("path", f.Path()).Str("error", readErr.Error()).Msg("failed to read csv file")
+				processed++
+				continue
+			}
+			text, parseErr := extraction.ParseCSV(content)
+			if parseErr != nil {
+				h.logger.Warn().Str("path", f.Path()).Str("error", parseErr.Error()).Msg("failed to parse csv")
+				processed++
+				continue
+			}
+			if strings.TrimSpace(text) == "" {
+				processed++
+				continue
+			}
+			var chunkErr error
+			textChunks, chunkErr = chunking.NewTextChunks(text, h.params)
+			if chunkErr != nil {
+				h.logger.Warn().Str("path", f.Path()).Str("error", chunkErr.Error()).Msg("failed to chunk csv")
+				processed++
+				continue
+			}
+		} else if extraction.IsDocument(ext) {
 			if h.documentText == nil {
 				processed++
 				continue
@@ -317,6 +341,8 @@ var indexableExtensions = map[string]bool{
 	".md": true, ".mdx": true, ".rst": true, ".adoc": true, ".tex": true,
 	// IDL / Schema
 	".proto": true, ".graphql": true, ".gql": true, ".thrift": true,
+	// Data
+	".csv": true,
 }
 
 func init() {
