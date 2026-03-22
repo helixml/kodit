@@ -1,7 +1,7 @@
 # Implementation Tasks
 
-- [~] Create `infrastructure/extraction/csv.go` with `ParseCSV(content []byte) (string, error)` using `encoding/csv`
-- [ ] Write unit tests in `infrastructure/extraction/csv_test.go` covering: header row, string-only columns, numeric columns skipped, deduplication, top-5 rows, no-header CSV, empty file
+- [x] Create `infrastructure/extraction/csv.go` with `ParseCSV(content []byte) (string, error)` using `encoding/csv`
+- [~] Write unit tests in `infrastructure/extraction/csv_test.go` covering: header row, string-only columns, numeric columns skipped, deduplication, top-5 rows, no-header CSV, empty file
 - [ ] Add `.csv: true` to `indexableExtensions` in `application/handler/indexing/chunk_files.go`
 - [ ] Add CSV branch in `ChunkFiles.Execute` that reads content from git, calls `extraction.ParseCSV`, then chunks
 - [ ] Add handler-level integration test in `chunk_files_test.go` for CSV files (assert chunks created, numeric columns absent)
