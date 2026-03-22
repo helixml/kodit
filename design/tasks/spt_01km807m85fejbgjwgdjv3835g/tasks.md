@@ -14,21 +14,21 @@
 
 ## API Layer
 
-- [~] Add DTOs in `infrastructure/api/v1/dto/duplicates.go`: `DuplicateSearchRequest`, `DuplicatesResponse`, `DuplicatePairData`, `DuplicatesMeta`
-- [~] Add `Duplicates(w, req)` handler to `SearchRouter` in `infrastructure/api/v1/search.go`
-- [~] Register route `router.Post("/duplicates", r.Duplicates)` in `SearchRouter.Routes()`
-- [~] Add Swagger annotations (`@Summary`, `@Description`, `@Accept`, `@Produce`, `@Param`, `@Success`, `@Failure`, `@Router`)
+- [x] Add DTOs in `infrastructure/api/v1/dto/duplicates.go`: `DuplicateSearchRequest`, `DuplicatesResponse`, `DuplicatePairData`, `DuplicatesMeta`
+- [x] Add `Duplicates(w, req)` handler to `SearchRouter` in `infrastructure/api/v1/search.go`
+- [x] Register route `router.Post("/duplicates", r.Duplicates)` in `SearchRouter.Routes()`
+- [x] Add Swagger annotations (`@Summary`, `@Description`, `@Accept`, `@Produce`, `@Param`, `@Success`, `@Failure`, `@Router`)
 
 ## E2E Tests
 
-- [ ] Write `test/e2e/duplicates_test.go`:
+- [~] Write `test/e2e/duplicates_test.go`:
   - `TestDuplicates_NoEmbeddings_ReturnsEmpty` — POST with valid repo ID, expect 200 + empty data
   - `TestDuplicates_MissingRepositoryIDs_Returns400`
   - `TestDuplicates_InvalidThreshold_Returns400` (threshold = 0, threshold = 1.5)
   - `TestDuplicates_InvalidLimit_Returns400` (limit = 0)
   - `TestDuplicates_WithSeededEmbeddings_ReturnsPairs` — seed two near-identical embeddings into SQLite code embedding table, assert pair is returned with similarity ≥ threshold
   - `TestDuplicates_BelowThreshold_ReturnsEmpty` — seed two dissimilar embeddings, set high threshold, expect empty
-- [ ] Add `SeedCodeEmbedding(snippetID string, vec []float64)` helper to `TestServer` in `test/e2e/helpers_test.go`
+- [~] Add `SeedCodeEmbedding(snippetID string, vec []float64)` helper to `TestServer` in `test/e2e/helpers_test.go`
 
 ## MCP Tool
 
