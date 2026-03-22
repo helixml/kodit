@@ -6,5 +6,5 @@
 - [x] Add CSV branch in `ChunkFiles.Execute` that reads content from git, calls `extraction.ParseCSV`, then chunks
 - [x] Add handler-level integration test in `chunk_files_test.go` for CSV files (assert chunks created, numeric columns absent)
 - [x] Run `make test PKG=./infrastructure/extraction/...` and `make test PKG=./application/handler/indexing/...` — all pass
-- [~] Test the API manually with a real CSV file: add a repo containing a CSV, wait for indexing, search and verify results match string columns only
-- [ ] Run `make check` — no lint or vet errors
+- [x] Test the API manually with a real CSV file: add a repo containing a CSV, wait for indexing, search and verify results match string columns only
+- [x] Run `make check` — no lint or vet errors
