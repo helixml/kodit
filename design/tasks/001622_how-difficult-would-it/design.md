@@ -33,14 +33,18 @@ Add optional chunk settings to the `Repository` domain object. Use pointer field
 
 Update the `RepositoryModel` ↔ `repository.Repository` mapper to include the new fields.
 
-### 4. API — `indexing-config` sub-resource (`infrastructure/api/v1/repositories.go`)
+### 4. API — `config/chunking` sub-resource (`infrastructure/api/v1/repositories.go`)
 
-The codebase already has a `/{id}/tracking-config` sub-resource (GET + PUT) for repository-scoped configuration. Chunk settings follow the same pattern:
+Chunk settings are exposed under a `/config/` namespace, establishing a convention for future per-repo config scopes (e.g. `/config/indexing`, `/config/notifications`). Each scope maps to a distinct domain concern and will evolve independently.
 
-- `GET /{id}/indexing-config` — returns current `chunk_size`, `chunk_overlap`, `chunk_min_size` (null fields mean the global default applies).
-- `PUT /{id}/indexing-config` — replaces all three fields. Validate `chunk_overlap < chunk_size` and all provided values are positive; return 400 otherwise. A null field clears the override and reverts to the global default.
+Routes:
 
-DTOs live in `infrastructure/api/v1/dto/` following the same shape as `TrackingConfigResponse` / `TrackingConfigUpdateRequest`.
+- `GET  /{id}/config/chunking` — returns current `chunk_size`, `chunk_overlap`, `chunk_min_size` (null means the global default applies).
+- `PUT  /{id}/config/chunking` — replaces all three fields atomically. Validate `chunk_overlap < chunk_size` and all provided values are positive; return 400 otherwise. A null field clears the override and reverts to the global default.
+
+DTOs live in `infrastructure/api/v1/dto/`, following the same shape as `TrackingConfigResponse` / `TrackingConfigUpdateRequest`.
+
+The existing `/{id}/tracking-config` routes are unaffected. New config scopes added later follow the same `/{id}/config/{scope}` pattern.
 
 ### 5. Indexing handler (`application/handler/indexing/chunk_files.go`)
 
@@ -61,10 +65,10 @@ if repo.ChunkMinSize() != nil {
 
 ## Key Decisions
 
+- **`/config/{scope}` namespace**: each scope (chunking, and future ones) maps to a distinct domain concern. The URL makes it self-documenting — a consumer looking at `/config/chunking` knows exactly what they're dealing with. Scopes change at different rates and for different reasons, so keeping them separate avoids a sprawling catch-all config endpoint.
 - **Nullable pointer fields** over zero-value ints: allows distinguishing "user set 0" (invalid) from "not configured" (use global default).
 - **No automatic re-index on settings change**: changing chunk params mid-life would produce mixed-size chunks for the same repo, which is confusing. Users should delete existing index data and re-index.
 - **All three chunk params exposed**: `chunk_size`, `chunk_overlap`, and `chunk_min_size` are all configurable per-repo since all three affect indexing behaviour and are already present in `ChunkParams`.
-- **Sub-resource over PATCH on root**: chunk settings are exposed at `/{id}/indexing-config` (GET + PUT), matching the existing `/{id}/tracking-config` pattern. This keeps configuration concerns separated from the repository identity fields and is consistent with the rest of the API.
 
 ## Patterns Found in Codebase
 
@@ -72,3 +76,4 @@ if repo.ChunkMinSize() != nil {
 - GORM AutoMigrate is the only migration mechanism — no SQL files needed.
 - DTOs live in `infrastructure/api/v1/dto/` and are separate from domain types.
 - Validation happens in the HTTP handler before calling the service layer.
+- Existing sub-resource pattern: `/{id}/tracking-config` (GET + PUT) in `infrastructure/api/v1/repositories.go`.
