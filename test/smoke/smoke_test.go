@@ -218,6 +218,101 @@ func TestSmoke(t *testing.T) {
 		}
 	})
 
+	t.Run("chunking_config", func(t *testing.T) {
+		// GET defaults
+		getURL := fmt.Sprintf("%s/repositories/%d/config/chunking", baseURL, repoID)
+		resp := getJSON(t, getURL)
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET chunking config: expected 200, got %d", resp.StatusCode)
+		}
+		var getResult struct {
+			Data struct {
+				Type       string `json:"type"`
+				Attributes struct {
+					ChunkSize    int `json:"chunk_size"`
+					ChunkOverlap int `json:"chunk_overlap"`
+					MinChunkSize int `json:"min_chunk_size"`
+				} `json:"attributes"`
+			} `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&getResult); err != nil {
+			t.Fatalf("decode GET response: %v", err)
+		}
+		if getResult.Data.Type != "chunking-config" {
+			t.Fatalf("expected type chunking-config, got %s", getResult.Data.Type)
+		}
+		if getResult.Data.Attributes.ChunkSize != 1500 {
+			t.Fatalf("expected default chunk_size 1500, got %d", getResult.Data.Attributes.ChunkSize)
+		}
+		if getResult.Data.Attributes.ChunkOverlap != 200 {
+			t.Fatalf("expected default chunk_overlap 200, got %d", getResult.Data.Attributes.ChunkOverlap)
+		}
+		if getResult.Data.Attributes.MinChunkSize != 50 {
+			t.Fatalf("expected default min_chunk_size 50, got %d", getResult.Data.Attributes.MinChunkSize)
+		}
+		t.Logf("chunking config defaults: size=%d overlap=%d min=%d",
+			getResult.Data.Attributes.ChunkSize, getResult.Data.Attributes.ChunkOverlap, getResult.Data.Attributes.MinChunkSize)
+
+		// PUT new values
+		putURL := fmt.Sprintf("%s/repositories/%d/config/chunking", baseURL, repoID)
+		putBody := `{"data":{"type":"chunking-config","attributes":{"chunk_size":2000,"chunk_overlap":300,"min_chunk_size":100}}}`
+		httpClient := &http.Client{Timeout: 10 * time.Second}
+		putReq, err := http.NewRequest(http.MethodPut, putURL, strings.NewReader(putBody))
+		if err != nil {
+			t.Fatalf("create PUT request: %v", err)
+		}
+		putReq.Header.Set("Content-Type", "application/json")
+		putResp, err := httpClient.Do(putReq)
+		if err != nil {
+			t.Fatalf("PUT chunking config failed: %v", err)
+		}
+		defer func() { _ = putResp.Body.Close() }()
+		if putResp.StatusCode != http.StatusOK {
+			t.Fatalf("PUT chunking config: expected 200, got %d", putResp.StatusCode)
+		}
+
+		// Verify GET returns updated values
+		verifyResp := getJSON(t, getURL)
+		defer func() { _ = verifyResp.Body.Close() }()
+		if verifyResp.StatusCode != http.StatusOK {
+			t.Fatalf("GET after PUT: expected 200, got %d", verifyResp.StatusCode)
+		}
+		var verifyResult struct {
+			Data struct {
+				Attributes struct {
+					ChunkSize    int `json:"chunk_size"`
+					ChunkOverlap int `json:"chunk_overlap"`
+					MinChunkSize int `json:"min_chunk_size"`
+				} `json:"attributes"`
+			} `json:"data"`
+		}
+		if err := json.NewDecoder(verifyResp.Body).Decode(&verifyResult); err != nil {
+			t.Fatalf("decode verify response: %v", err)
+		}
+		if verifyResult.Data.Attributes.ChunkSize != 2000 {
+			t.Fatalf("expected updated chunk_size 2000, got %d", verifyResult.Data.Attributes.ChunkSize)
+		}
+		if verifyResult.Data.Attributes.ChunkOverlap != 300 {
+			t.Fatalf("expected updated chunk_overlap 300, got %d", verifyResult.Data.Attributes.ChunkOverlap)
+		}
+		if verifyResult.Data.Attributes.MinChunkSize != 100 {
+			t.Fatalf("expected updated min_chunk_size 100, got %d", verifyResult.Data.Attributes.MinChunkSize)
+		}
+		t.Logf("chunking config updated: size=%d overlap=%d min=%d",
+			verifyResult.Data.Attributes.ChunkSize, verifyResult.Data.Attributes.ChunkOverlap, verifyResult.Data.Attributes.MinChunkSize)
+
+		// Restore defaults so subsequent tests aren't affected
+		restoreBody := `{"data":{"type":"chunking-config","attributes":{"chunk_size":1500,"chunk_overlap":200,"min_chunk_size":50}}}`
+		restoreReq, _ := http.NewRequest(http.MethodPut, putURL, strings.NewReader(restoreBody))
+		restoreReq.Header.Set("Content-Type", "application/json")
+		restoreResp, err := httpClient.Do(restoreReq)
+		if err != nil {
+			t.Fatalf("restore chunking config failed: %v", err)
+		}
+		_ = restoreResp.Body.Close()
+	})
+
 	t.Run("tags", func(t *testing.T) {
 		resp, err := client.GetRepositoriesIdTagsWithResponse(ctx, repoID, nil)
 		if err != nil {

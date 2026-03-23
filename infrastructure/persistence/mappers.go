@@ -40,6 +40,11 @@ func (m RepositoryMapper) ToDomain(e RepositoryModel) repository.Repository {
 		upstreamURL = *e.UpstreamURL
 	}
 
+	cc := repository.DefaultChunkingConfig()
+	if e.ChunkSize != 0 || e.ChunkOverlap != 0 || e.MinChunkSize != 0 {
+		cc = repository.ReconstructChunkingConfig(e.ChunkSize, e.ChunkOverlap, e.MinChunkSize)
+	}
+
 	return repository.ReconstructRepository(
 		e.ID,
 		e.RemoteURI,
@@ -47,6 +52,7 @@ func (m RepositoryMapper) ToDomain(e RepositoryModel) repository.Repository {
 		upstreamURL,
 		wc,
 		tc,
+		cc,
 		e.CreatedAt,
 		e.UpdatedAt,
 		lastSyncedAt,
@@ -86,6 +92,9 @@ func (m RepositoryMapper) ToModel(r repository.Repository) RepositoryModel {
 		LastScannedAt:      lastScannedAt,
 		TrackingType:       trackingType,
 		TrackingName:       trackingName,
+		ChunkSize:          r.ChunkingConfig().Size(),
+		ChunkOverlap:       r.ChunkingConfig().Overlap(),
+		MinChunkSize:       r.ChunkingConfig().MinSize(),
 		CreatedAt:          r.CreatedAt(),
 		UpdatedAt:          r.UpdatedAt(),
 	}

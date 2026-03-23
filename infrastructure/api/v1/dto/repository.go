@@ -167,6 +167,35 @@ type TrackingConfigUpdateRequest struct {
 	Data TrackingConfigUpdateData `json:"data"`
 }
 
+// ChunkingConfigAttributes represents chunking configuration attributes in JSON:API format.
+type ChunkingConfigAttributes struct {
+	ChunkSize    int `json:"chunk_size"`
+	ChunkOverlap int `json:"chunk_overlap"`
+	MinChunkSize int `json:"min_chunk_size"`
+}
+
+// ChunkingConfigData represents chunking configuration data in JSON:API format.
+type ChunkingConfigData struct {
+	Type       string                   `json:"type"`
+	Attributes ChunkingConfigAttributes `json:"attributes"`
+}
+
+// ChunkingConfigResponse represents a chunking configuration response in JSON:API format.
+type ChunkingConfigResponse struct {
+	Data ChunkingConfigData `json:"data"`
+}
+
+// ChunkingConfigUpdateData represents chunking config update data.
+type ChunkingConfigUpdateData struct {
+	Type       string                   `json:"type"`
+	Attributes ChunkingConfigAttributes `json:"attributes"`
+}
+
+// ChunkingConfigUpdateRequest represents a chunking config update request.
+type ChunkingConfigUpdateRequest struct {
+	Data ChunkingConfigUpdateData `json:"data"`
+}
+
 // Legacy types for backwards compatibility during migration
 
 // RepositoryRequest represents a legacy request to add a repository.

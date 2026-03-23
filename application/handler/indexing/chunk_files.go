@@ -104,6 +104,12 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 		return fmt.Errorf("get repository: %w", err)
 	}
 
+	params := chunking.ChunkParams{
+		Size:    repo.ChunkingConfig().Size(),
+		Overlap: repo.ChunkingConfig().Overlap(),
+		MinSize: repo.ChunkingConfig().MinSize(),
+	}
+
 	clonedPath := repo.WorkingCopy().Path()
 	if clonedPath == "" {
 		return fmt.Errorf("repository %d has never been cloned", cp.RepoID())
@@ -173,7 +179,7 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 			continue
 		}
 
-		textChunks, chunkErr := chunking.NewTextChunks(text, h.params)
+		textChunks, chunkErr := chunking.NewTextChunks(text, params)
 		if chunkErr != nil {
 			h.logger.Warn().Str("path", f.Path()).Str("error", chunkErr.Error()).Msg("failed to chunk file")
 			processed++

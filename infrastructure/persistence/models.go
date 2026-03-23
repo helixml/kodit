@@ -18,6 +18,9 @@ type RepositoryModel struct {
 	NumTags            int        `gorm:"column:num_tags;default:0"`
 	TrackingType       string     `gorm:"column:tracking_type;index;size:255"`
 	TrackingName       string     `gorm:"column:tracking_name;index;size:255"`
+	ChunkSize          int        `gorm:"column:chunk_size"`
+	ChunkOverlap       int        `gorm:"column:chunk_overlap"`
+	MinChunkSize       int        `gorm:"column:min_chunk_size"`
 	CreatedAt          time.Time  `gorm:"column:created_at"`
 	UpdatedAt          time.Time  `gorm:"column:updated_at"`
 }

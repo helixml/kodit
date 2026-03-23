@@ -23,11 +23,13 @@ func TestScopedMCPServer_RepositoryListFiltered(t *testing.T) {
 	repo1 := repository.ReconstructRepository(
 		1, "https://github.com/org/allowed", "https://github.com/org/allowed", "",
 		repository.WorkingCopy{}, repository.NewTrackingConfigForBranch("main"),
+		repository.DefaultChunkingConfig(),
 		time.Now(), time.Now(), time.Time{},
 	)
 	repo2 := repository.ReconstructRepository(
 		2, "https://github.com/org/forbidden", "https://github.com/org/forbidden", "",
 		repository.WorkingCopy{}, repository.NewTrackingConfigForBranch("main"),
+		repository.DefaultChunkingConfig(),
 		time.Now(), time.Now(), time.Time{},
 	)
 	commit := repository.ReconstructCommit(
@@ -99,6 +101,7 @@ func TestScopedMCPServer_ReadResourceBlocked(t *testing.T) {
 	repo1 := repository.ReconstructRepository(
 		1, "https://github.com/org/allowed", "https://github.com/org/allowed", "",
 		repository.WorkingCopy{}, repository.NewTrackingConfigForBranch("main"),
+		repository.DefaultChunkingConfig(),
 		time.Now(), time.Now(), time.Time{},
 	)
 
@@ -155,11 +158,13 @@ func TestScopedMCPServer_NilRepoIDsNoScoping(t *testing.T) {
 	repo1 := repository.ReconstructRepository(
 		1, "https://github.com/org/repo1", "https://github.com/org/repo1", "",
 		repository.WorkingCopy{}, repository.NewTrackingConfigForBranch("main"),
+		repository.DefaultChunkingConfig(),
 		time.Now(), time.Now(), time.Time{},
 	)
 	repo2 := repository.ReconstructRepository(
 		2, "https://github.com/org/repo2", "https://github.com/org/repo2", "",
 		repository.WorkingCopy{}, repository.NewTrackingConfigForBranch("main"),
+		repository.DefaultChunkingConfig(),
 		time.Now(), time.Now(), time.Time{},
 	)
 	commit := repository.ReconstructCommit(
@@ -265,6 +270,7 @@ func TestScopedMCPServer_ListRepositories_SanitizesCredentials(t *testing.T) {
 		"",
 		repository.WorkingCopy{},
 		repository.NewTrackingConfigForBranch("main"),
+		repository.DefaultChunkingConfig(),
 		time.Now(), time.Now(), time.Time{},
 	)
 	commit := repository.ReconstructCommit(

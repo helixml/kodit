@@ -135,6 +135,7 @@ func TestUpdate_FileURI_NonGitDir_SkipsGitOps(t *testing.T) {
 		uri, uri, "",
 		repository.NewWorkingCopy(plainDir, uri),
 		repository.NewTrackingConfigForBranch("main"),
+		repository.DefaultChunkingConfig(),
 		time.Now(), time.Now(), time.Time{},
 	)
 
@@ -171,6 +172,7 @@ func TestUpdate_FileURI_GitRepo_SkipsNetworkOps(t *testing.T) {
 		uri, uri, "",
 		repository.NewWorkingCopy(repoDir, uri),
 		repository.NewTrackingConfigForBranch("main"),
+		repository.DefaultChunkingConfig(),
 		time.Now(), time.Now(), time.Time{},
 	)
 
@@ -202,6 +204,7 @@ func TestUpdate_FileURI_MissingDir_DoesNotReclone(t *testing.T) {
 		uri, uri, "",
 		repository.NewWorkingCopy(missingDir, uri),
 		repository.NewTrackingConfigForBranch("main"),
+		repository.DefaultChunkingConfig(),
 		time.Now(), time.Now(), time.Time{},
 	)
 
@@ -231,6 +234,7 @@ func TestUpdate_MissingDirectory(t *testing.T) {
 		"",
 		repository.NewWorkingCopy(missingPath, remoteURI),
 		repository.NewTrackingConfigForBranch("main"),
+		repository.DefaultChunkingConfig(),
 		time.Now(), time.Now(), time.Time{},
 	)
 
@@ -286,6 +290,7 @@ func TestUpdate_InaccessibleDirectory(t *testing.T) {
 		"",
 		repository.NewWorkingCopy(child, "https://github.com/example/repo.git"),
 		repository.NewTrackingConfigForBranch("main"),
+		repository.DefaultChunkingConfig(),
 		time.Now(), time.Now(), time.Time{},
 	)
 

@@ -32,6 +32,13 @@ type TrackingConfigParams struct {
 	Commit string
 }
 
+// ChunkingConfigParams holds the parameters for updating a repository's chunking config.
+type ChunkingConfigParams struct {
+	Size    int
+	Overlap int
+	MinSize int
+}
+
 // Repository provides repository management and query operations.
 // Embeds Collection for Find/Get; bespoke methods handle writes and lifecycle.
 type Repository struct {
@@ -205,6 +212,30 @@ func (s *Repository) UpdateTrackingConfig(ctx context.Context, id int64, params 
 	s.logger.Info().Int64("repo_id", id).Str("tracking", trackingConfig.Reference()).Msg("tracking config updated")
 
 	return repository.NewSource(savedRepo), nil
+}
+
+// UpdateChunkingConfig updates a repository's chunking configuration.
+func (s *Repository) UpdateChunkingConfig(ctx context.Context, id int64, params *ChunkingConfigParams) (repository.Repository, error) {
+	cc, err := repository.NewChunkingConfig(params.Size, params.Overlap, params.MinSize)
+	if err != nil {
+		return repository.Repository{}, fmt.Errorf("invalid chunking config: %w", err)
+	}
+
+	repo, err := s.repoStore.FindOne(ctx, repository.WithID(id))
+	if err != nil {
+		return repository.Repository{}, fmt.Errorf("get repository: %w", err)
+	}
+
+	updated := repo.WithChunkingConfig(cc)
+
+	saved, err := s.repoStore.Save(ctx, updated)
+	if err != nil {
+		return repository.Repository{}, fmt.Errorf("save repository: %w", err)
+	}
+
+	s.logger.Info().Int64("repo_id", id).Msg("chunking config updated")
+
+	return saved, nil
 }
 
 // SummaryByID returns a detailed summary for a repository.
