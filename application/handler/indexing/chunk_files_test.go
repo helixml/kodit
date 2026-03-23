@@ -108,11 +108,14 @@ func TestChunkFiles_CreatesEnrichmentsForTextFiles(t *testing.T) {
 	commitSHA := "bbb222ccc333"
 	tmpDir := t.TempDir()
 
+	cc, err := repository.NewChunkingConfig(100, 0, 1)
+	require.NoError(t, err)
 	repo, err := repository.NewRepository("https://github.com/test/repo")
 	require.NoError(t, err)
 	repo = repo.
 		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
-		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", "")).
+		WithChunkingConfig(cc)
 	savedRepo, err := repoStore.Save(ctx, repo)
 	require.NoError(t, err)
 
@@ -260,11 +263,14 @@ func TestChunkFiles_ContinuesOnFileContentError(t *testing.T) {
 	commitSHA := "ddd444eee555"
 	tmpDir := t.TempDir()
 
+	cc, err := repository.NewChunkingConfig(100, 0, 1)
+	require.NoError(t, err)
 	repo, err := repository.NewRepository("https://github.com/test/repo")
 	require.NoError(t, err)
 	repo = repo.
 		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
-		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", "")).
+		WithChunkingConfig(cc)
 	savedRepo, err := repoStore.Save(ctx, repo)
 	require.NoError(t, err)
 
@@ -369,11 +375,14 @@ func TestChunkFiles_HandlesAbsoluteFilePaths(t *testing.T) {
 	commitSHA := "fff666ggg777"
 	tmpDir := t.TempDir()
 
+	cc, err := repository.NewChunkingConfig(100, 0, 1)
+	require.NoError(t, err)
 	repo, err := repository.NewRepository("https://github.com/test/repo")
 	require.NoError(t, err)
 	repo = repo.
 		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
-		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", "")).
+		WithChunkingConfig(cc)
 	savedRepo, err := repoStore.Save(ctx, repo)
 	require.NoError(t, err)
 
@@ -430,11 +439,14 @@ func TestChunkFiles_OnlyIndexesSourceAndDocFiles(t *testing.T) {
 	commitSHA := "meta111meta222"
 	tmpDir := t.TempDir()
 
+	cc, err := repository.NewChunkingConfig(100, 0, 1)
+	require.NoError(t, err)
 	repo, err := repository.NewRepository("https://github.com/test/repo")
 	require.NoError(t, err)
 	repo = repo.
 		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
-		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", "")).
+		WithChunkingConfig(cc)
 	savedRepo, err := repoStore.Save(ctx, repo)
 	require.NoError(t, err)
 
@@ -536,11 +548,14 @@ func TestChunkFiles_SetsLanguageFromExtension(t *testing.T) {
 	commitSHA := "eee555fff666"
 	tmpDir := t.TempDir()
 
+	cc, err := repository.NewChunkingConfig(100, 0, 1)
+	require.NoError(t, err)
 	repo, err := repository.NewRepository("https://github.com/test/repo")
 	require.NoError(t, err)
 	repo = repo.
 		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
-		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", "")).
+		WithChunkingConfig(cc)
 	savedRepo, err := repoStore.Save(ctx, repo)
 	require.NoError(t, err)
 
@@ -595,11 +610,14 @@ func TestChunkFiles_PersistsLineRanges(t *testing.T) {
 	commitSHA := "linerange111222"
 	tmpDir := t.TempDir()
 
+	cc, err := repository.NewChunkingConfig(25, 0, 1)
+	require.NoError(t, err)
 	repo, err := repository.NewRepository("https://github.com/test/repo")
 	require.NoError(t, err)
 	repo = repo.
 		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
-		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", "")).
+		WithChunkingConfig(cc)
 	savedRepo, err := repoStore.Save(ctx, repo)
 	require.NoError(t, err)
 
@@ -691,11 +709,14 @@ func TestChunkFiles_ExtractsDocumentFiles(t *testing.T) {
 	commitSHA := "doc111doc222"
 	tmpDir := t.TempDir()
 
+	cc, err := repository.NewChunkingConfig(100, 0, 1)
+	require.NoError(t, err)
 	repo, err := repository.NewRepository("https://github.com/test/repo")
 	require.NoError(t, err)
 	repo = repo.
 		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
-		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", "")).
+		WithChunkingConfig(cc)
 	savedRepo, err := repoStore.Save(ctx, repo)
 	require.NoError(t, err)
 
@@ -823,11 +844,14 @@ func TestChunkFiles_ContinuesOnDocumentExtractionError(t *testing.T) {
 	commitSHA := "docerr111222"
 	tmpDir := t.TempDir()
 
+	cc, err := repository.NewChunkingConfig(100, 0, 1)
+	require.NoError(t, err)
 	repo, err := repository.NewRepository("https://github.com/test/repo")
 	require.NoError(t, err)
 	repo = repo.
 		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
-		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", "")).
+		WithChunkingConfig(cc)
 	savedRepo, err := repoStore.Save(ctx, repo)
 	require.NoError(t, err)
 
@@ -885,11 +909,14 @@ func TestChunkFiles_ParsesCSVFiles(t *testing.T) {
 	commitSHA := "csv111aaa222"
 	tmpDir := t.TempDir()
 
+	cc, err := repository.NewChunkingConfig(1500, 0, 1)
+	require.NoError(t, err)
 	repo, err := repository.NewRepository("https://github.com/test/repo")
 	require.NoError(t, err)
 	repo = repo.
 		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
-		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", "")).
+		WithChunkingConfig(cc)
 	savedRepo, err := repoStore.Save(ctx, repo)
 	require.NoError(t, err)
 

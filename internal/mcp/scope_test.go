@@ -58,11 +58,13 @@ func TestScopedRepositories_FindReturnsOnlyScopedRepos(t *testing.T) {
 	repo1 := repository.ReconstructRepository(
 		1, "https://github.com/org/repo1", "https://github.com/org/repo1", "",
 		repository.WorkingCopy{}, repository.TrackingConfig{},
+		repository.DefaultChunkingConfig(),
 		time.Now(), time.Now(), time.Time{},
 	)
 	repo2 := repository.ReconstructRepository(
 		2, "https://github.com/org/repo2", "https://github.com/org/repo2", "",
 		repository.WorkingCopy{}, repository.TrackingConfig{},
+		repository.DefaultChunkingConfig(),
 		time.Now(), time.Now(), time.Time{},
 	)
 	inner := &recordingRepositoryLister{repos: []repository.Repository{repo1, repo2}}

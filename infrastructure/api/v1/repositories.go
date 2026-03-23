@@ -69,6 +69,10 @@ func (r *RepositoriesRouter) Routes() chi.Router {
 	router.Get("/{id}/wiki/*", r.GetWikiPage)
 	router.Get("/{id}/tracking-config", r.GetTrackingConfig)
 	router.Put("/{id}/tracking-config", r.UpdateTrackingConfig)
+	router.Route("/{id}/config", func(cr chi.Router) {
+		cr.Get("/chunking", r.GetChunkingConfig)
+		cr.Put("/chunking", r.UpdateChunkingConfig)
+	})
 	router.Get("/{id}/blob/{blob_name}/*", r.GetBlob)
 	router.Get("/{id}/grep", r.Grep)
 
@@ -1562,6 +1566,69 @@ func (r *RepositoriesRouter) UpdateTrackingConfig(w http.ResponseWriter, req *ht
 
 	updatedTC := source.Repo().TrackingConfig()
 	middleware.WriteJSON(w, http.StatusOK, trackingConfigToResponse(updatedTC))
+}
+
+// GetChunkingConfig handles GET /api/v1/repositories/{id}/config/chunking.
+func (r *RepositoriesRouter) GetChunkingConfig(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	idStr := chi.URLParam(req, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	repo, err := r.client.Repositories.Get(ctx, repository.WithID(id))
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, chunkingConfigToResponse(repo.ChunkingConfig()))
+}
+
+// UpdateChunkingConfig handles PUT /api/v1/repositories/{id}/config/chunking.
+func (r *RepositoriesRouter) UpdateChunkingConfig(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	idStr := chi.URLParam(req, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	var body dto.ChunkingConfigUpdateRequest
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	saved, err := r.client.Repositories.UpdateChunkingConfig(ctx, id, &service.ChunkingConfigParams{
+		Size:    body.Data.Attributes.ChunkSize,
+		Overlap: body.Data.Attributes.ChunkOverlap,
+		MinSize: body.Data.Attributes.MinChunkSize,
+	})
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, chunkingConfigToResponse(saved.ChunkingConfig()))
+}
+
+func chunkingConfigToResponse(cc repository.ChunkingConfig) dto.ChunkingConfigResponse {
+	return dto.ChunkingConfigResponse{
+		Data: dto.ChunkingConfigData{
+			Type: "chunking-config",
+			Attributes: dto.ChunkingConfigAttributes{
+				ChunkSize:    cc.Size(),
+				ChunkOverlap: cc.Overlap(),
+				MinChunkSize: cc.MinSize(),
+			},
+		},
+	}
 }
 
 func trackingConfigToResponse(tc repository.TrackingConfig) dto.TrackingConfigResponse {

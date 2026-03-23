@@ -17,6 +17,7 @@ func TestRepositoryResource_SanitizesCredentials(t *testing.T) {
 		"",
 		repository.WorkingCopy{},
 		repository.NewTrackingConfigForBranch("main"),
+		repository.DefaultChunkingConfig(),
 		time.Now(), time.Now(), time.Time{},
 	)
 	source := repository.NewSource(repo)

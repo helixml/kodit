@@ -308,6 +308,68 @@ func TestRepository_SummaryByID_NotFound(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestRepository_UpdateChunkingConfig(t *testing.T) {
+	deps := newRepositoryTestDeps(t)
+	ctx := context.Background()
+
+	repo, err := repository.NewRepository("https://github.com/test/repo")
+	require.NoError(t, err)
+	saved, err := deps.stores.repos.Save(ctx, repo)
+	require.NoError(t, err)
+
+	// Verify defaults
+	assert.Equal(t, 1500, saved.ChunkingConfig().Size())
+	assert.Equal(t, 200, saved.ChunkingConfig().Overlap())
+	assert.Equal(t, 50, saved.ChunkingConfig().MinSize())
+
+	updated, err := deps.service.UpdateChunkingConfig(ctx, saved.ID(), &ChunkingConfigParams{
+		Size:    2000,
+		Overlap: 300,
+		MinSize: 100,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 2000, updated.ChunkingConfig().Size())
+	assert.Equal(t, 300, updated.ChunkingConfig().Overlap())
+	assert.Equal(t, 100, updated.ChunkingConfig().MinSize())
+
+	// Verify persistence
+	fetched, err := deps.stores.repos.FindOne(ctx, repository.WithID(saved.ID()))
+	require.NoError(t, err)
+	assert.Equal(t, 2000, fetched.ChunkingConfig().Size())
+	assert.Equal(t, 300, fetched.ChunkingConfig().Overlap())
+	assert.Equal(t, 100, fetched.ChunkingConfig().MinSize())
+}
+
+func TestRepository_UpdateChunkingConfig_NotFound(t *testing.T) {
+	deps := newRepositoryTestDeps(t)
+	ctx := context.Background()
+
+	_, err := deps.service.UpdateChunkingConfig(ctx, 999, &ChunkingConfigParams{
+		Size:    2000,
+		Overlap: 300,
+		MinSize: 100,
+	})
+	assert.Error(t, err)
+}
+
+func TestRepository_UpdateChunkingConfig_InvalidParams(t *testing.T) {
+	deps := newRepositoryTestDeps(t)
+	ctx := context.Background()
+
+	repo, err := repository.NewRepository("https://github.com/test/repo")
+	require.NoError(t, err)
+	saved, err := deps.stores.repos.Save(ctx, repo)
+	require.NoError(t, err)
+
+	_, err = deps.service.UpdateChunkingConfig(ctx, saved.ID(), &ChunkingConfigParams{
+		Size:    100,
+		Overlap: 200, // overlap >= size
+		MinSize: 50,
+	})
+	assert.Error(t, err)
+}
+
 func TestRepository_BranchesForRepository(t *testing.T) {
 	deps := newRepositoryTestDeps(t)
 	ctx := context.Background()

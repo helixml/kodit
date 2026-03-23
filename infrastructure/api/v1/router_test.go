@@ -304,6 +304,159 @@ func TestRepositoriesRouter_List_SanitizesCredentials(t *testing.T) {
 	}
 }
 
+func newTestClientWithSeededRepository(t *testing.T) (*kodit.Client, int64) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	db := openTestDB(t, dbPath)
+	ctx := httptest.NewRequest(http.MethodGet, "/", nil).Context()
+
+	store := persistence.NewRepositoryStore(db)
+	repo, err := repository.NewRepository("https://github.com/test/repo")
+	if err != nil {
+		t.Fatalf("new repository: %v", err)
+	}
+	saved, err := store.Save(ctx, repo)
+	if err != nil {
+		t.Fatalf("save repository: %v", err)
+	}
+	repoID := saved.ID()
+	_ = db.Close()
+
+	client, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithDataDir(tmpDir),
+		kodit.WithSkipProviderValidation(),
+	)
+	if err != nil {
+		t.Fatalf("create client: %v", err)
+	}
+	t.Cleanup(func() { _ = client.Close() })
+	return client, repoID
+}
+
+func TestRepositoriesRouter_GetChunkingConfig(t *testing.T) {
+	client, repoID := newTestClientWithSeededRepository(t)
+
+	router := v1.NewRepositoriesRouter(client)
+	routes := router.Routes()
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/%d/config/chunking", repoID), nil)
+	w := httptest.NewRecorder()
+	routes.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status code = %v, want %v; body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var response dto.ChunkingConfigResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.Data.Type != "chunking-config" {
+		t.Errorf("type = %v, want chunking-config", response.Data.Type)
+	}
+	if response.Data.Attributes.ChunkSize != 1500 {
+		t.Errorf("chunk_size = %v, want 1500", response.Data.Attributes.ChunkSize)
+	}
+	if response.Data.Attributes.ChunkOverlap != 200 {
+		t.Errorf("chunk_overlap = %v, want 200", response.Data.Attributes.ChunkOverlap)
+	}
+	if response.Data.Attributes.MinChunkSize != 50 {
+		t.Errorf("min_chunk_size = %v, want 50", response.Data.Attributes.MinChunkSize)
+	}
+}
+
+func TestRepositoriesRouter_GetChunkingConfig_NotFound(t *testing.T) {
+	client := newTestClient(t)
+
+	router := v1.NewRepositoriesRouter(client)
+	routes := router.Routes()
+
+	req := httptest.NewRequest(http.MethodGet, "/999/config/chunking", nil)
+	w := httptest.NewRecorder()
+	routes.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status code = %v, want %v", w.Code, http.StatusNotFound)
+	}
+}
+
+func TestRepositoriesRouter_UpdateChunkingConfig(t *testing.T) {
+	client, repoID := newTestClientWithSeededRepository(t)
+
+	router := v1.NewRepositoriesRouter(client)
+	routes := router.Routes()
+
+	body := `{"data":{"type":"chunking-config","attributes":{"chunk_size":2000,"chunk_overlap":300,"min_chunk_size":100}}}`
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/%d/config/chunking", repoID), strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	routes.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status code = %v, want %v; body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var response dto.ChunkingConfigResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.Data.Attributes.ChunkSize != 2000 {
+		t.Errorf("chunk_size = %v, want 2000", response.Data.Attributes.ChunkSize)
+	}
+	if response.Data.Attributes.ChunkOverlap != 300 {
+		t.Errorf("chunk_overlap = %v, want 300", response.Data.Attributes.ChunkOverlap)
+	}
+	if response.Data.Attributes.MinChunkSize != 100 {
+		t.Errorf("min_chunk_size = %v, want 100", response.Data.Attributes.MinChunkSize)
+	}
+
+	// Verify GET returns updated values
+	getReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/%d/config/chunking", repoID), nil)
+	getW := httptest.NewRecorder()
+	routes.ServeHTTP(getW, getReq)
+
+	if getW.Code != http.StatusOK {
+		t.Fatalf("GET status code = %v, want %v", getW.Code, http.StatusOK)
+	}
+
+	var getResponse dto.ChunkingConfigResponse
+	if err := json.NewDecoder(getW.Body).Decode(&getResponse); err != nil {
+		t.Fatalf("failed to decode GET response: %v", err)
+	}
+
+	if getResponse.Data.Attributes.ChunkSize != 2000 {
+		t.Errorf("GET chunk_size = %v, want 2000", getResponse.Data.Attributes.ChunkSize)
+	}
+	if getResponse.Data.Attributes.ChunkOverlap != 300 {
+		t.Errorf("GET chunk_overlap = %v, want 300", getResponse.Data.Attributes.ChunkOverlap)
+	}
+	if getResponse.Data.Attributes.MinChunkSize != 100 {
+		t.Errorf("GET min_chunk_size = %v, want 100", getResponse.Data.Attributes.MinChunkSize)
+	}
+}
+
+func TestRepositoriesRouter_UpdateChunkingConfig_InvalidParams(t *testing.T) {
+	client, repoID := newTestClientWithSeededRepository(t)
+
+	router := v1.NewRepositoriesRouter(client)
+	routes := router.Routes()
+
+	body := `{"data":{"type":"chunking-config","attributes":{"chunk_size":100,"chunk_overlap":200,"min_chunk_size":50}}}`
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/%d/config/chunking", repoID), strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	routes.ServeHTTP(w, req)
+
+	if w.Code == http.StatusOK {
+		t.Errorf("expected error status for invalid params, got %v", w.Code)
+	}
+}
+
 func TestRepositoriesRouter_Get_SanitizesCredentials(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")

@@ -19,6 +19,7 @@ type Repository struct {
 	upstreamURL    string
 	workingCopy    WorkingCopy
 	trackingConfig TrackingConfig
+	chunkingConfig ChunkingConfig
 	createdAt      time.Time
 	updatedAt      time.Time
 	lastScannedAt  time.Time
@@ -31,9 +32,10 @@ func NewRepository(remoteURL string) (Repository, error) {
 	}
 	now := time.Now()
 	return Repository{
-		remoteURL: remoteURL,
-		createdAt: now,
-		updatedAt: now,
+		remoteURL:      remoteURL,
+		chunkingConfig: DefaultChunkingConfig(),
+		createdAt:      now,
+		updatedAt:      now,
 	}, nil
 }
 
@@ -45,6 +47,7 @@ func ReconstructRepository(
 	upstreamURL string,
 	workingCopy WorkingCopy,
 	trackingConfig TrackingConfig,
+	chunkingConfig ChunkingConfig,
 	createdAt, updatedAt time.Time,
 	lastScannedAt time.Time,
 ) Repository {
@@ -55,6 +58,7 @@ func ReconstructRepository(
 		upstreamURL:    upstreamURL,
 		workingCopy:    workingCopy,
 		trackingConfig: trackingConfig,
+		chunkingConfig: chunkingConfig,
 		createdAt:      createdAt,
 		updatedAt:      updatedAt,
 		lastScannedAt:  lastScannedAt,
@@ -91,6 +95,16 @@ func (r Repository) WorkingCopy() WorkingCopy { return r.workingCopy }
 
 // TrackingConfig returns the tracking configuration.
 func (r Repository) TrackingConfig() TrackingConfig { return r.trackingConfig }
+
+// ChunkingConfig returns the chunking configuration.
+func (r Repository) ChunkingConfig() ChunkingConfig { return r.chunkingConfig }
+
+// WithChunkingConfig returns a new Repository with the specified chunking config.
+func (r Repository) WithChunkingConfig(cc ChunkingConfig) Repository {
+	r.chunkingConfig = cc
+	r.updatedAt = time.Now()
+	return r
+}
 
 // CreatedAt returns the creation timestamp.
 func (r Repository) CreatedAt() time.Time { return r.createdAt }
