@@ -160,8 +160,13 @@ func New(opts ...Option) (*Client, error) {
 		return nil, ErrNoDatabase
 	}
 
-	if cfg.requiresTextProvider && cfg.textProvider == nil {
-		return nil, fmt.Errorf("WithFullPipeline requires a text provider (WithOpenAI, WithAnthropic, or WithTextProvider)")
+	// Early pipeline validation: if the prescribed ops require a text provider,
+	// fail fast before any expensive setup (DB open, model load, etc.).
+	if cfg.prescribedOpsFactory != nil && cfg.textProvider == nil {
+		probe := cfg.prescribedOpsFactory(false)
+		if probe.RequiresTextProvider() {
+			return nil, fmt.Errorf("WithFullPipeline requires a text provider (WithOpenAI, WithAnthropic, or WithTextProvider)")
+		}
 	}
 
 	// Set up logger
@@ -352,6 +357,9 @@ func New(opts ...Option) (*Client, error) {
 		}
 	}
 	prescribedOps := cfg.prescribedOpsFactory(cfg.textProvider != nil)
+	if prescribedOps.RequiresTextProvider() && cfg.textProvider == nil {
+		return nil, fmt.Errorf("WithFullPipeline requires a text provider (WithOpenAI, WithAnthropic, or WithTextProvider)")
+	}
 	periodicSync := service.NewPeriodicSync(cfg.periodicSync, repoStore, queue, prescribedOps, logger)
 
 	// Create enricher infrastructure (only if text provider is configured)

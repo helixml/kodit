@@ -49,7 +49,6 @@ type clientConfig struct {
 
 	// Pipeline configuration
 	prescribedOpsFactory func(hasTextProvider bool) task.PrescribedOperations
-	requiresTextProvider bool // set by WithFullPipeline to enforce validation
 }
 
 // newClientConfig creates a clientConfig with defaults from internal/config.
@@ -289,6 +288,5 @@ func WithFullPipeline() Option {
 		c.prescribedOpsFactory = func(_ bool) task.PrescribedOperations {
 			return task.FullPrescribedOperations()
 		}
-		c.requiresTextProvider = true
 	}
 }

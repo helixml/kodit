@@ -85,6 +85,13 @@ func FullPrescribedOperations() PrescribedOperations {
 	return PrescribedOperations{enrichments: true}
 }
 
+// RequiresTextProvider reports whether this operation set needs a text
+// generation provider. Callers should fail fast when this returns true and no
+// provider is configured.
+func (p PrescribedOperations) RequiresTextProvider() bool {
+	return p.enrichments
+}
+
 // All returns every operation that appears in any prescribed workflow.
 // Used at startup to validate that all required handlers are registered.
 func (p PrescribedOperations) All() []Operation {
