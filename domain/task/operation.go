@@ -73,8 +73,9 @@ func DefaultPrescribedOperations(hasTextProvider bool) PrescribedOperations {
 }
 
 // RAGOnlyPrescribedOperations returns the operation set for RAG use cases:
-// snippet extraction, BM25 indexing, code embeddings, and AST-based API docs.
-// All LLM enrichments are excluded regardless of provider configuration.
+// snippet extraction, BM25 indexing, and code embeddings.
+// All enrichments (including public API docs) are excluded regardless of
+// provider configuration.
 func RAGOnlyPrescribedOperations() PrescribedOperations {
 	return PrescribedOperations{enrichments: false}
 }
@@ -158,9 +159,9 @@ func (p PrescribedOperations) ScanAndIndexCommit() []Operation {
 	if p.enrichments && p.examples {
 		ops = append(ops, OperationCreateExampleSummaryEmbeddingsForCommit)
 	}
-	ops = append(ops, OperationCreatePublicAPIDocsForCommit)
 	if p.enrichments {
 		ops = append(ops,
+			OperationCreatePublicAPIDocsForCommit,
 			OperationCreateArchitectureEnrichmentForCommit,
 			OperationCreateCommitDescriptionForCommit,
 			OperationCreateDatabaseSchemaForCommit,
@@ -184,9 +185,9 @@ func (p PrescribedOperations) IndexCommit() []Operation {
 	if p.enrichments {
 		ops = append(ops, OperationCreateSummaryEmbeddingsForCommit)
 	}
-	ops = append(ops, OperationCreatePublicAPIDocsForCommit)
 	if p.enrichments {
 		ops = append(ops,
+			OperationCreatePublicAPIDocsForCommit,
 			OperationCreateArchitectureEnrichmentForCommit,
 			OperationCreateCommitDescriptionForCommit,
 			OperationCreateDatabaseSchemaForCommit,
@@ -225,9 +226,9 @@ func (p PrescribedOperations) RescanCommit() []Operation {
 	if p.enrichments && p.examples {
 		ops = append(ops, OperationCreateExampleSummaryEmbeddingsForCommit)
 	}
-	ops = append(ops, OperationCreatePublicAPIDocsForCommit)
 	if p.enrichments {
 		ops = append(ops,
+			OperationCreatePublicAPIDocsForCommit,
 			OperationCreateArchitectureEnrichmentForCommit,
 			OperationCreateCommitDescriptionForCommit,
 			OperationCreateDatabaseSchemaForCommit,

@@ -25,7 +25,6 @@ var coreOps = []Operation{
 	OperationExtractSnippetsForCommit,
 	OperationCreateBM25IndexForCommit,
 	OperationCreateCodeEmbeddingsForCommit,
-	OperationCreatePublicAPIDocsForCommit,
 }
 
 // exampleOnlyOps require examples=true but not enrichments.
@@ -37,6 +36,7 @@ var exampleOnlyOps = []Operation{
 // enrichmentOps require enrichments=true (no examples dependency).
 var enrichmentOps = []Operation{
 	OperationCreateSummaryEmbeddingsForCommit,
+	OperationCreatePublicAPIDocsForCommit,
 	OperationCreateArchitectureEnrichmentForCommit,
 	OperationCreateCommitDescriptionForCommit,
 	OperationCreateDatabaseSchemaForCommit,
@@ -136,7 +136,6 @@ func TestIndexCommit(t *testing.T) {
 				OperationExtractSnippetsForCommit,
 				OperationCreateBM25IndexForCommit,
 				OperationCreateCodeEmbeddingsForCommit,
-				OperationCreatePublicAPIDocsForCommit,
 			},
 			wantAbsent: flatten(enrichmentOps, enrichmentAndExampleOps),
 		},
@@ -166,7 +165,6 @@ func TestIndexCommit(t *testing.T) {
 				OperationExtractSnippetsForCommit,
 				OperationCreateBM25IndexForCommit,
 				OperationCreateCodeEmbeddingsForCommit,
-				OperationCreatePublicAPIDocsForCommit,
 			},
 			wantAbsent: flatten(enrichmentOps, enrichmentAndExampleOps),
 		},
@@ -228,7 +226,6 @@ func TestRescanCommit(t *testing.T) {
 				OperationCreateBM25IndexForCommit,
 				OperationCreateCodeEmbeddingsForCommit,
 				OperationCreateExampleCodeEmbeddingsForCommit,
-				OperationCreatePublicAPIDocsForCommit,
 			},
 			wantAbsent: flatten(enrichmentOps, enrichmentAndExampleOps),
 		},
@@ -241,7 +238,6 @@ func TestRescanCommit(t *testing.T) {
 				OperationExtractSnippetsForCommit,
 				OperationCreateBM25IndexForCommit,
 				OperationCreateCodeEmbeddingsForCommit,
-				OperationCreatePublicAPIDocsForCommit,
 			},
 			wantAbsent: flatten(exampleOnlyOps, enrichmentOps, enrichmentAndExampleOps),
 		},
@@ -261,25 +257,26 @@ func TestRescanCommit(t *testing.T) {
 	}
 }
 
-func TestPublicAPIDocsAlwaysPresent(t *testing.T) {
+func TestPublicAPIDocsRequiresEnrichments(t *testing.T) {
 	combinations := []struct {
 		examples    bool
 		enrichments bool
+		want        bool
 	}{
-		{true, true},
-		{true, false},
-		{false, true},
-		{false, false},
+		{true, true, true},
+		{true, false, false},
+		{false, true, true},
+		{false, false, false},
 	}
 
 	for _, c := range combinations {
 		p := PrescribedOperations{examples: c.examples, enrichments: c.enrichments}
 
-		assert.True(t, contains(p.ScanAndIndexCommit(), OperationCreatePublicAPIDocsForCommit),
+		assert.Equal(t, c.want, contains(p.ScanAndIndexCommit(), OperationCreatePublicAPIDocsForCommit),
 			"ScanAndIndexCommit(examples=%v, enrichments=%v)", c.examples, c.enrichments)
-		assert.True(t, contains(p.IndexCommit(), OperationCreatePublicAPIDocsForCommit),
+		assert.Equal(t, c.want, contains(p.IndexCommit(), OperationCreatePublicAPIDocsForCommit),
 			"IndexCommit(examples=%v, enrichments=%v)", c.examples, c.enrichments)
-		assert.True(t, contains(p.RescanCommit(), OperationCreatePublicAPIDocsForCommit),
+		assert.Equal(t, c.want, contains(p.RescanCommit(), OperationCreatePublicAPIDocsForCommit),
 			"RescanCommit(examples=%v, enrichments=%v)", c.examples, c.enrichments)
 	}
 }
