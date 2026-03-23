@@ -15,6 +15,7 @@ import (
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/task"
+	"github.com/helixml/kodit/infrastructure/extraction"
 	"github.com/helixml/kodit/infrastructure/tracking"
 )
 
@@ -44,7 +45,8 @@ func (c *Client) registerHandlers() error {
 	c.registry.Register(task.OperationExtractSnippetsForCommit, handler.WithCleanup(
 		indexinghandler.NewChunkFiles(
 			c.repoStores.Repositories, c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.lineRangeStore,
-			c.repoStores.Files, c.gitInfra.Adapter, c.documentText, c.chunkParams, c.enrichCtx.Tracker, c.logger,
+			c.repoStores.Files, c.gitInfra.Adapter, c.documentText, extraction.NewExtractors(),
+			c.chunkParams, c.enrichCtx.Tracker, c.logger,
 		),
 		handler.NewEnrichmentCleanup(c.Enrichments, c.repoStores.Commits,
 			enrichment.TypeDevelopment, enrichment.SubtypeChunk),

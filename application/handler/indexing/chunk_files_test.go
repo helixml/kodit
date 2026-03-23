@@ -14,6 +14,7 @@ import (
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/infrastructure/chunking"
+	"github.com/helixml/kodit/infrastructure/extraction"
 	"github.com/helixml/kodit/infrastructure/persistence"
 	"github.com/helixml/kodit/internal/testdb"
 	"github.com/stretchr/testify/assert"
@@ -69,7 +70,7 @@ func TestChunkFiles_SkipsWhenEnrichmentsExist(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		&fakeGitAdapter{}, nil,
+		&fakeGitAdapter{}, nil, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -129,7 +130,7 @@ func TestChunkFiles_CreatesEnrichmentsForTextFiles(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		adapter, nil,
+		adapter, nil, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -222,7 +223,7 @@ func TestChunkFiles_SkipsBinaryFiles(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		adapter, nil,
+		adapter, nil, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -284,7 +285,7 @@ func TestChunkFiles_ContinuesOnFileContentError(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		adapter, nil,
+		adapter, nil, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -392,7 +393,7 @@ func TestChunkFiles_HandlesAbsoluteFilePaths(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		adapter, nil,
+		adapter, nil, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -454,7 +455,6 @@ func TestChunkFiles_OnlyIndexesSourceAndDocFiles(t *testing.T) {
 		{"pnpm-lock.yaml", ".yaml"},
 		{"Cargo.lock", ".lock"},
 		{"composer.lock", ".lock"},
-		{"data.csv", ".csv"},
 		{"image.png", ".png"},
 		{"nested/dir/model.pkl", ".pkl"},
 	}
@@ -474,7 +474,10 @@ func TestChunkFiles_OnlyIndexesSourceAndDocFiles(t *testing.T) {
 		{"style.css", ".css"},
 		{"page.html", ".html"},
 		{"query.sql", ".sql"},
+		{"data.csv", ".csv"},
 	}
+
+	csvContent := []byte("name,city\nalice,london\n")
 
 	adapterFiles := make(map[string][]byte)
 	for _, sf := range skipped {
@@ -487,12 +490,16 @@ func TestChunkFiles_OnlyIndexesSourceAndDocFiles(t *testing.T) {
 		f := repository.NewFileWithDetails(commitSHA, sf.path, "abc", "text/plain", sf.ext, 100)
 		_, err = fileStore.Save(ctx, f)
 		require.NoError(t, err)
-		adapterFiles[sf.path] = textContent
+		if sf.ext == ".csv" {
+			adapterFiles[sf.path] = csvContent
+		} else {
+			adapterFiles[sf.path] = textContent
+		}
 	}
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		&fakeGitAdapter{files: adapterFiles}, nil,
+		&fakeGitAdapter{files: adapterFiles}, nil, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -550,7 +557,7 @@ func TestChunkFiles_SetsLanguageFromExtension(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		adapter, nil,
+		adapter, nil, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -609,7 +616,7 @@ func TestChunkFiles_PersistsLineRanges(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		adapter, nil,
+		adapter, nil, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 25, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -702,7 +709,7 @@ func TestChunkFiles_ExtractsDocumentFiles(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		&fakeGitAdapter{}, docText,
+		&fakeGitAdapter{}, docText, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -779,7 +786,7 @@ func TestChunkFiles_SkipsDocumentsWhenExtractorNil(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		&fakeGitAdapter{}, nil,
+		&fakeGitAdapter{}, nil, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -841,7 +848,7 @@ func TestChunkFiles_ContinuesOnDocumentExtractionError(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		&fakeGitAdapter{files: map[string][]byte{"good.go": goodContent}}, docText,
+		&fakeGitAdapter{files: map[string][]byte{"good.go": goodContent}}, docText, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -862,4 +869,93 @@ func TestChunkFiles_ContinuesOnDocumentExtractionError(t *testing.T) {
 	)
 	require.NoError(t, err)
 	assert.Len(t, chunks, 1, "should create chunks for the Go file despite PDF extraction error")
+}
+
+func TestChunkFiles_ParsesCSVFiles(t *testing.T) {
+	ctx := context.Background()
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
+	db := testdb.New(t)
+
+	enrichmentStore := persistence.NewEnrichmentStore(db)
+	associationStore := persistence.NewAssociationStore(db)
+	lineRangeStore := persistence.NewChunkLineRangeStore(db)
+	repoStore := persistence.NewRepositoryStore(db)
+	fileStore := persistence.NewFileStore(db)
+
+	commitSHA := "csv111aaa222"
+	tmpDir := t.TempDir()
+
+	repo, err := repository.NewRepository("https://github.com/test/repo")
+	require.NoError(t, err)
+	repo = repo.
+		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
+	savedRepo, err := repoStore.Save(ctx, repo)
+	require.NoError(t, err)
+
+	// CSV with string and numeric columns.
+	// "name" and "city" are strings; "age" and "score" are numeric.
+	csvContent := []byte("name,age,city,score\nalice,30,london,9.5\nbob,25,paris,8.1\ncarol,35,berlin,7.9\n")
+
+	f := repository.NewFileWithDetails(commitSHA, "data.csv", "abc123", "text/csv", ".csv", int64(len(csvContent)))
+	_, err = fileStore.Save(ctx, f)
+	require.NoError(t, err)
+
+	h := NewChunkFiles(
+		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
+		&fakeGitAdapter{files: map[string][]byte{"data.csv": csvContent}}, nil, extraction.NewExtractors(),
+		chunking.ChunkParams{Size: 1500, Overlap: 0, MinSize: 1},
+		&fakeTrackerFactory{},
+		logger,
+	)
+
+	payload := map[string]any{
+		"repository_id": savedRepo.ID(),
+		"commit_sha":    commitSHA,
+	}
+
+	err = h.Execute(ctx, payload)
+	require.NoError(t, err)
+
+	chunks, err := enrichmentStore.Find(ctx,
+		enrichment.WithCommitSHA(commitSHA),
+		enrichment.WithType(enrichment.TypeDevelopment),
+		enrichment.WithSubtype(enrichment.SubtypeChunk),
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, chunks, "CSV file should produce at least one chunk")
+
+	// All chunk content combined.
+	combined := ""
+	for _, ch := range chunks {
+		combined += ch.Content()
+	}
+
+	// String column values must appear.
+	assert.Contains(t, combined, "alice")
+	assert.Contains(t, combined, "bob")
+	assert.Contains(t, combined, "carol")
+	assert.Contains(t, combined, "london")
+	assert.Contains(t, combined, "paris")
+	assert.Contains(t, combined, "berlin")
+
+	// Column headers must appear.
+	assert.Contains(t, combined, "name")
+	assert.Contains(t, combined, "city")
+
+	// Numeric values must NOT appear in the Values section.
+	// They may appear in the top-rows verbatim section, so check the Values line only.
+	for _, ch := range chunks {
+		for _, line := range strings.Split(ch.Content(), "\n") {
+			if strings.HasPrefix(line, "Values:") {
+				assert.NotContains(t, line, "30", "age values should not appear in Values line")
+				assert.NotContains(t, line, "9.5", "score values should not appear in Values line")
+			}
+		}
+	}
+
+	// Language must be set to .csv.
+	for _, ch := range chunks {
+		assert.Equal(t, ".csv", ch.Language(), "chunk language should be .csv")
+	}
 }

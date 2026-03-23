@@ -1,7 +1,6 @@
 package indexing
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"path/filepath"
@@ -18,9 +17,6 @@ import (
 	"github.com/helixml/kodit/infrastructure/chunking"
 	"github.com/helixml/kodit/infrastructure/extraction"
 )
-
-// binaryProbeSize is the number of bytes checked for null bytes to detect binary files.
-const binaryProbeSize = 8192
 
 // FileContentSource reads file content at a specific commit.
 type FileContentSource interface {
@@ -41,6 +37,7 @@ type ChunkFiles struct {
 	fileStore        repository.FileStore
 	fileContent      FileContentSource
 	documentText     DocumentTextSource
+	extractors       *extraction.Extractors
 	params           chunking.ChunkParams
 	trackerFactory   handler.TrackerFactory
 	logger           zerolog.Logger
@@ -56,6 +53,7 @@ func NewChunkFiles(
 	fileStore repository.FileStore,
 	fileContent FileContentSource,
 	documentText DocumentTextSource,
+	extractors *extraction.Extractors,
 	params chunking.ChunkParams,
 	trackerFactory handler.TrackerFactory,
 	logger zerolog.Logger,
@@ -68,6 +66,7 @@ func NewChunkFiles(
 		fileStore:        fileStore,
 		fileContent:      fileContent,
 		documentText:     documentText,
+		extractors:       extractors,
 		params:           params,
 		trackerFactory:   trackerFactory,
 		logger:           logger,
@@ -138,7 +137,7 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 		ext := strings.ToLower(filepath.Ext(f.Path()))
 		relPath := relativeFilePath(f.Path(), clonedPath)
 
-		var textChunks chunking.TextChunks
+		var text string
 
 		if extraction.IsDocument(ext) {
 			if h.documentText == nil {
@@ -146,20 +145,10 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 				continue
 			}
 			diskPath := filepath.Join(clonedPath, relPath)
-			text, extractErr := h.documentText.Text(diskPath)
+			var extractErr error
+			text, extractErr = h.documentText.Text(diskPath)
 			if extractErr != nil {
 				h.logger.Warn().Str("path", f.Path()).Str("error", extractErr.Error()).Msg("failed to extract document text")
-				processed++
-				continue
-			}
-			if strings.TrimSpace(text) == "" {
-				processed++
-				continue
-			}
-			var chunkErr error
-			textChunks, chunkErr = chunking.NewTextChunks(text, h.params)
-			if chunkErr != nil {
-				h.logger.Warn().Str("path", f.Path()).Str("error", chunkErr.Error()).Msg("failed to chunk document")
 				processed++
 				continue
 			}
@@ -170,17 +159,25 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 				processed++
 				continue
 			}
-			if isBinary(content) {
+			var extractErr error
+			text, extractErr = h.extractors.For(ext).Text(content)
+			if extractErr != nil {
+				h.logger.Warn().Str("path", f.Path()).Str("error", extractErr.Error()).Msg("failed to extract text")
 				processed++
 				continue
 			}
-			var chunkErr error
-			textChunks, chunkErr = chunking.NewTextChunks(string(content), h.params)
-			if chunkErr != nil {
-				h.logger.Warn().Str("path", f.Path()).Str("error", chunkErr.Error()).Msg("failed to chunk file")
-				processed++
-				continue
-			}
+		}
+
+		if strings.TrimSpace(text) == "" {
+			processed++
+			continue
+		}
+
+		textChunks, chunkErr := chunking.NewTextChunks(text, h.params)
+		if chunkErr != nil {
+			h.logger.Warn().Str("path", f.Path()).Str("error", chunkErr.Error()).Msg("failed to chunk file")
+			processed++
+			continue
 		}
 
 		if err := h.persistChunks(ctx, textChunks, f, cp.CommitSHA(), repoIDStr); err != nil {
@@ -317,6 +314,8 @@ var indexableExtensions = map[string]bool{
 	".md": true, ".mdx": true, ".rst": true, ".adoc": true, ".tex": true,
 	// IDL / Schema
 	".proto": true, ".graphql": true, ".gql": true, ".thrift": true,
+	// Data
+	".csv": true,
 }
 
 func init() {
@@ -330,13 +329,4 @@ func init() {
 func isIndexable(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
 	return indexableExtensions[ext]
-}
-
-// isBinary returns true if the content contains null bytes in the first 8KB.
-func isBinary(content []byte) bool {
-	probe := content
-	if len(probe) > binaryProbeSize {
-		probe = probe[:binaryProbeSize]
-	}
-	return bytes.ContainsRune(probe, 0)
 }
