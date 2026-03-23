@@ -345,10 +345,13 @@ func New(opts ...Option) (*Client, error) {
 	if cfg.workerPollPeriod > 0 {
 		worker.WithPollPeriod(cfg.workerPollPeriod)
 	}
-	prescribedOps := cfg.prescribedOpsFactory(cfg.textProvider != nil)
-	if !cfg.explicitPipeline && cfg.textProvider == nil {
-		logger.Warn().Msg("enrichment endpoint not configured — LLM-based enrichments (summaries, architecture docs, commit descriptions, cookbooks, wiki) will be disabled; set ENRICHMENT_ENDPOINT_* environment variables to enable them")
+	if cfg.prescribedOpsFactory == nil {
+		cfg.prescribedOpsFactory = task.DefaultPrescribedOperations
+		if cfg.textProvider == nil {
+			logger.Warn().Msg("enrichment endpoint not configured — LLM-based enrichments (summaries, architecture docs, commit descriptions, cookbooks, wiki) will be disabled; set ENRICHMENT_ENDPOINT_* environment variables to enable them")
+		}
 	}
+	prescribedOps := cfg.prescribedOpsFactory(cfg.textProvider != nil)
 	periodicSync := service.NewPeriodicSync(cfg.periodicSync, repoStore, queue, prescribedOps, logger)
 
 	// Create enricher infrastructure (only if text provider is configured)
