@@ -11,7 +11,7 @@
 - `cmd/kodit/serve.go`: Builds a single global `ChunkParams` from config and passes it to `kodit.WithChunkParams(...)`.
 - `kodit.go` / `handlers.go`: The global `ChunkParams` is injected into the `ChunkFiles` handler once at startup and applied to every repository uniformly.
 - `infrastructure/persistence/models.go` (`RepositoryModel`): No chunk fields — it's a table with URI, paths, scan metadata only.
-- `infrastructure/api/v1/repositories.go`: CRUD endpoints for repositories (no update/PATCH endpoint currently).
+- `infrastructure/api/v1/repositories.go`: CRUD endpoints for repositories, plus sub-resources like `/{id}/tracking-config` (GET + PUT) for scoped configuration.
 
 ## Proposed Changes
 
@@ -33,11 +33,14 @@ Add optional chunk settings to the `Repository` domain object. Use pointer field
 
 Update the `RepositoryModel` ↔ `repository.Repository` mapper to include the new fields.
 
-### 4. API — PATCH endpoint (`infrastructure/api/v1/repositories.go`)
+### 4. API — `indexing-config` sub-resource (`infrastructure/api/v1/repositories.go`)
 
-Add `PATCH /{id}` route that accepts `chunk_size` and `chunk_overlap` as optional JSON fields. Validate that `chunk_overlap < chunk_size` and both are positive before saving.
+The codebase already has a `/{id}/tracking-config` sub-resource (GET + PUT) for repository-scoped configuration. Chunk settings follow the same pattern:
 
-Update the repository GET/List DTOs to include `chunk_size` and `chunk_overlap` (null when not set).
+- `GET /{id}/indexing-config` — returns current `chunk_size`, `chunk_overlap`, `chunk_min_size` (null fields mean the global default applies).
+- `PUT /{id}/indexing-config` — replaces all three fields. Validate `chunk_overlap < chunk_size` and all provided values are positive; return 400 otherwise. A null field clears the override and reverts to the global default.
+
+DTOs live in `infrastructure/api/v1/dto/` following the same shape as `TrackingConfigResponse` / `TrackingConfigUpdateRequest`.
 
 ### 5. Indexing handler (`application/handler/indexing/chunk_files.go`)
 
@@ -61,7 +64,7 @@ if repo.ChunkMinSize() != nil {
 - **Nullable pointer fields** over zero-value ints: allows distinguishing "user set 0" (invalid) from "not configured" (use global default).
 - **No automatic re-index on settings change**: changing chunk params mid-life would produce mixed-size chunks for the same repo, which is confusing. Users should delete existing index data and re-index.
 - **All three chunk params exposed**: `chunk_size`, `chunk_overlap`, and `chunk_min_size` are all configurable per-repo since all three affect indexing behaviour and are already present in `ChunkParams`.
-- **PATCH not PUT**: allows partial updates without requiring the full repository object.
+- **Sub-resource over PATCH on root**: chunk settings are exposed at `/{id}/indexing-config` (GET + PUT), matching the existing `/{id}/tracking-config` pattern. This keeps configuration concerns separated from the repository identity fields and is consistent with the rest of the API.
 
 ## Patterns Found in Codebase
 
