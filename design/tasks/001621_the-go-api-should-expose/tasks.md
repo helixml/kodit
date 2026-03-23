@@ -1,7 +1,7 @@
 # Implementation Tasks
 
-- [ ] Add named constructors `DefaultPrescribedOperations`, `RAGOnlyPrescribedOperations`, and `FullPrescribedOperations` to `domain/task/operation.go`
-- [ ] Remove `NewPrescribedOperations(examples, enrichments bool)` and migrate all call sites to the named constructors
+- [~] Add named constructors `DefaultPrescribedOperations`, `RAGOnlyPrescribedOperations`, and `FullPrescribedOperations` to `domain/task/operation.go`
+- [~] Remove `NewPrescribedOperations(examples, enrichments bool)` and migrate all call sites to the named constructors
 - [ ] Add `prescribedOpsFactory func(hasTextProvider bool) task.PrescribedOperations`, `requiresTextProvider bool`, and `explicitPipeline bool` fields to `clientConfig` in `options.go`; set `prescribedOpsFactory` default to `task.DefaultPrescribedOperations` in `newClientConfig()`
 - [ ] Implement `WithRAGPipeline() Option` in `options.go`
 - [ ] Implement `WithFullPipeline() Option` in `options.go`
