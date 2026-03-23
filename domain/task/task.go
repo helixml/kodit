@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"slices"
+	"strings"
 	"time"
 )
 
@@ -114,15 +116,14 @@ func (t Task) PayloadJSON() ([]byte, error) {
 }
 
 // createDedupKey creates a unique key for deduplication.
-// Format: "{operation}:{first_payload_value}"
+// Format: "{operation}:{val1}:{val2}:..." with values in sorted key order.
 func createDedupKey(operation Operation, payload map[string]any) string {
-	// Get the first value from payload
-	var firstVal any
-	for _, v := range payload {
-		firstVal = v
-		break
+	keys := slices.Sorted(maps.Keys(payload))
+	vals := make([]string, len(keys))
+	for i, k := range keys {
+		vals[i] = fmt.Sprintf("%v", payload[k])
 	}
-	return fmt.Sprintf("%s:%v", operation, firstVal)
+	return fmt.Sprintf("%s:%s", operation, strings.Join(vals, ":"))
 }
 
 // copyPayload creates a shallow copy of the payload map.
