@@ -1,12 +1,13 @@
 # Implementation Tasks
 
-- [ ] Add `PipelinePreset` type and constants (`pipelineDefault`, `PipelineRAGOnly`, `PipelineFull`) to `options.go`
-- [ ] Add `pipeline PipelinePreset` field to `clientConfig` struct in `options.go`
+- [ ] Add named constructors `DefaultPrescribedOperations`, `RAGOnlyPrescribedOperations`, and `FullPrescribedOperations` to `domain/task/operation.go`
+- [ ] Remove `NewPrescribedOperations(examples, enrichments bool)` and migrate all call sites to the named constructors
+- [ ] Add `prescribedOpsFactory func(hasTextProvider bool) task.PrescribedOperations`, `requiresTextProvider bool`, and `explicitPipeline bool` fields to `clientConfig` in `options.go`; set `prescribedOpsFactory` default to `task.DefaultPrescribedOperations` in `newClientConfig()`
 - [ ] Implement `WithRAGPipeline() Option` in `options.go`
 - [ ] Implement `WithFullPipeline() Option` in `options.go`
-- [ ] Replace the `enrichments := cfg.textProvider != nil` line in `kodit.go` `New()` with a switch on `cfg.pipeline` (including error for `PipelineFull` without a text provider)
-- [ ] Update the warning log so it only fires when the default preset is active and no text provider is configured (not when `WithRAGPipeline()` is explicitly chosen)
-- [ ] Add unit tests for `WithRAGPipeline()`: verify prescribed ops exclude all LLM operations
-- [ ] Add unit tests for `WithFullPipeline()`: verify it errors without a text provider
-- [ ] Add unit tests for backward compatibility: verify default preset is unchanged
+- [ ] Replace the `enrichments` boolean derivation and `task.NewPrescribedOperations` call in `kodit.go` `New()` with a validation check (`requiresTextProvider`) and a single `cfg.prescribedOpsFactory(cfg.textProvider != nil)` call
+- [ ] Update the warning log so it only fires when `!explicitPipeline && cfg.textProvider == nil`
+- [ ] Add unit tests: `WithRAGPipeline()` excludes all LLM operations from prescribed ops
+- [ ] Add unit tests: `WithFullPipeline()` errors when no text provider is configured
+- [ ] Add unit tests: default behaviour is unchanged (backward compatibility)
 - [ ] Update the package-level doc comment in `kodit.go` with a `WithRAGPipeline` usage example
