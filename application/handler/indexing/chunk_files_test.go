@@ -14,6 +14,7 @@ import (
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/infrastructure/chunking"
+	"github.com/helixml/kodit/infrastructure/extraction"
 	"github.com/helixml/kodit/infrastructure/persistence"
 	"github.com/helixml/kodit/internal/testdb"
 	"github.com/stretchr/testify/assert"
@@ -69,7 +70,7 @@ func TestChunkFiles_SkipsWhenEnrichmentsExist(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		&fakeGitAdapter{}, nil,
+		&fakeGitAdapter{}, nil, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -129,7 +130,7 @@ func TestChunkFiles_CreatesEnrichmentsForTextFiles(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		adapter, nil,
+		adapter, nil, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -222,7 +223,7 @@ func TestChunkFiles_SkipsBinaryFiles(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		adapter, nil,
+		adapter, nil, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -284,7 +285,7 @@ func TestChunkFiles_ContinuesOnFileContentError(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		adapter, nil,
+		adapter, nil, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -392,7 +393,7 @@ func TestChunkFiles_HandlesAbsoluteFilePaths(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		adapter, nil,
+		adapter, nil, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -498,7 +499,7 @@ func TestChunkFiles_OnlyIndexesSourceAndDocFiles(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		&fakeGitAdapter{files: adapterFiles}, nil,
+		&fakeGitAdapter{files: adapterFiles}, nil, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -556,7 +557,7 @@ func TestChunkFiles_SetsLanguageFromExtension(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		adapter, nil,
+		adapter, nil, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -615,7 +616,7 @@ func TestChunkFiles_PersistsLineRanges(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		adapter, nil,
+		adapter, nil, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 25, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -708,7 +709,7 @@ func TestChunkFiles_ExtractsDocumentFiles(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		&fakeGitAdapter{}, docText,
+		&fakeGitAdapter{}, docText, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -785,7 +786,7 @@ func TestChunkFiles_SkipsDocumentsWhenExtractorNil(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		&fakeGitAdapter{}, nil,
+		&fakeGitAdapter{}, nil, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -847,7 +848,7 @@ func TestChunkFiles_ContinuesOnDocumentExtractionError(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		&fakeGitAdapter{files: map[string][]byte{"good.go": goodContent}}, docText,
+		&fakeGitAdapter{files: map[string][]byte{"good.go": goodContent}}, docText, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -902,7 +903,7 @@ func TestChunkFiles_ParsesCSVFiles(t *testing.T) {
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		&fakeGitAdapter{files: map[string][]byte{"data.csv": csvContent}}, nil,
+		&fakeGitAdapter{files: map[string][]byte{"data.csv": csvContent}}, nil, extraction.NewExtractors(),
 		chunking.ChunkParams{Size: 1500, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,

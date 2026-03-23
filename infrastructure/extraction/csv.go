@@ -8,20 +8,27 @@ import (
 	"strings"
 )
 
-// maxCSVPreviewRows is the number of raw data rows included verbatim.
-const maxCSVPreviewRows = 5
-
-// ParseCSV converts CSV content into an indexable string.
+// CSVText converts CSV content into an indexable text representation.
 //
 // The output contains three sections joined by newlines:
 //  1. All column header names (if a header row is present).
 //  2. Deduplicated string values from every non-numeric column.
-//  3. The first five data rows written back as CSV.
+//  3. The first few data rows written back as CSV.
 //
 // A column is considered numeric when every non-empty value in that column
 // can be parsed as a float64. Columns with at least one non-numeric value are
 // treated as string columns.
-func ParseCSV(content []byte) (string, error) {
+type CSVText struct {
+	previewRows int
+}
+
+// NewCSVText creates a CSVText with default settings.
+func NewCSVText() *CSVText {
+	return &CSVText{previewRows: 5}
+}
+
+// Text converts CSV bytes into a searchable string.
+func (c *CSVText) Text(content []byte) (string, error) {
 	if len(bytes.TrimSpace(content)) == 0 {
 		return "", nil
 	}
@@ -41,11 +48,10 @@ func ParseCSV(content []byte) (string, error) {
 	headers := records[0]
 	dataRows := records[1:]
 
-	// Determine which columns are numeric by inspecting all data rows.
 	numCols := len(headers)
 	numericCol := make([]bool, numCols)
 	for i := range numericCol {
-		numericCol[i] = true // assume numeric until proven otherwise
+		numericCol[i] = true
 	}
 	for _, row := range dataRows {
 		for i := 0; i < numCols && i < len(row); i++ {
@@ -59,7 +65,6 @@ func ParseCSV(content []byte) (string, error) {
 		}
 	}
 
-	// Collect deduplicated values for each string column.
 	seen := make([]map[string]struct{}, numCols)
 	for i := range seen {
 		seen[i] = make(map[string]struct{})
@@ -78,15 +83,12 @@ func ParseCSV(content []byte) (string, error) {
 
 	var sb strings.Builder
 
-	// Section 1: headers.
 	sb.WriteString("Headers: ")
 	sb.WriteString(strings.Join(headers, " "))
 	sb.WriteByte('\n')
 
-	// Section 2: deduplicated string values.
 	var vals []string
-	for i, col := range headers {
-		_ = col
+	for i := range headers {
 		if numericCol[i] {
 			continue
 		}
@@ -100,10 +102,9 @@ func ParseCSV(content []byte) (string, error) {
 		sb.WriteByte('\n')
 	}
 
-	// Section 3: top-N data rows written back as CSV.
 	preview := dataRows
-	if len(preview) > maxCSVPreviewRows {
-		preview = preview[:maxCSVPreviewRows]
+	if len(preview) > c.previewRows {
+		preview = preview[:c.previewRows]
 	}
 	if len(preview) > 0 {
 		sb.WriteString("Top rows:\n")

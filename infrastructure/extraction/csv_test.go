@@ -7,8 +7,9 @@ import (
 	"github.com/helixml/kodit/infrastructure/extraction"
 )
 
-func TestParseCSV_EmptyContent(t *testing.T) {
-	result, err := extraction.ParseCSV([]byte(""))
+func TestCSVText_EmptyContent(t *testing.T) {
+	csv := extraction.NewCSVText()
+	result, err := csv.Text([]byte(""))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -17,8 +18,9 @@ func TestParseCSV_EmptyContent(t *testing.T) {
 	}
 }
 
-func TestParseCSV_WhitespaceOnly(t *testing.T) {
-	result, err := extraction.ParseCSV([]byte("   \n  "))
+func TestCSVText_WhitespaceOnly(t *testing.T) {
+	csv := extraction.NewCSVText()
+	result, err := csv.Text([]byte("   \n  "))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -27,9 +29,9 @@ func TestParseCSV_WhitespaceOnly(t *testing.T) {
 	}
 }
 
-func TestParseCSV_HeaderOnly(t *testing.T) {
-	csv := "name,age,city\n"
-	result, err := extraction.ParseCSV([]byte(csv))
+func TestCSVText_HeaderOnly(t *testing.T) {
+	csv := extraction.NewCSVText()
+	result, err := csv.Text([]byte("name,age,city\n"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -38,9 +40,9 @@ func TestParseCSV_HeaderOnly(t *testing.T) {
 	}
 }
 
-func TestParseCSV_StringColumnsIndexed(t *testing.T) {
-	csv := "name,city\nalice,london\nbob,paris\n"
-	result, err := extraction.ParseCSV([]byte(csv))
+func TestCSVText_StringColumnsIndexed(t *testing.T) {
+	csv := extraction.NewCSVText()
+	result, err := csv.Text([]byte("name,city\nalice,london\nbob,paris\n"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -52,18 +54,15 @@ func TestParseCSV_StringColumnsIndexed(t *testing.T) {
 	}
 }
 
-func TestParseCSV_NumericColumnsSkipped(t *testing.T) {
-	csv := "name,age,score\nalice,30,9.5\nbob,25,8.1\n"
-	result, err := extraction.ParseCSV([]byte(csv))
+func TestCSVText_NumericColumnsSkipped(t *testing.T) {
+	csv := extraction.NewCSVText()
+	result, err := csv.Text([]byte("name,age,score\nalice,30,9.5\nbob,25,8.1\n"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// name is a string column — should appear
 	if !strings.Contains(result, "alice") {
 		t.Errorf("expected 'alice' in result, got: %q", result)
 	}
-	// Numeric values should not appear in Values section
-	// They may appear in the Top rows section, so check the Values line specifically
 	lines := strings.Split(result, "\n")
 	for _, line := range lines {
 		if strings.HasPrefix(line, "Values:") {
@@ -74,14 +73,12 @@ func TestParseCSV_NumericColumnsSkipped(t *testing.T) {
 	}
 }
 
-func TestParseCSV_Deduplication(t *testing.T) {
-	// Only two distinct values: "active" and "inactive"
-	csv := "status\nactive\nactive\nactive\n"
-	result, err := extraction.ParseCSV([]byte(csv))
+func TestCSVText_Deduplication(t *testing.T) {
+	csv := extraction.NewCSVText()
+	result, err := csv.Text([]byte("status\nactive\nactive\nactive\n"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// "active" should appear only once in the Values section
 	lines := strings.Split(result, "\n")
 	for _, line := range lines {
 		if strings.HasPrefix(line, "Values:") {
@@ -99,9 +96,9 @@ func TestParseCSV_Deduplication(t *testing.T) {
 	}
 }
 
-func TestParseCSV_TopFiveRows(t *testing.T) {
-	csv := "name\nrow1\nrow2\nrow3\nrow4\nrow5\nrow6\nrow7\n"
-	result, err := extraction.ParseCSV([]byte(csv))
+func TestCSVText_TopFiveRows(t *testing.T) {
+	csv := extraction.NewCSVText()
+	result, err := csv.Text([]byte("name\nrow1\nrow2\nrow3\nrow4\nrow5\nrow6\nrow7\n"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -109,8 +106,6 @@ func TestParseCSV_TopFiveRows(t *testing.T) {
 		t.Fatalf("expected 'Top rows:' section, got: %q", result)
 	}
 
-	// The Top rows section is limited to 5 rows.
-	// Extract just the top rows section.
 	topIdx := strings.Index(result, "Top rows:")
 	topSection := result[topIdx:]
 	if strings.Contains(topSection, "row6") || strings.Contains(topSection, "row7") {
@@ -124,20 +119,18 @@ func TestParseCSV_TopFiveRows(t *testing.T) {
 	}
 }
 
-func TestParseCSV_MixedColumnsOnlyStringsInValues(t *testing.T) {
-	csv := "product,price,category\nwidget,9.99,gadget\ngizmo,14.50,gadget\ndongle,3.00,accessory\n"
-	result, err := extraction.ParseCSV([]byte(csv))
+func TestCSVText_MixedColumnsOnlyStringsInValues(t *testing.T) {
+	csv := extraction.NewCSVText()
+	result, err := csv.Text([]byte("product,price,category\nwidget,9.99,gadget\ngizmo,14.50,gadget\ndongle,3.00,accessory\n"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	lines := strings.Split(result, "\n")
 	for _, line := range lines {
 		if strings.HasPrefix(line, "Values:") {
-			// price column is numeric — values like "9.99" should not appear
 			if strings.Contains(line, "9.99") || strings.Contains(line, "14.50") {
 				t.Errorf("numeric price values in Values line: %q", line)
 			}
-			// string columns should appear
 			if !strings.Contains(line, "widget") || !strings.Contains(line, "gadget") {
 				t.Errorf("expected string values in Values line: %q", line)
 			}
@@ -145,9 +138,9 @@ func TestParseCSV_MixedColumnsOnlyStringsInValues(t *testing.T) {
 	}
 }
 
-func TestParseCSV_HeaderIncluded(t *testing.T) {
-	csv := "first_name,last_name,age\nalice,smith,30\n"
-	result, err := extraction.ParseCSV([]byte(csv))
+func TestCSVText_HeaderIncluded(t *testing.T) {
+	csv := extraction.NewCSVText()
+	result, err := csv.Text([]byte("first_name,last_name,age\nalice,smith,30\n"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
