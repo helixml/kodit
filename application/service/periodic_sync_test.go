@@ -45,20 +45,16 @@ func TestPeriodicSync_Enabled(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		tasks, _ := stores.tasks.Find(ctx)
-		return len(tasks) >= 2
+		syncOps := 0
+		for _, tsk := range tasks {
+			if tsk.Operation() == task.OperationSyncRepository {
+				syncOps++
+			}
+		}
+		return syncOps >= 2
 	}, time.Second, 5*time.Millisecond)
 
 	ps.Stop()
-
-	tasks, err := stores.tasks.Find(ctx)
-	require.NoError(t, err)
-	syncOps := 0
-	for _, tsk := range tasks {
-		if tsk.Operation() == task.OperationSyncRepository {
-			syncOps++
-		}
-	}
-	assert.GreaterOrEqual(t, syncOps, 2)
 }
 
 func TestPeriodicSync_Disabled(t *testing.T) {
