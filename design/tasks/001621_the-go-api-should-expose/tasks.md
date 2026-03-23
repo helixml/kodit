@@ -7,7 +7,7 @@
 - [x] Implement `WithFullPipeline() Option` in `options.go`
 - [x] Replace the `enrichments` boolean derivation and `task.NewPrescribedOperations` call in `kodit.go` `New()` with a validation check (`requiresTextProvider`) and a single `cfg.prescribedOpsFactory(cfg.textProvider != nil)` call
 - [x] Update the warning log so it only fires when `!explicitPipeline && cfg.textProvider == nil`
-- [~] Add unit tests: `WithRAGPipeline()` excludes all LLM operations from prescribed ops
-- [~] Add unit tests: `WithFullPipeline()` errors when no text provider is configured
-- [~] Add unit tests: default behaviour is unchanged (backward compatibility)
-- [ ] Update the package-level doc comment in `kodit.go` with a `WithRAGPipeline` usage example
+- [x] Add unit tests: `WithRAGPipeline()` excludes all LLM operations from prescribed ops
+- [x] Add unit tests: `WithFullPipeline()` errors when no text provider is configured
+- [x] Add unit tests: default behaviour is unchanged (backward compatibility)
+- [x] Update the package-level doc comment in `kodit.go` with a `WithRAGPipeline` usage example
