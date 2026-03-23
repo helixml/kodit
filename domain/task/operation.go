@@ -65,11 +65,31 @@ type PrescribedOperations struct {
 	enrichments bool
 }
 
-// NewPrescribedOperations creates a PrescribedOperations with the given settings.
-// When enrichments is false, LLM-dependent operations (summaries, architecture docs,
-// commit descriptions, cookbooks, wiki) are excluded from all workflows.
-func NewPrescribedOperations(examples bool, enrichments bool) PrescribedOperations {
-	return PrescribedOperations{examples: examples, enrichments: enrichments}
+// DefaultPrescribedOperations returns the standard operation set.
+// LLM enrichments are included only when a text provider is available,
+// preserving backward-compatible behaviour.
+func DefaultPrescribedOperations(hasTextProvider bool) PrescribedOperations {
+	return PrescribedOperations{enrichments: hasTextProvider}
+}
+
+// RAGOnlyPrescribedOperations returns the operation set for RAG use cases:
+// snippet extraction, BM25 indexing, code embeddings, and AST-based API docs.
+// All LLM enrichments are excluded regardless of provider configuration.
+func RAGOnlyPrescribedOperations() PrescribedOperations {
+	return PrescribedOperations{enrichments: false}
+}
+
+// FullPrescribedOperations returns the complete operation set including all
+// LLM enrichments. The caller must ensure a text provider is configured.
+func FullPrescribedOperations() PrescribedOperations {
+	return PrescribedOperations{enrichments: true}
+}
+
+// RequiresTextProvider reports whether this operation set needs a text
+// generation provider. Callers should fail fast when this returns true and no
+// provider is configured.
+func (p PrescribedOperations) RequiresTextProvider() bool {
+	return p.enrichments
 }
 
 // All returns every operation that appears in any prescribed workflow.

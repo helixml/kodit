@@ -29,6 +29,26 @@
 //	for _, snippet := range results.Snippets() {
 //	    fmt.Println(snippet.Path(), snippet.Name())
 //	}
+//
+// # Pipeline presets
+//
+// By default, kodit runs all indexing operations including LLM enrichments when
+// a text provider is configured. Use [WithRAGPipeline] to skip LLM enrichments
+// and run only the operations needed for retrieval-augmented generation:
+//
+//	client, err := kodit.New(
+//	    kodit.WithSQLite(".kodit/data.db"),
+//	    kodit.WithRAGPipeline(), // skip wiki, summaries, architecture docs, etc.
+//	)
+//
+// Use [WithFullPipeline] to explicitly require all enrichments (returns an error
+// if no text provider is configured):
+//
+//	client, err := kodit.New(
+//	    kodit.WithSQLite(".kodit/data.db"),
+//	    kodit.WithOpenAI(os.Getenv("OPENAI_API_KEY")),
+//	    kodit.WithFullPipeline(),
+//	)
 package kodit
 
 import (
@@ -138,6 +158,15 @@ func New(opts ...Option) (*Client, error) {
 
 	if cfg.database == databaseUnset {
 		return nil, ErrNoDatabase
+	}
+
+	// Early pipeline validation: if the prescribed ops require a text provider,
+	// fail fast before any expensive setup (DB open, model load, etc.).
+	if cfg.prescribedOpsFactory != nil && cfg.textProvider == nil {
+		probe := cfg.prescribedOpsFactory(false)
+		if probe.RequiresTextProvider() {
+			return nil, fmt.Errorf("WithFullPipeline requires a text provider (WithOpenAI, WithAnthropic, or WithTextProvider)")
+		}
 	}
 
 	// Set up logger
@@ -321,10 +350,15 @@ func New(opts ...Option) (*Client, error) {
 	if cfg.workerPollPeriod > 0 {
 		worker.WithPollPeriod(cfg.workerPollPeriod)
 	}
-	enrichments := cfg.textProvider != nil
-	prescribedOps := task.NewPrescribedOperations(false, enrichments)
-	if !enrichments {
-		logger.Warn().Msg("enrichment endpoint not configured — LLM-based enrichments (summaries, architecture docs, commit descriptions, cookbooks, wiki) will be disabled; set ENRICHMENT_ENDPOINT_* environment variables to enable them")
+	if cfg.prescribedOpsFactory == nil {
+		cfg.prescribedOpsFactory = task.DefaultPrescribedOperations
+		if cfg.textProvider == nil {
+			logger.Warn().Msg("enrichment endpoint not configured — LLM-based enrichments (summaries, architecture docs, commit descriptions, cookbooks, wiki) will be disabled; set ENRICHMENT_ENDPOINT_* environment variables to enable them")
+		}
+	}
+	prescribedOps := cfg.prescribedOpsFactory(cfg.textProvider != nil)
+	if prescribedOps.RequiresTextProvider() && cfg.textProvider == nil {
+		return nil, fmt.Errorf("WithFullPipeline requires a text provider (WithOpenAI, WithAnthropic, or WithTextProvider)")
 	}
 	periodicSync := service.NewPeriodicSync(cfg.periodicSync, repoStore, queue, prescribedOps, logger)
 

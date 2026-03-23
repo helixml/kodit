@@ -136,6 +136,47 @@ func TestClient_Search_AfterClose_ReturnsError(t *testing.T) {
 	assert.ErrorIs(t, err, kodit.ErrClientClosed)
 }
 
+func TestWithFullPipeline_RequiresTextProvider(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	_, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithFullPipeline(),
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "WithFullPipeline requires a text provider")
+}
+
+func TestWithRAGPipeline_WorksWithoutTextProvider(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	client, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithRAGPipeline(),
+		kodit.WithEmbeddingProvider(&stubEmbedder{}),
+		kodit.WithWorkerPollPeriod(unitTestPollPeriod),
+	)
+	require.NoError(t, err)
+	defer func() { _ = client.Close() }()
+}
+
+func TestWithRAGPipeline_WorksWithTextProvider(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	// Even with a text provider set, RAG pipeline should not require enrichment handlers.
+	client, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithRAGPipeline(),
+		kodit.WithEmbeddingProvider(&stubEmbedder{}),
+		kodit.WithWorkerPollPeriod(unitTestPollPeriod),
+	)
+	require.NoError(t, err)
+	defer func() { _ = client.Close() }()
+}
+
 func TestWithDataDir_CreatesDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 	dataDir := filepath.Join(tmpDir, "custom_data")

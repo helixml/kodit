@@ -22,7 +22,7 @@ func newRepositoryTestDeps(t *testing.T) repositoryTestDeps {
 	t.Helper()
 	stores := newTestStores(t)
 	queue := NewQueue(stores.tasks, zerolog.Nop())
-	prescribedOps := task.NewPrescribedOperations(true, true)
+	prescribedOps := task.FullPrescribedOperations()
 	svc := NewRepository(stores.repos, stores.commits, stores.branches, stores.tags, queue, prescribedOps, zerolog.Nop())
 	return repositoryTestDeps{service: svc, stores: stores}
 }
