@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/search"
+	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/chunking"
 	"github.com/helixml/kodit/infrastructure/provider"
 	"github.com/helixml/kodit/internal/config"
@@ -45,6 +46,11 @@ type clientConfig struct {
 	periodicSync           config.PeriodicSyncConfig
 	chunkParams            chunking.ChunkParams
 	closers                []io.Closer
+
+	// Pipeline configuration
+	prescribedOpsFactory func(hasTextProvider bool) task.PrescribedOperations
+	requiresTextProvider bool // set by WithFullPipeline to enforce validation
+	explicitPipeline     bool // true when any WithXxxPipeline option was set
 }
 
 // newClientConfig creates a clientConfig with defaults from internal/config.
@@ -60,6 +66,7 @@ func newClientConfig() *clientConfig {
 		enricherParallelism:   1,
 		periodicSync:          config.NewPeriodicSyncConfig(),
 		chunkParams:           chunking.DefaultChunkParams(),
+		prescribedOpsFactory:  task.DefaultPrescribedOperations,
 	}
 }
 
@@ -260,5 +267,31 @@ func WithChunkParams(params chunking.ChunkParams) Option {
 func WithCloser(c io.Closer) Option {
 	return func(cfg *clientConfig) {
 		cfg.closers = append(cfg.closers, c)
+	}
+}
+
+// WithRAGPipeline configures the indexing pipeline for RAG use cases.
+// Snippet extraction, BM25 indexing, code embeddings, and AST-based API docs
+// run. All LLM enrichments (commit descriptions, architecture docs, database
+// schema, cookbook, wiki) are skipped even if a text provider is configured.
+func WithRAGPipeline() Option {
+	return func(c *clientConfig) {
+		c.prescribedOpsFactory = func(_ bool) task.PrescribedOperations {
+			return task.RAGOnlyPrescribedOperations()
+		}
+		c.explicitPipeline = true
+	}
+}
+
+// WithFullPipeline runs all indexing operations including LLM enrichments.
+// A text provider must be configured or New() returns an error.
+// This is the default when a text provider is configured.
+func WithFullPipeline() Option {
+	return func(c *clientConfig) {
+		c.prescribedOpsFactory = func(_ bool) task.PrescribedOperations {
+			return task.FullPrescribedOperations()
+		}
+		c.requiresTextProvider = true
+		c.explicitPipeline = true
 	}
 }

@@ -90,7 +90,7 @@ func TestScanAndIndexCommit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ops := NewPrescribedOperations(tt.examples, tt.enrichments).ScanAndIndexCommit()
+			ops := PrescribedOperations{examples: tt.examples, enrichments: tt.enrichments}.ScanAndIndexCommit()
 			set := operationSet(ops)
 			for _, op := range tt.wantPresent {
 				assert.Contains(t, set, op, "expected %s to be present", op)
@@ -174,7 +174,7 @@ func TestIndexCommit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ops := NewPrescribedOperations(tt.examples, tt.enrichments).IndexCommit()
+			ops := PrescribedOperations{examples: tt.examples, enrichments: tt.enrichments}.IndexCommit()
 			set := operationSet(ops)
 			for _, op := range tt.wantPresent {
 				assert.Contains(t, set, op, "expected %s to be present", op)
@@ -249,7 +249,7 @@ func TestRescanCommit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ops := NewPrescribedOperations(tt.examples, tt.enrichments).RescanCommit()
+			ops := PrescribedOperations{examples: tt.examples, enrichments: tt.enrichments}.RescanCommit()
 			set := operationSet(ops)
 			for _, op := range tt.wantPresent {
 				assert.Contains(t, set, op, "expected %s to be present", op)
@@ -273,7 +273,7 @@ func TestPublicAPIDocsAlwaysPresent(t *testing.T) {
 	}
 
 	for _, c := range combinations {
-		p := NewPrescribedOperations(c.examples, c.enrichments)
+		p := PrescribedOperations{examples: c.examples, enrichments: c.enrichments}
 
 		assert.True(t, contains(p.ScanAndIndexCommit(), OperationCreatePublicAPIDocsForCommit),
 			"ScanAndIndexCommit(examples=%v, enrichments=%v)", c.examples, c.enrichments)
@@ -285,7 +285,7 @@ func TestPublicAPIDocsAlwaysPresent(t *testing.T) {
 }
 
 func TestAllAggregatesWorkflows(t *testing.T) {
-	p := NewPrescribedOperations(true, true)
+	p := FullPrescribedOperations()
 	all := p.All()
 	set := operationSet(all)
 
