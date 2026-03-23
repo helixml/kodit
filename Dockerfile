@@ -40,7 +40,7 @@ CMD ["air", "-c", ".air.toml"]
 # Model stage — downloads and converts the embedding model to ONNX format
 # Uses debian-slim variant (not the default distroless) because the Python
 # ML dependencies (torch, onnxruntime) need system libraries and a shell.
-FROM ghcr.io/astral-sh/uv:debian-slim@sha256:4e9cd092540ed63d73fc3b1918d2d5510c7030cdea1c07105be816e2654b6952 AS model
+FROM ghcr.io/astral-sh/uv:debian-slim@sha256:3c13cc639ea813f44a375ce679c99b7fbd37c67d902c0b22ef900c1985742313 AS model
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 COPY cmd/download-model/convert-model.py ./convert-model.py
