@@ -22,6 +22,7 @@ Add nullable columns to `RepositoryModel`. GORM AutoMigrate will add them automa
 ```go
 ChunkSize    *int `gorm:"column:chunk_size"`
 ChunkOverlap *int `gorm:"column:chunk_overlap"`
+ChunkMinSize *int `gorm:"column:chunk_min_size"`
 ```
 
 ### 2. Domain model (`domain/repository/repository.go`)
@@ -50,13 +51,16 @@ if repo.ChunkSize() != nil {
 if repo.ChunkOverlap() != nil {
     params.Overlap = *repo.ChunkOverlap()
 }
+if repo.ChunkMinSize() != nil {
+    params.MinSize = *repo.ChunkMinSize()
+}
 ```
 
 ## Key Decisions
 
 - **Nullable pointer fields** over zero-value ints: allows distinguishing "user set 0" (invalid) from "not configured" (use global default).
 - **No automatic re-index on settings change**: changing chunk params mid-life would produce mixed-size chunks for the same repo, which is confusing. Users should delete existing index data and re-index.
-- **No `chunk_min_size` exposed for now**: it's an edge-case tuning parameter; exposing only `chunk_size` and `chunk_overlap` matches the user request and keeps the surface small.
+- **All three chunk params exposed**: `chunk_size`, `chunk_overlap`, and `chunk_min_size` are all configurable per-repo since all three affect indexing behaviour and are already present in `ChunkParams`.
 - **PATCH not PUT**: allows partial updates without requiring the full repository object.
 
 ## Patterns Found in Codebase
