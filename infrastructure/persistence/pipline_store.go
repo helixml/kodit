@@ -53,7 +53,6 @@ type StepMapper struct{}
 func (m StepMapper) ToDomain(e models.Step) repository.Step {
 	return repository.ReconstructStep(
 		int64(e.ID),
-		int64(e.PipelineID),
 		e.Name,
 		e.Kind,
 		e.CreatedAt,
@@ -64,9 +63,8 @@ func (m StepMapper) ToDomain(e models.Step) repository.Step {
 // ToModel converts a domain Step to a models.Step.
 func (m StepMapper) ToModel(s repository.Step) models.Step {
 	step := models.Step{
-		PipelineID: uint(s.PipelineID()),
-		Name:       s.Name(),
-		Kind:       s.Kind(),
+		Name: s.Name(),
+		Kind: s.Kind(),
 	}
 	if s.ID() != 0 {
 		step.ID = uint(s.ID())
@@ -85,6 +83,46 @@ type StepStore struct {
 func NewStepStore(db database.Database) StepStore {
 	return StepStore{
 		Repository: database.NewRepository(db, StepMapper{}, "step"),
+	}
+}
+
+// PipelineStepMapper maps between domain PipelineStep and persistence models.
+type PipelineStepMapper struct{}
+
+// ToDomain converts a models.PipelineStep to a domain PipelineStep.
+func (m PipelineStepMapper) ToDomain(e models.PipelineStep) repository.PipelineStep {
+	return repository.ReconstructPipelineStep(
+		int64(e.ID),
+		int64(e.PipelineID),
+		int64(e.StepID),
+		e.CreatedAt,
+		e.UpdatedAt,
+	)
+}
+
+// ToModel converts a domain PipelineStep to a models.PipelineStep.
+func (m PipelineStepMapper) ToModel(ps repository.PipelineStep) models.PipelineStep {
+	assoc := models.PipelineStep{
+		PipelineID: uint(ps.PipelineID()),
+		StepID:     uint(ps.StepID()),
+	}
+	if ps.ID() != 0 {
+		assoc.ID = uint(ps.ID())
+		assoc.CreatedAt = ps.CreatedAt()
+		assoc.UpdatedAt = time.Now()
+	}
+	return assoc
+}
+
+// PipelineStepStore implements repository.PipelineStepStore using GORM.
+type PipelineStepStore struct {
+	database.Repository[repository.PipelineStep, models.PipelineStep]
+}
+
+// NewPipelineStepStore creates a new PipelineStepStore.
+func NewPipelineStepStore(db database.Database) PipelineStepStore {
+	return PipelineStepStore{
+		Repository: database.NewRepository(db, PipelineStepMapper{}, "pipeline step"),
 	}
 }
 

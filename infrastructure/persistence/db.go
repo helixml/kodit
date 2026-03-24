@@ -128,6 +128,7 @@ func AutoMigrate(db database.Database) error {
 		&TaskStatusModel{},
 		&models.Pipeline{},
 		&models.Step{},
+		&models.PipelineStep{},
 		&models.StepDependency{},
 	); err != nil {
 		return err
@@ -222,6 +223,7 @@ func allModels() []interface{} {
 		&TaskStatusModel{},
 		&models.Pipeline{},
 		&models.Step{},
+		&models.PipelineStep{},
 		&models.StepDependency{},
 	}
 }
