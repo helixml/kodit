@@ -191,6 +191,23 @@ func probeCount(rows int64) int {
 	return max(int(math.Sqrt(float64(lists))), 10)
 }
 
+// FindAll returns all embeddings that match the given search filters.
+// Repository filtering is applied via enrichment association JOINs.
+func (s *VectorChordEmbeddingStore) FindAll(ctx context.Context, filters search.Filters) ([]search.Embedding, error) {
+	db := database.ApplySearchFilters(s.DB(ctx).Table(s.Table()), filters)
+
+	var models []PgEmbeddingModel
+	if err := db.Find(&models).Error; err != nil {
+		return nil, fmt.Errorf("find all embeddings: %w", err)
+	}
+
+	result := make([]search.Embedding, len(models))
+	for i, m := range models {
+		result[i] = search.NewEmbedding(m.SnippetID, m.Embedding.Floats())
+	}
+	return result, nil
+}
+
 // Search performs vector similarity search within a transaction so that
 // the vchordrq.probes session variable is visible to the query.
 func (s *VectorChordEmbeddingStore) Search(ctx context.Context, options ...repository.Option) ([]search.Result, error) {

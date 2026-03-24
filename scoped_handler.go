@@ -37,6 +37,7 @@ func NewScopedMCPHandler(client *Client, repoIDs []int64) http.Handler {
 		fileLister,
 		client.Files,
 		grepper,
+		client.Duplicates,
 		"1.0.0",
 		client.logger,
 	)

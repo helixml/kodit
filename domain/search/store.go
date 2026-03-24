@@ -14,6 +14,10 @@ type EmbeddingStore interface {
 	// Find retrieves embeddings matching the given options.
 	Find(ctx context.Context, options ...repository.Option) ([]Embedding, error)
 
+	// FindAll retrieves all embeddings matching the given search filters,
+	// including repository source filtering via enrichment association JOINs.
+	FindAll(ctx context.Context, filters Filters) ([]Embedding, error)
+
 	// Search performs vector similarity search using options.
 	// Embedding must be passed via WithEmbedding.
 	Search(ctx context.Context, options ...repository.Option) ([]Result, error)

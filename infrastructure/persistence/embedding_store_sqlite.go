@@ -115,6 +115,20 @@ func (s *SQLiteEmbeddingStore) Search(ctx context.Context, options ...repository
 	return results, nil
 }
 
+// FindAll returns all embeddings that match the given search filters.
+// Repository filtering is applied via enrichment association JOINs.
+func (s *SQLiteEmbeddingStore) FindAll(ctx context.Context, filters search.Filters) ([]search.Embedding, error) {
+	vectors, err := s.loadVectors(ctx, search.WithFilters(filters))
+	if err != nil {
+		return nil, err
+	}
+	result := make([]search.Embedding, len(vectors))
+	for i, v := range vectors {
+		result[i] = search.NewEmbedding(v.snippetID, v.embedding)
+	}
+	return result, nil
+}
+
 // loadVectors loads embedding vectors from the database using GORM.
 func (s *SQLiteEmbeddingStore) loadVectors(ctx context.Context, options ...repository.Option) ([]StoredVector, error) {
 	var entities []SQLiteEmbeddingModel
