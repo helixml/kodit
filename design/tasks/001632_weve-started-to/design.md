@@ -109,12 +109,27 @@ queue.EnqueueOperations(ctx, repoID, ops)
 
 ## API Layer
 
-### New routes (infrastructure/api/v1/repositories.go)
+### Repository creation — preset at creation time
+
+`RepositoryCreateAttributes` DTO gains an optional field:
+
+```go
+PipelinePreset string `json:"pipeline_preset,omitempty"` // "rag-only" | "full" | "default"; default when omitted
+```
+
+`RepositoryAddParams` (application service) gains a matching field:
+
+```go
+PipelinePreset string // resolved to a PipelineConfig before the first task is enqueued
+```
+
+In the `Add` service method, after constructing the `Repository`, resolve the preset to a `PipelineConfig`, set it with `WithPipelineConfig`, and persist it — all before calling `EnqueueOperations`. This guarantees the pipeline is in place before any worker picks up the clone task.
+
+### New config routes (infrastructure/api/v1/repositories.go)
 
 ```
-GET  /api/v1/repositories/{id}/config/pipeline        → GetPipelineConfig
-PUT  /api/v1/repositories/{id}/config/pipeline        → UpdatePipelineConfig
-POST /api/v1/repositories/{id}/config/pipeline/init   → InitPipelineConfig
+GET  /api/v1/repositories/{id}/config/pipeline   → GetPipelineConfig
+PUT  /api/v1/repositories/{id}/config/pipeline   → UpdatePipelineConfig
 ```
 
 ### GET response
@@ -135,17 +150,13 @@ POST /api/v1/repositories/{id}/config/pipeline/init   → InitPipelineConfig
 Request body: `{"steps": ["kodit.commit.extract_snippets", ...]}`.
 Validates via `PipelineConfig.Validate()`. Returns updated config on success; 400 with error message on invalid input.
 
-### POST /init request
-```json
-{ "preset": "rag-only" }
-```
-Valid values: `"rag-only"`, `"full"`, `"default"`. Returns 400 if `full` is requested and no text provider is configured.
-
 ---
 
 ## Key Design Decisions
 
 **Why store as JSON text, not a separate table?** A pipeline config is a small ordered list (≤20 items). A join table would add schema complexity for no query benefit — we always load the full list with the repository.
+
+**Why move the preset to repository creation rather than a separate `/init` endpoint?** Setting the pipeline after creation creates a race: the worker can dequeue and begin the clone task before the client posts the preset, resulting in the repository being processed with the wrong steps. Embedding the preset in `POST /repositories` ensures the config is persisted atomically before the first task is enqueued.
 
 **Why keep `PrescribedOperations`?** It remains useful as a factory for generating sensible defaults and for generating the "candidate" operation list per action type (scan vs rescan vs index). `PipelineConfig.Filter` then narrows that candidate list. This avoids duplicating the sequencing logic.
 

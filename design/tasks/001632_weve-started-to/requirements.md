@@ -24,11 +24,13 @@ As a Go API user, I want to PUT a new set of pipeline steps for a repository so 
 - The API rejects configurations where a step's required dependency is absent (400, with an error message naming the missing dependency).
 - Infrastructure steps (clone, sync, scan) cannot be removed (400 if omitted).
 
-### US3 — Initialise with a preset
-As a Go API user, I want to POST a preset name to reset a repository's pipeline so that I can quickly switch to RAG-only or full-enrichment mode.
+### US3 — Select a preset at repository creation time
+As a Go API user, I want to specify a pipeline preset when creating a repository so that the correct steps are active before any processing begins.
 
 **Acceptance criteria:**
-- `POST /api/v1/repositories/{id}/config/pipeline/init` with `{"preset": "rag-only" | "full" | "default"}` replaces the pipeline with the corresponding preset.
+- `POST /api/v1/repositories` accepts an optional `pipeline_preset` field in the request body: `"rag-only"`, `"full"`, or `"default"` (omitting the field is equivalent to `"default"`).
+- The pipeline config derived from the preset is persisted atomically with repository creation, before any task is enqueued.
 - `rag-only`: clone, sync, scan, extract-snippets, BM25, code-embeddings.
-- `full`: all operations (requires text provider; returns 400 if none configured).
-- `default`: same as server startup default (enrichments iff text provider present).
+- `full`: all operations (returns 400 if no text provider is configured).
+- `default`: enrichments included iff a text provider is present.
+- An unknown preset value returns 400.

@@ -17,14 +17,16 @@
 
 ## API
 
+- [ ] Add `pipeline_preset` field (`string`, optional) to `RepositoryCreateAttributes` DTO (`infrastructure/api/v1/dto/repository.go`) and `RepositoryAddParams` (`application/service/repository.go`)
+- [ ] In `RepositoryService.Add`, resolve the preset to a `PipelineConfig` (error on unknown/unsupported preset) and call `WithPipelineConfig` on the repository before the first `EnqueueOperations` call
 - [ ] Add `GetPipelineConfig` handler — load repo, return `{"steps": [...]}` JSON
 - [ ] Add `UpdatePipelineConfig` handler — parse `{"steps": [...]}`, call `ReconstructPipelineConfig`, call `Validate`, save repo
-- [ ] Add `InitPipelineConfig` handler — parse `{"preset": "..."}`, build config via the appropriate constructor, validate `full` requires text provider, save repo
-- [ ] Register three new routes in `infrastructure/api/api_server.go` (or `repositories.go` route group): `GET`, `PUT`, `POST /init` under `/{id}/config/pipeline`
+- [ ] Register two new routes in the `/{id}/config` route group: `GET /pipeline` and `PUT /pipeline`
 
 ## Tests
 
 - [ ] Unit tests for `PipelineConfig.Validate()`: missing dependency, removed core step, unknown operation, valid config
 - [ ] Unit tests for `PipelineConfig.Filter()`: returns intersection in correct order
 - [ ] Unit tests for preset constructors: verify step sets match expected operations
-- [ ] Integration/handler tests for the three new API endpoints (happy path + validation errors)
+- [ ] Integration/handler tests for the two new pipeline config endpoints (happy path + validation errors)
+- [ ] Test that `POST /repositories` with `pipeline_preset` persists the config before any task is enqueued
