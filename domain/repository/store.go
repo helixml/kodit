@@ -9,6 +9,7 @@ type Store[T any] interface {
 	Count(ctx context.Context, options ...Option) (int64, error)
 	Save(ctx context.Context, entity T) (T, error)
 	Delete(ctx context.Context, entity T) error
+	DeleteBy(ctx context.Context, options ...Option) error
 }
 
 // RepositoryStore defines the interface for Repository persistence.

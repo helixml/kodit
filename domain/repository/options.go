@@ -57,6 +57,11 @@ func WithStepID(id int64) Option {
 	return WithCondition("step_id", id)
 }
 
+// WithStepIDIn filters by the "step_id" column using IN.
+func WithStepIDIn(ids []int64) Option {
+	return WithConditionIn("step_id", ids)
+}
+
 // WithScanDueBefore filters repositories whose last scan was before the given time (or never scanned).
 func WithScanDueBefore(t time.Time) Option {
 	return WithWhere("last_scanned_at IS NULL OR last_scanned_at < ?", t)

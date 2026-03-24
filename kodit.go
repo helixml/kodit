@@ -99,6 +99,7 @@ type Client struct {
 	Tracking     *service.Tracking
 	Search       *service.Search
 	Grep         *service.Grep
+	Pipelines    *service.Pipeline
 
 	// MCPServer describes the MCP server's tools and instructions.
 	MCPServer MCPServer
@@ -240,6 +241,10 @@ func New(opts ...Option) (*Client, error) {
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
 	lineRangeStore := persistence.NewChunkLineRangeStore(db)
+	pipelineStore := persistence.NewPipelineStore(db)
+	stepStore := persistence.NewStepStore(db)
+	pipelineStepStore := persistence.NewPipelineStepStore(db)
+	stepDependencyStore := persistence.NewStepDependencyStore(db)
 	taskStore := persistence.NewTaskStore(db)
 	statusStore := persistence.NewStatusStore(db)
 
@@ -436,6 +441,7 @@ func New(opts ...Option) (*Client, error) {
 	client.Tracking = trackingSvc
 	client.Search = service.NewSearch(domainEmbedder, textEmbeddingStore, codeEmbeddingStore, bm25Store, enrichmentStore, &client.closed, logger)
 	client.Grep = service.NewGrep(repoStore, commitStore, gitAdapter)
+	client.Pipelines = service.NewPipeline(pipelineStore, stepStore, pipelineStepStore, stepDependencyStore)
 
 	// Register task handlers
 	if err := client.registerHandlers(); err != nil {
