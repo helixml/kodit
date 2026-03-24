@@ -32,20 +32,20 @@
 
 ## MCP Tool
 
-- [ ] Add `kodit_find_duplicates` tool definition to `internal/mcp/catalog.go` with params: `repo_url` (required string), `threshold` (optional number), `limit` (optional number)
-- [ ] Add `DuplicateFinder` interface to `internal/mcp/server.go`
-- [ ] Add `duplicateFinder DuplicateFinder` field to `Server` struct; update `NewServer()` signature
-- [ ] Implement `handleFindDuplicates()` handler — resolve repo URL to ID, call service, marshal pairs to JSON
-- [ ] Register handler in `registerTools()`
+- [x] Add `kodit_find_duplicates` tool definition to `internal/mcp/catalog.go` with params: `repo_url` (required string), `threshold` (optional number), `limit` (optional number)
+- [x] Add `DuplicateFinder` interface to `internal/mcp/server.go`
+- [x] Add `duplicateFinder DuplicateFinder` field to `Server` struct; update `NewServer()` signature
+- [x] Implement `handleFindDuplicates()` handler — resolve repo URL to ID, call service, marshal pairs to JSON
+- [x] Register handler in `registerTools()`
 
 ## Wiring
 
-- [ ] Add `Duplicates *service.DuplicateSearch` to `kodit.Client` struct in `kodit.go`
-- [ ] Instantiate and wire `service.NewDuplicateSearch(codeEmbeddingStore, enrichmentStore, logger)` in `kodit.go`
-- [ ] Pass `client.Duplicates` to `NewSearchRouter()` and `mcp.NewServer()`
+- [x] Add `Duplicates *service.DuplicateSearch` to `kodit.Client` struct in `kodit.go`
+- [x] Instantiate and wire `service.NewDuplicateSearch(codeEmbeddingStore, logger)` in `kodit.go`
+- [x] Pass `client.Duplicates` to `NewSearchRouter()` and `mcp.NewServer()`
 
 ## Validation & Final Checks
 
-- [ ] Run full test suite: `make check`
+- [x] Run full test suite: `make test PKG=./...` — all pass
 - [ ] Manually test API with `curl` against `localhost:8080` (see design.md manual test plan)
 - [ ] Verify MCP tool is listed in `client.MCPServer.Tools()`
