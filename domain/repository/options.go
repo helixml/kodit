@@ -47,6 +47,16 @@ func WithPath(path string) Option {
 	return WithCondition("path", path)
 }
 
+// WithPipelineID filters by the "pipeline_id" column.
+func WithPipelineID(id int64) Option {
+	return WithCondition("pipeline_id", id)
+}
+
+// WithStepID filters by the "step_id" column.
+func WithStepID(id int64) Option {
+	return WithCondition("step_id", id)
+}
+
 // WithScanDueBefore filters repositories whose last scan was before the given time (or never scanned).
 func WithScanDueBefore(t time.Time) Option {
 	return WithWhere("last_scanned_at IS NULL OR last_scanned_at < ?", t)

@@ -47,3 +47,13 @@ type FileStore interface {
 type PipelineStore interface {
 	Store[Pipeline]
 }
+
+// StepStore defines the interface for Step persistence.
+type StepStore interface {
+	Store[Step]
+}
+
+// StepDependencyStore defines the interface for StepDependency persistence.
+type StepDependencyStore interface {
+	Store[StepDependency]
+}

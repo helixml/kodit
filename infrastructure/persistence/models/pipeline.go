@@ -1,23 +1,22 @@
 package models
 
-// Pipeline represents a processing pipeline for a repository.
+// Pipeline represents a processing pipeline.
 type Pipeline struct {
 	Base
-	RepoID int64  `gorm:"uniqueIndex;not null"`
-	Steps  []Step `gorm:"foreignKey:PipelineID;constraint:OnDelete:CASCADE"`
+	Name string `gorm:"uniqueIndex;size:255;not null"`
 }
 
 // Step represents a single step in a pipeline.
 type Step struct {
 	Base
-	PipelineID   uint             `gorm:"index;not null"`
-	Kind         string           `gorm:"size:100;not null"`
-	Dependencies []StepDependency `gorm:"foreignKey:StepID;constraint:OnDelete:CASCADE"`
+	PipelineID uint   `gorm:"index;not null"`
+	Name       string `gorm:"size:255;not null"`
+	Kind       string `gorm:"size:100;not null"`
 }
 
 // StepDependency links a step to another step it depends on.
 type StepDependency struct {
 	Base
-	StepID      uint `gorm:"not null"`
+	StepID      uint `gorm:"index;not null"`
 	DependsOnID uint `gorm:"index;not null"`
 }

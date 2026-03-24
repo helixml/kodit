@@ -2,32 +2,29 @@ package repository
 
 import "time"
 
-// Pipeline represents a processing pipeline for a repository.
+// Pipeline represents a processing pipeline.
 type Pipeline struct {
 	id        int64
-	repoID    int64
-	steps     []Step
+	name      string
 	createdAt time.Time
 	updatedAt time.Time
 }
 
-// NewPipeline creates a new Pipeline for the given repository.
-func NewPipeline(repoID int64, steps []Step) Pipeline {
+// NewPipeline creates a new Pipeline with the given name.
+func NewPipeline(name string) Pipeline {
 	now := time.Now()
 	return Pipeline{
-		repoID:    repoID,
-		steps:     steps,
+		name:      name,
 		createdAt: now,
 		updatedAt: now,
 	}
 }
 
 // ReconstructPipeline rebuilds a Pipeline from persisted data.
-func ReconstructPipeline(id, repoID int64, steps []Step, createdAt, updatedAt time.Time) Pipeline {
+func ReconstructPipeline(id int64, name string, createdAt, updatedAt time.Time) Pipeline {
 	return Pipeline{
 		id:        id,
-		repoID:    repoID,
-		steps:     steps,
+		name:      name,
 		createdAt: createdAt,
 		updatedAt: updatedAt,
 	}
@@ -36,11 +33,8 @@ func ReconstructPipeline(id, repoID int64, steps []Step, createdAt, updatedAt ti
 // ID returns the pipeline identifier.
 func (p Pipeline) ID() int64 { return p.id }
 
-// RepoID returns the associated repository identifier.
-func (p Pipeline) RepoID() int64 { return p.repoID }
-
-// Steps returns the pipeline steps.
-func (p Pipeline) Steps() []Step { return p.steps }
+// Name returns the human-readable pipeline name.
+func (p Pipeline) Name() string { return p.name }
 
 // CreatedAt returns the creation timestamp.
 func (p Pipeline) CreatedAt() time.Time { return p.createdAt }
@@ -48,55 +42,100 @@ func (p Pipeline) CreatedAt() time.Time { return p.createdAt }
 // UpdatedAt returns the last update timestamp.
 func (p Pipeline) UpdatedAt() time.Time { return p.updatedAt }
 
-// WithSteps returns a copy with the given steps.
-func (p Pipeline) WithSteps(steps []Step) Pipeline {
-	p.steps = steps
-	p.updatedAt = time.Now()
-	return p
-}
-
 // Step represents a single step in a pipeline.
 type Step struct {
-	id           int64
-	kind         string
-	dependencies []int64
-	createdAt    time.Time
-	updatedAt    time.Time
+	id         int64
+	pipelineID int64
+	name       string
+	kind       string
+	createdAt  time.Time
+	updatedAt  time.Time
 }
 
-// NewStep creates a new Step with the given kind and dependency step IDs.
-func NewStep(kind string, dependencies []int64) Step {
+// NewStep creates a new Step for the given pipeline.
+func NewStep(pipelineID int64, name, kind string) Step {
 	now := time.Now()
 	return Step{
-		kind:         kind,
-		dependencies: dependencies,
-		createdAt:    now,
-		updatedAt:    now,
+		pipelineID: pipelineID,
+		name:       name,
+		kind:       kind,
+		createdAt:  now,
+		updatedAt:  now,
 	}
 }
 
 // ReconstructStep rebuilds a Step from persisted data.
-func ReconstructStep(id int64, kind string, dependencies []int64, createdAt, updatedAt time.Time) Step {
+func ReconstructStep(id, pipelineID int64, name, kind string, createdAt, updatedAt time.Time) Step {
 	return Step{
-		id:           id,
-		kind:         kind,
-		dependencies: dependencies,
-		createdAt:    createdAt,
-		updatedAt:    updatedAt,
+		id:         id,
+		pipelineID: pipelineID,
+		name:       name,
+		kind:       kind,
+		createdAt:  createdAt,
+		updatedAt:  updatedAt,
 	}
 }
 
 // ID returns the step identifier.
 func (s Step) ID() int64 { return s.id }
 
+// PipelineID returns the associated pipeline identifier.
+func (s Step) PipelineID() int64 { return s.pipelineID }
+
+// Name returns the step name.
+func (s Step) Name() string { return s.name }
+
 // Kind returns the step kind.
 func (s Step) Kind() string { return s.kind }
-
-// Dependencies returns the IDs of steps this step depends on.
-func (s Step) Dependencies() []int64 { return s.dependencies }
 
 // CreatedAt returns the creation timestamp.
 func (s Step) CreatedAt() time.Time { return s.createdAt }
 
 // UpdatedAt returns the last update timestamp.
 func (s Step) UpdatedAt() time.Time { return s.updatedAt }
+
+// StepDependency links a step to another step it depends on.
+type StepDependency struct {
+	id          int64
+	stepID      int64
+	dependsOnID int64
+	createdAt   time.Time
+	updatedAt   time.Time
+}
+
+// NewStepDependency creates a new dependency between two steps.
+func NewStepDependency(stepID, dependsOnID int64) StepDependency {
+	now := time.Now()
+	return StepDependency{
+		stepID:      stepID,
+		dependsOnID: dependsOnID,
+		createdAt:   now,
+		updatedAt:   now,
+	}
+}
+
+// ReconstructStepDependency rebuilds a StepDependency from persisted data.
+func ReconstructStepDependency(id, stepID, dependsOnID int64, createdAt, updatedAt time.Time) StepDependency {
+	return StepDependency{
+		id:          id,
+		stepID:      stepID,
+		dependsOnID: dependsOnID,
+		createdAt:   createdAt,
+		updatedAt:   updatedAt,
+	}
+}
+
+// ID returns the dependency identifier.
+func (d StepDependency) ID() int64 { return d.id }
+
+// StepID returns the step that has the dependency.
+func (d StepDependency) StepID() int64 { return d.stepID }
+
+// DependsOnID returns the step that is depended on.
+func (d StepDependency) DependsOnID() int64 { return d.dependsOnID }
+
+// CreatedAt returns the creation timestamp.
+func (d StepDependency) CreatedAt() time.Time { return d.createdAt }
+
+// UpdatedAt returns the last update timestamp.
+func (d StepDependency) UpdatedAt() time.Time { return d.updatedAt }

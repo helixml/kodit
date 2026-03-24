@@ -1,15 +1,11 @@
 package persistence
 
 import (
-	"context"
-	"fmt"
 	"time"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/infrastructure/persistence/models"
 	"github.com/helixml/kodit/internal/database"
-
-	"gorm.io/gorm"
 )
 
 // PipelineMapper maps between domain Pipeline and persistence models.
@@ -17,24 +13,9 @@ type PipelineMapper struct{}
 
 // ToDomain converts a models.Pipeline to a domain Pipeline.
 func (m PipelineMapper) ToDomain(e models.Pipeline) repository.Pipeline {
-	steps := make([]repository.Step, len(e.Steps))
-	for i, s := range e.Steps {
-		deps := make([]int64, len(s.Dependencies))
-		for j, d := range s.Dependencies {
-			deps[j] = int64(d.DependsOnID)
-		}
-		steps[i] = repository.ReconstructStep(
-			int64(s.ID),
-			s.Kind,
-			deps,
-			s.CreatedAt,
-			s.UpdatedAt,
-		)
-	}
 	return repository.ReconstructPipeline(
 		int64(e.ID),
-		e.RepoID,
-		steps,
+		e.Name,
 		e.CreatedAt,
 		e.UpdatedAt,
 	)
@@ -42,34 +23,13 @@ func (m PipelineMapper) ToDomain(e models.Pipeline) repository.Pipeline {
 
 // ToModel converts a domain Pipeline to a models.Pipeline.
 func (m PipelineMapper) ToModel(p repository.Pipeline) models.Pipeline {
-	now := time.Now()
-	steps := make([]models.Step, len(p.Steps()))
-	for i, s := range p.Steps() {
-		deps := make([]models.StepDependency, len(s.Dependencies()))
-		for j, depID := range s.Dependencies() {
-			deps[j] = models.StepDependency{
-				DependsOnID: uint(depID),
-			}
-		}
-		step := models.Step{
-			Kind:         s.Kind(),
-			Dependencies: deps,
-		}
-		if s.ID() != 0 {
-			step.ID = uint(s.ID())
-			step.CreatedAt = s.CreatedAt()
-			step.UpdatedAt = now
-		}
-		steps[i] = step
-	}
 	pipeline := models.Pipeline{
-		RepoID: p.RepoID(),
-		Steps:  steps,
+		Name: p.Name(),
 	}
 	if p.ID() != 0 {
 		pipeline.ID = uint(p.ID())
 		pipeline.CreatedAt = p.CreatedAt()
-		pipeline.UpdatedAt = now
+		pipeline.UpdatedAt = time.Now()
 	}
 	return pipeline
 }
@@ -86,30 +46,84 @@ func NewPipelineStore(db database.Database) PipelineStore {
 	}
 }
 
-// Save creates or updates a pipeline with its steps and dependencies.
-func (s PipelineStore) Save(ctx context.Context, pipeline repository.Pipeline) (repository.Pipeline, error) {
-	model := s.Mapper().ToModel(pipeline)
+// StepMapper maps between domain Step and persistence models.
+type StepMapper struct{}
 
-	err := s.DB(ctx).Transaction(func(tx *gorm.DB) error {
-		if pipeline.ID() != 0 {
-			// Delete existing steps; CASCADE removes dependencies.
-			if err := tx.Where("pipeline_id = ?", pipeline.ID()).Delete(&models.Step{}).Error; err != nil {
-				return fmt.Errorf("delete old steps: %w", err)
-			}
-			// Clear step IDs so GORM inserts fresh rows.
-			for i := range model.Steps {
-				model.Steps[i].ID = 0
-				for j := range model.Steps[i].Dependencies {
-					model.Steps[i].Dependencies[j].ID = 0
-				}
-			}
-			return tx.Session(&gorm.Session{FullSaveAssociations: true}).Save(&model).Error
-		}
-		return tx.Create(&model).Error
-	})
-	if err != nil {
-		return repository.Pipeline{}, fmt.Errorf("save pipeline: %w", err)
+// ToDomain converts a models.Step to a domain Step.
+func (m StepMapper) ToDomain(e models.Step) repository.Step {
+	return repository.ReconstructStep(
+		int64(e.ID),
+		int64(e.PipelineID),
+		e.Name,
+		e.Kind,
+		e.CreatedAt,
+		e.UpdatedAt,
+	)
+}
+
+// ToModel converts a domain Step to a models.Step.
+func (m StepMapper) ToModel(s repository.Step) models.Step {
+	step := models.Step{
+		PipelineID: uint(s.PipelineID()),
+		Name:       s.Name(),
+		Kind:       s.Kind(),
 	}
+	if s.ID() != 0 {
+		step.ID = uint(s.ID())
+		step.CreatedAt = s.CreatedAt()
+		step.UpdatedAt = time.Now()
+	}
+	return step
+}
 
-	return s.Mapper().ToDomain(model), nil
+// StepStore implements repository.StepStore using GORM.
+type StepStore struct {
+	database.Repository[repository.Step, models.Step]
+}
+
+// NewStepStore creates a new StepStore.
+func NewStepStore(db database.Database) StepStore {
+	return StepStore{
+		Repository: database.NewRepository(db, StepMapper{}, "step"),
+	}
+}
+
+// StepDependencyMapper maps between domain StepDependency and persistence models.
+type StepDependencyMapper struct{}
+
+// ToDomain converts a models.StepDependency to a domain StepDependency.
+func (m StepDependencyMapper) ToDomain(e models.StepDependency) repository.StepDependency {
+	return repository.ReconstructStepDependency(
+		int64(e.ID),
+		int64(e.StepID),
+		int64(e.DependsOnID),
+		e.CreatedAt,
+		e.UpdatedAt,
+	)
+}
+
+// ToModel converts a domain StepDependency to a models.StepDependency.
+func (m StepDependencyMapper) ToModel(d repository.StepDependency) models.StepDependency {
+	dep := models.StepDependency{
+		StepID:      uint(d.StepID()),
+		DependsOnID: uint(d.DependsOnID()),
+	}
+	if d.ID() != 0 {
+		dep.ID = uint(d.ID())
+		dep.CreatedAt = d.CreatedAt()
+		dep.UpdatedAt = time.Now()
+	}
+	return dep
+}
+
+// StepDependencyStore implements repository.StepDependencyStore using GORM.
+type StepDependencyStore struct {
+	database.Repository[repository.StepDependency, models.StepDependency]
+}
+
+// NewStepDependencyStore creates a new StepDependencyStore.
+func NewStepDependencyStore(db database.Database) StepDependencyStore {
+	return StepDependencyStore{
+		Repository: database.NewRepository(db, StepDependencyMapper{}, "step dependency"),
+	}
 }
