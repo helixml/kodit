@@ -4,7 +4,7 @@
 
 - [ ] Create `domain/pipeline/pipeline_step.go`: `StepKind` type, `PipelineStep` struct, `NewBuiltInStep` constructor, `ReconstructStep` constructor, getters
 - [ ] Create `domain/pipeline/pipeline.go`: `Pipeline` struct, `NewPipeline` / `ReconstructPipeline` constructors, `Steps`, `Operations`, `HasOperation`, `Validate` methods, `builtInDependencies` map, `coreOperations` list
-- [ ] Create preset factory functions in `domain/pipeline/presets.go`: `DefaultPipeline`, `RAGOnlyPipeline`, `FullPipeline` — each builds the step list from `builtInDependencies` and assigns positions and `dependsOn` IDs
+- [ ] Create preset factory functions in `domain/pipeline/presets.go`: `DefaultPipeline`, `RAGOnlyPipeline`, `FullPipeline` — each builds the step list from `builtInDependencies` and assigns `dependsOn` IDs by resolving each prerequisite operation to its step ID within the new pipeline
 - [ ] Create `domain/pipeline/store.go`: `Store` interface with `FindByRepo`, `Save`, `Delete`
 
 ## Persistence

@@ -27,13 +27,12 @@ type PipelineStep struct {
     operation  task.Operation // non-empty for built-in steps
     config     map[string]any // reserved for future custom steps
     dependsOn  []int64        // IDs of other PipelineSteps in the same pipeline
-    position   int            // display/insertion order
 }
 ```
 
-Constructors: `NewBuiltInStep(pipelineID int64, op task.Operation, dependsOn []int64, position int) PipelineStep`, `ReconstructStep(...)`.
+Constructors: `NewBuiltInStep(pipelineID int64, op task.Operation, dependsOn []int64) PipelineStep`, `ReconstructStep(...)`.
 
-Getters: `ID`, `PipelineID`, `Kind`, `Operation`, `Config`, `DependsOn`, `Position`.
+Getters: `ID`, `PipelineID`, `Kind`, `Operation`, `Config`, `DependsOn`.
 
 #### `pipeline.go`
 
@@ -52,8 +51,8 @@ type Pipeline struct {
 - `ReconstructPipeline(id, repositoryID int64, steps []PipelineStep, createdAt, updatedAt time.Time) Pipeline`
 
 **Methods:**
-- `Steps() []PipelineStep` — ordered by `position`.
-- `Operations() []task.Operation` — returns the operation string for every built-in step, in position order.
+- `Steps() []PipelineStep` — in topological order (derived from `dependsOn` graph).
+- `Operations() []task.Operation` — returns the operation string for every built-in step, in topological order.
 - `HasOperation(op task.Operation) bool`
 - `Validate() error` — checks: all dependency IDs exist within this pipeline; core steps are present; no cycles.
 
@@ -62,7 +61,7 @@ type Pipeline struct {
 - `RAGOnlyPipeline(repositoryID int64) Pipeline`
 - `FullPipeline(repositoryID int64) Pipeline`
 
-These build the step list from the static dependency map (see below) and assign positions and `dependsOn` IDs after inserting steps.
+These build the step list from the static dependency map (see below) and assign `dependsOn` IDs by looking up each prerequisite operation's step ID within the new pipeline.
 
 **Dependency map** (package-level `var`):
 
@@ -134,7 +133,6 @@ type PipelineStepModel struct {
     Operation  string        `gorm:"column:operation;size:255"`
     Config     string        `gorm:"column:config;type:text"` // JSON, empty for built-in
     DependsOn  string        `gorm:"column:depends_on;type:text"` // JSON array of step IDs
-    Position   int           `gorm:"column:position"`
     CreatedAt  time.Time
     UpdatedAt  time.Time
 }
@@ -198,8 +196,8 @@ DELETE /api/v1/repositories/{id}/pipeline/steps/{step_id}  → RemoveStep
   "id": 1,
   "repository_id": 42,
   "steps": [
-    { "id": 10, "kind": "built-in", "operation": "kodit.repository.clone", "depends_on": [], "position": 0 },
-    { "id": 11, "kind": "built-in", "operation": "kodit.commit.extract_snippets", "depends_on": [10], "position": 2 }
+    { "id": 10, "kind": "built-in", "operation": "kodit.repository.clone", "depends_on": [] },
+    { "id": 11, "kind": "built-in", "operation": "kodit.commit.extract_snippets", "depends_on": [10] }
   ]
 }
 ```
@@ -215,6 +213,8 @@ DELETE /api/v1/repositories/{id}/pipeline/steps/{step_id}  → RemoveStep
 **Why proper entities and not a JSON column?** A JSON blob on `git_repos` cannot represent future custom steps that carry their own configuration (e.g. an enrichment prompt, a target entity type). Real rows enable querying, per-step config, independent lifecycle management, and extension without schema changes.
 
 **Why a separate `Pipeline` aggregate, not fields on `Repository`?** The pipeline has its own identity, its own lifecycle (can be replaced wholesale), and its own set of steps. Embedding it inside `Repository` would violate the single-responsibility principle and make the repository aggregate heavier. The `repositoryID` foreign key is the link.
+
+**Why no `position` field?** Execution order is fully determined by topological sort of the `dependsOn` graph — a separate position integer would be redundant and could contradict the dependency order. `Steps()` and `Operations()` always return a topologically sorted sequence computed at call time.
 
 **Why store `dependsOn` as step IDs rather than operation strings?** Step IDs are stable within a pipeline; operation strings are an implementation detail of built-in steps. Future custom steps have no operation string to reference. Storing IDs keeps the dependency graph self-contained and portable.
 
