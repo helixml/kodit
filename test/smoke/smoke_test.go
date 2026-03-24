@@ -1364,6 +1364,185 @@ func main() {
 	})
 }
 
+// TestSmoke_Duplicates verifies the duplicate-detection REST endpoint and the
+// kodit_find_duplicates MCP tool against a live server. It registers a plain
+// local directory containing two semantically similar Python files, waits for
+// embeddings to be generated, then asserts that the API and MCP tool both
+// surface at least one duplicate pair above a lenient 0.50 cosine threshold.
+func TestSmoke_Duplicates(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping smoke test in short mode")
+	}
+
+	// Container-side path — the host testdata/ tree is mounted at /app inside
+	// the kodit Docker container, so files written here are visible to the server.
+	containerDir := "/app/test/smoke/testdata/smoke-duplicates-dir"
+	plainDirURI := "file://" + containerDir
+
+	fixtureDir := filepath.Join("testdata", "smoke-duplicates-dir")
+	if err := os.MkdirAll(fixtureDir, 0o755); err != nil {
+		t.Fatalf("create fixture dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(fixtureDir) })
+
+	// Two Python files implementing the same arithmetic operations with different
+	// variable names — similar enough to score ~0.70 cosine similarity.
+	const calcSource = `def add_numbers(a, b):
+    """Add two numbers together."""
+    result = a + b
+    return result
+
+def subtract_numbers(a, b):
+    """Subtract b from a."""
+    result = a - b
+    return result
+
+def multiply_numbers(a, b):
+    """Multiply two numbers."""
+    result = a * b
+    return result
+`
+	const mathSource = `def add_values(x, y):
+    """Add two values together."""
+    result = x + y
+    return result
+
+def subtract_values(x, y):
+    """Subtract y from x."""
+    result = x - y
+    return result
+
+def compute_product(x, y):
+    """Compute the product of two numbers."""
+    result = x * y
+    return result
+`
+	if err := os.WriteFile(filepath.Join(fixtureDir, "calculator.py"), []byte(calcSource), 0o644); err != nil {
+		t.Fatalf("write calculator.py: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(fixtureDir, "math_utils.py"), []byte(mathSource), 0o644); err != nil {
+		t.Fatalf("write math_utils.py: %v", err)
+	}
+
+	client, err := kodit.NewClientWithResponses(baseURL)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+	ctx := context.Background()
+
+	repoType := "repository"
+	createResp, err := client.PostRepositoriesWithResponse(ctx, kodit.DtoRepositoryCreateRequest{
+		Data: &kodit.DtoRepositoryCreateData{
+			Type: &repoType,
+			Attributes: &kodit.DtoRepositoryCreateAttributes{
+				RemoteUri: &plainDirURI,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create repository failed: %v", err)
+	}
+	var repo *kodit.DtoRepositoryData
+	switch createResp.StatusCode() {
+	case http.StatusCreated:
+		repo = createResp.JSON201.Data
+		t.Log("duplicates repository created (201)")
+	case http.StatusOK:
+		repo = createResp.JSON200.Data
+		t.Log("duplicates repository already exists (200)")
+	default:
+		t.Fatalf("expected 200 or 201, got %d: %s", createResp.StatusCode(), string(createResp.Body))
+	}
+	repoID, err := strconv.Atoi(*repo.Id)
+	if err != nil {
+		t.Fatalf("parse repo ID: %v", err)
+	}
+	t.Logf("duplicates repository: id=%d uri=%s", repoID, plainDirURI)
+
+	t.Cleanup(func() {
+		_, _ = client.DeleteRepositoriesIdWithResponse(ctx, repoID)
+	})
+
+	waitForIndexing(t, client, ctx, repoID)
+
+	t.Run("api_validation_missing_repo_ids", func(t *testing.T) {
+		resp := postJSON(t, baseURL+"/search/duplicates", `{"data":{"type":"duplicate_search","attributes":{}}}`)
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("api_finds_pairs", func(t *testing.T) {
+		body := fmt.Sprintf(
+			`{"data":{"type":"duplicate_search","attributes":{"repository_ids":[%d],"threshold":0.50,"limit":10}}}`,
+			repoID,
+		)
+		resp := postJSON(t, baseURL+"/search/duplicates", body)
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		var result struct {
+			Data []struct {
+				Attributes struct {
+					Similarity float64 `json:"similarity"`
+					SnippetA   struct {
+						ID string `json:"id"`
+					} `json:"snippet_a"`
+					SnippetB struct {
+						ID string `json:"id"`
+					} `json:"snippet_b"`
+				} `json:"attributes"`
+			} `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if len(result.Data) == 0 {
+			t.Fatal("expected at least one duplicate pair (threshold 0.50)")
+		}
+		pair := result.Data[0]
+		if pair.Attributes.Similarity < 0.50 {
+			t.Fatalf("expected similarity >= 0.50, got %.4f", pair.Attributes.Similarity)
+		}
+		if pair.Attributes.SnippetA.ID == "" || pair.Attributes.SnippetB.ID == "" {
+			t.Fatal("expected non-empty snippet IDs in pair")
+		}
+		t.Logf("duplicate pair: similarity=%.4f, snippet_a=%s, snippet_b=%s",
+			pair.Attributes.Similarity, pair.Attributes.SnippetA.ID, pair.Attributes.SnippetB.ID)
+	})
+
+	t.Run("mcp_find_duplicates", func(t *testing.T) {
+		sessionID := initMCPSession(t)
+
+		type mcpDuplicateResult struct {
+			SnippetIDA string  `json:"snippet_id_a"`
+			SnippetIDB string  `json:"snippet_id_b"`
+			Similarity float64 `json:"similarity"`
+		}
+
+		text := callMCPToolText(t, sessionID, "kodit_find_duplicates", 2, map[string]any{
+			"repo_url":  plainDirURI,
+			"threshold": 0.50,
+			"limit":     10,
+		})
+
+		var results []mcpDuplicateResult
+		if err := json.Unmarshal([]byte(text), &results); err != nil {
+			t.Fatalf("unmarshal MCP find_duplicates results: %v", err)
+		}
+		if len(results) == 0 {
+			t.Fatal("expected at least one duplicate pair from MCP tool (threshold 0.50)")
+		}
+		if results[0].Similarity < 0.50 {
+			t.Fatalf("expected similarity >= 0.50, got %.4f", results[0].Similarity)
+		}
+		t.Logf("MCP duplicate pair: snippet_id_a=%s snippet_id_b=%s similarity=%.4f",
+			results[0].SnippetIDA, results[0].SnippetIDB, results[0].Similarity)
+	})
+}
+
 // validateSearchResults validates the structure of search results.
 func validateSearchResults(t *testing.T, results []kodit.DtoSnippetData, mode string) {
 	t.Helper()
@@ -1732,6 +1911,22 @@ func getJSON(t *testing.T, url string) *http.Response {
 	resp, err := httpClient.Get(url)
 	if err != nil {
 		t.Fatalf("GET %s failed: %v", url, err)
+	}
+	return resp
+}
+
+// postJSON sends a POST request with a JSON body and returns the response.
+func postJSON(t *testing.T, url string, body string) *http.Response {
+	t.Helper()
+	httpClient := &http.Client{Timeout: 30 * time.Second}
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST %s: create request: %v", url, err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		t.Fatalf("POST %s failed: %v", url, err)
 	}
 	return resp
 }
