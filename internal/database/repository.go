@@ -140,6 +140,27 @@ func (r Repository[D, E]) DeleteBy(ctx context.Context, options ...repository.Op
 	return nil
 }
 
+// Save creates or updates the given domain entity.
+func (r Repository[D, E]) Save(ctx context.Context, domain D) (D, error) {
+	model := r.mapper.ToModel(domain)
+	result := r.sessionDB(ctx).Save(&model)
+	if result.Error != nil {
+		var zero D
+		return zero, fmt.Errorf("save %s: %w", r.label, result.Error)
+	}
+	return r.mapper.ToDomain(model), nil
+}
+
+// Delete removes the given domain entity from the database.
+func (r Repository[D, E]) Delete(ctx context.Context, domain D) error {
+	model := r.mapper.ToModel(domain)
+	result := r.sessionDB(ctx).Delete(&model)
+	if result.Error != nil {
+		return fmt.Errorf("delete %s: %w", r.label, result.Error)
+	}
+	return nil
+}
+
 // DB returns a GORM session scoped to the optional dynamic table.
 func (r Repository[D, E]) DB(ctx context.Context) *gorm.DB {
 	return r.sessionDB(ctx)

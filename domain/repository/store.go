@@ -42,3 +42,8 @@ type FileStore interface {
 	DeleteBy(ctx context.Context, options ...Option) error
 	SaveAll(ctx context.Context, files []File) ([]File, error)
 }
+
+// PipelineStore defines the interface for Pipeline persistence.
+type PipelineStore interface {
+	Store[Pipeline]
+}
