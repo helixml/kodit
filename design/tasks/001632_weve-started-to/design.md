@@ -2,36 +2,75 @@
 
 ## Architecture Overview
 
-The pipeline config follows the same pattern as `ChunkingConfig`: a domain value object attached to `Repository`, persisted as columns on `git_repos`, and exposed via a dedicated API sub-resource.
+`Pipeline` and `PipelineStep` are first-class domain entities with their own database tables. A pipeline is linked to a repository and contains an ordered list of steps. Each step knows its kind, its configuration, and which other steps it depends on. This makes it straightforward to add new built-in operations or data-driven custom steps (e.g. arbitrary enrichment prompts) without touching the domain model.
 
 ---
 
 ## Domain Layer
 
-### `domain/repository/pipeline_config.go`
+### New package: `domain/pipeline`
+
+#### `pipeline_step.go`
 
 ```go
-type PipelineConfig struct {
-    steps []task.Operation
+type StepKind string
+
+const (
+    StepKindBuiltIn StepKind = "built-in"
+    // StepKindCustomEnrichment StepKind = "custom-enrichment"  // future
+)
+
+type PipelineStep struct {
+    id         int64
+    pipelineID int64
+    kind       StepKind
+    operation  task.Operation // non-empty for built-in steps
+    config     map[string]any // reserved for future custom steps
+    dependsOn  []int64        // IDs of other PipelineSteps in the same pipeline
+    position   int            // display/insertion order
 }
 ```
 
-**Constructors** (mirrors existing `PrescribedOperations` factories):
-- `DefaultPipelineConfig(hasTextProvider bool) PipelineConfig`
-- `RAGOnlyPipelineConfig() PipelineConfig`
-- `FullPipelineConfig() PipelineConfig`
-- `ReconstructPipelineConfig(steps []task.Operation) (PipelineConfig, error)` — used by persistence layer; validates dependencies.
+Constructors: `NewBuiltInStep(pipelineID int64, op task.Operation, dependsOn []int64, position int) PipelineStep`, `ReconstructStep(...)`.
 
-**Methods:**
-- `Steps() []task.Operation` — full ordered list for storage/serialization.
-- `Filter(ops []task.Operation) []task.Operation` — returns only ops present in config; preserves order. Used by callers that already have a candidate list (e.g. `prescribed.ScanAndIndexCommit()`).
-- `Contains(op task.Operation) bool`
-- `Validate() error` — checks all dependency constraints and that core steps are present.
+Getters: `ID`, `PipelineID`, `Kind`, `Operation`, `Config`, `DependsOn`, `Position`.
 
-**Dependency map** — defined as a package-level `var` inside `pipeline_config.go`:
+#### `pipeline.go`
 
 ```go
-var stepDependencies = map[task.Operation][]task.Operation{
+type Pipeline struct {
+    id           int64
+    repositoryID int64
+    steps        []PipelineStep
+    createdAt    time.Time
+    updatedAt    time.Time
+}
+```
+
+**Constructors:**
+- `NewPipeline(repositoryID int64, steps []PipelineStep) Pipeline`
+- `ReconstructPipeline(id, repositoryID int64, steps []PipelineStep, createdAt, updatedAt time.Time) Pipeline`
+
+**Methods:**
+- `Steps() []PipelineStep` — ordered by `position`.
+- `Operations() []task.Operation` — returns the operation string for every built-in step, in position order.
+- `HasOperation(op task.Operation) bool`
+- `Validate() error` — checks: all dependency IDs exist within this pipeline; core steps are present; no cycles.
+
+**Preset factories** (package-level functions, not methods, so they can be used without an existing pipeline):
+- `DefaultPipeline(repositoryID int64, hasTextProvider bool) Pipeline`
+- `RAGOnlyPipeline(repositoryID int64) Pipeline`
+- `FullPipeline(repositoryID int64) Pipeline`
+
+These build the step list from the static dependency map (see below) and assign positions and `dependsOn` IDs after inserting steps.
+
+**Dependency map** (package-level `var`):
+
+```go
+var builtInDependencies = map[task.Operation][]task.Operation{
+    task.OperationSyncRepository:                            {task.OperationCloneRepository},
+    task.OperationScanCommit:                                {task.OperationCloneRepository},
+    task.OperationExtractSnippetsForCommit:                  {task.OperationScanCommit},
     task.OperationCreateBM25IndexForCommit:                  {task.OperationExtractSnippetsForCommit},
     task.OperationCreateCodeEmbeddingsForCommit:             {task.OperationExtractSnippetsForCommit},
     task.OperationCreateSummaryEmbeddingsForCommit:          {task.OperationCreateCodeEmbeddingsForCommit},
@@ -46,12 +85,9 @@ var stepDependencies = map[task.Operation][]task.Operation{
     task.OperationCreateDatabaseSchemaForCommit:             {task.OperationExtractSnippetsForCommit},
     task.OperationCreateCookbookForCommit:                   {task.OperationExtractSnippetsForCommit},
     task.OperationGenerateWikiForCommit:                     {task.OperationExtractSnippetsForCommit},
-    task.OperationSyncRepository:                            {task.OperationCloneRepository},
-    task.OperationScanCommit:                                {task.OperationCloneRepository},
-    task.OperationExtractSnippetsForCommit:                  {task.OperationScanCommit},
 }
 
-var coreSteps = []task.Operation{
+var coreOperations = []task.Operation{
     task.OperationCloneRepository,
     task.OperationSyncRepository,
     task.OperationScanCommit,
@@ -59,31 +95,58 @@ var coreSteps = []task.Operation{
 }
 ```
 
+#### `store.go`
+
+```go
+type Store interface {
+    FindByRepo(ctx context.Context, repositoryID int64) (Pipeline, error)
+    Save(ctx context.Context, pipeline Pipeline) (Pipeline, error)
+    Delete(ctx context.Context, pipeline Pipeline) error
+}
+```
+
 ### `domain/repository/repository.go`
 
-Add field `pipelineConfig PipelineConfig`. Add getter `PipelineConfig()` and mutator `WithPipelineConfig(PipelineConfig) Repository`. Update `NewRepository` to accept `hasTextProvider bool` or set a default pipeline config post-construction, and update `ReconstructRepository` signature.
+No change to the `Repository` struct. `Pipeline` is a separate aggregate; the relationship is expressed by `repositoryID` on the pipeline, not by embedding inside `Repository`.
 
 ---
 
 ## Persistence Layer
 
-### `RepositoryModel` (infrastructure/persistence/models.go)
-
-Add one column:
+### New models (`infrastructure/persistence/models.go`)
 
 ```go
-PipelineSteps string `gorm:"column:pipeline_steps;type:text;default:'[]'"`
+type PipelineModel struct {
+    ID           int64          `gorm:"primaryKey;autoIncrement"`
+    RepositoryID int64          `gorm:"column:repository_id;uniqueIndex"`
+    Repo         RepositoryModel `gorm:"foreignKey:RepositoryID;constraint:OnDelete:CASCADE"`
+    CreatedAt    time.Time
+    UpdatedAt    time.Time
+}
+
+func (PipelineModel) TableName() string { return "pipelines" }
+
+type PipelineStepModel struct {
+    ID         int64         `gorm:"primaryKey;autoIncrement"`
+    PipelineID int64         `gorm:"column:pipeline_id;index"`
+    Pipeline   PipelineModel `gorm:"foreignKey:PipelineID;constraint:OnDelete:CASCADE"`
+    Kind       string        `gorm:"column:kind;size:64"`
+    Operation  string        `gorm:"column:operation;size:255"`
+    Config     string        `gorm:"column:config;type:text"` // JSON, empty for built-in
+    DependsOn  string        `gorm:"column:depends_on;type:text"` // JSON array of step IDs
+    Position   int           `gorm:"column:position"`
+    CreatedAt  time.Time
+    UpdatedAt  time.Time
+}
+
+func (PipelineStepModel) TableName() string { return "pipeline_steps" }
 ```
 
-Store as a JSON-encoded `[]string` (the `Operation.String()` values). GORM AutoMigrate adds the column automatically; existing rows get `'[]'` which the mapper treats as "default pipeline for server config".
+Add both to `AutoMigrate`. No changes to `RepositoryModel`.
 
-### Mapper
+### New store: `infrastructure/persistence/pipeline_store.go`
 
-In `RepositoryMapper.ToDomain()`: if `PipelineSteps` is empty/`[]`, call `DefaultPipelineConfig(hasTextProvider)` using the server's current capability. Otherwise call `ReconstructPipelineConfig(decoded steps)`.
-
-In `RepositoryMapper.ToModel()`: JSON-encode `repo.PipelineConfig().Steps()` to string.
-
-> Note: The mapper needs access to `hasTextProvider`. Pass it as a constructor argument to the mapper, the same way other infrastructure config is threaded through. The repository store constructs the mapper, so the store constructor receives this bool from the application layer.
+Implements `pipeline.Store`. `FindByRepo` loads the `PipelineModel` by `repository_id`, then loads all `PipelineStepModel` rows for that pipeline, decodes `DependsOn` JSON, and maps to `pipeline.Pipeline` via a mapper.
 
 ---
 
@@ -91,75 +154,72 @@ In `RepositoryMapper.ToModel()`: JSON-encode `repo.PipelineConfig().Steps()` to 
 
 ### Integration point: queue enqueue calls
 
-Currently, callers build an operation list from `PrescribedOperations`:
+The application service (or handler) already loads the repository. Add a load of the pipeline:
+
 ```go
-ops := prescribed.ScanAndIndexCommit()
-queue.EnqueueOperations(ctx, repoID, ops)
+pl, err := svc.Pipelines.FindByRepo(ctx, repoID)
+// ...
+ops := pl.Operations()
+// Filter to the action-specific candidate list (scan vs rescan vs index):
+candidates := prescribed.ScanAndIndexCommit()
+enqueueOps := intersect(candidates, ops)
+queue.EnqueueOperations(ctx, repoID, enqueueOps)
 ```
 
-Replace with:
-```go
-ops := repo.PipelineConfig().Filter(prescribed.ScanAndIndexCommit())
-queue.EnqueueOperations(ctx, repoID, ops)
-```
+`PrescribedOperations` still defines the canonical sequence for each action context. The pipeline's `Operations()` is the inclusion filter.
 
-`PrescribedOperations` still determines the "universe" for a given action context; `PipelineConfig.Filter` narrows it to what the repo has enabled. This change applies in the commit handler and wherever tasks are enqueued for a specific action (scan, index, rescan).
+### Repository creation (`application/service/repository.go`)
+
+`RepositoryAddParams` gains `PipelinePreset string`. After saving the `Repository`, the service resolves the preset to a `Pipeline` using the appropriate factory function, saves it via `PipelineStore`, then enqueues tasks. This is atomic with respect to task enqueueing.
 
 ---
 
 ## API Layer
 
-### Repository creation — preset at creation time
+### Repository creation
 
-`RepositoryCreateAttributes` DTO gains an optional field:
-
+`RepositoryCreateAttributes` DTO gains:
 ```go
-PipelinePreset string `json:"pipeline_preset,omitempty"` // "rag-only" | "full" | "default"; default when omitted
+PipelinePreset string `json:"pipeline_preset,omitempty"`
 ```
+Valid values: `"rag-only"`, `"full"`, `"default"` (default when omitted). Returns 400 for unknown values or `"full"` without a text provider.
 
-`RepositoryAddParams` (application service) gains a matching field:
-
-```go
-PipelinePreset string // resolved to a PipelineConfig before the first task is enqueued
-```
-
-In the `Add` service method, after constructing the `Repository`, resolve the preset to a `PipelineConfig`, set it with `WithPipelineConfig`, and persist it — all before calling `EnqueueOperations`. This guarantees the pipeline is in place before any worker picks up the clone task.
-
-### New config routes (infrastructure/api/v1/repositories.go)
+### New pipeline resource routes
 
 ```
-GET  /api/v1/repositories/{id}/config/pipeline   → GetPipelineConfig
-PUT  /api/v1/repositories/{id}/config/pipeline   → UpdatePipelineConfig
+GET    /api/v1/repositories/{id}/pipeline          → GetPipeline
+PUT    /api/v1/repositories/{id}/pipeline/steps    → ReplaceSteps
+DELETE /api/v1/repositories/{id}/pipeline/steps/{step_id}  → RemoveStep
 ```
 
-### GET response
+**GET** returns the full pipeline with steps:
 ```json
 {
+  "id": 1,
+  "repository_id": 42,
   "steps": [
-    "kodit.repository.clone",
-    "kodit.repository.sync",
-    "kodit.commit.scan",
-    "kodit.commit.extract_snippets",
-    "kodit.commit.create_bm25_index",
-    "kodit.commit.create_code_embeddings"
+    { "id": 10, "kind": "built-in", "operation": "kodit.repository.clone", "depends_on": [], "position": 0 },
+    { "id": 11, "kind": "built-in", "operation": "kodit.commit.extract_snippets", "depends_on": [10], "position": 2 }
   ]
 }
 ```
 
-### PUT request/response
-Request body: `{"steps": ["kodit.commit.extract_snippets", ...]}`.
-Validates via `PipelineConfig.Validate()`. Returns updated config on success; 400 with error message on invalid input.
+**PUT /steps** replaces the full step list (re-validates dependencies). Used for bulk edits.
+
+**DELETE /steps/{step_id}** removes one step; returns 400 if other steps depend on it.
 
 ---
 
 ## Key Design Decisions
 
-**Why store as JSON text, not a separate table?** A pipeline config is a small ordered list (≤20 items). A join table would add schema complexity for no query benefit — we always load the full list with the repository.
+**Why proper entities and not a JSON column?** A JSON blob on `git_repos` cannot represent future custom steps that carry their own configuration (e.g. an enrichment prompt, a target entity type). Real rows enable querying, per-step config, independent lifecycle management, and extension without schema changes.
 
-**Why move the preset to repository creation rather than a separate `/init` endpoint?** Setting the pipeline after creation creates a race: the worker can dequeue and begin the clone task before the client posts the preset, resulting in the repository being processed with the wrong steps. Embedding the preset in `POST /repositories` ensures the config is persisted atomically before the first task is enqueued.
+**Why a separate `Pipeline` aggregate, not fields on `Repository`?** The pipeline has its own identity, its own lifecycle (can be replaced wholesale), and its own set of steps. Embedding it inside `Repository` would violate the single-responsibility principle and make the repository aggregate heavier. The `repositoryID` foreign key is the link.
 
-**Why keep `PrescribedOperations`?** It remains useful as a factory for generating sensible defaults and for generating the "candidate" operation list per action type (scan vs rescan vs index). `PipelineConfig.Filter` then narrows that candidate list. This avoids duplicating the sequencing logic.
+**Why store `dependsOn` as step IDs rather than operation strings?** Step IDs are stable within a pipeline; operation strings are an implementation detail of built-in steps. Future custom steps have no operation string to reference. Storing IDs keeps the dependency graph self-contained and portable.
 
-**Why validate on PUT (not cascade-remove)?** Explicit rejection makes the caller aware of the dependency graph. Silently removing dependents could cause surprise data loss. The error message names the missing dependency, so the client knows what to add back or also remove.
+**Why keep `PrescribedOperations`?** It still defines the canonical execution sequence within an action context (scan vs rescan vs index). `Pipeline.Operations()` acts as the per-repository inclusion filter. Removing `PrescribedOperations` would require duplicating sequencing logic into the pipeline entity.
 
-**Migration for existing rows:** Existing repos get `pipeline_steps = '[]'`. The mapper interprets this as "use the server default", so behaviour is unchanged until the user explicitly sets a pipeline via the API.
+**Why move preset to repository creation?** Setting the pipeline after creation introduces a race: the worker can begin the clone task before the pipeline is saved, running with the wrong steps. Creating the pipeline in the same service call as the repository — before task enqueueing — eliminates this race.
+
+**Migration for existing repositories:** Existing repos have no `pipelines` row. The `FindByRepo` method returns `ErrNotFound`; callers fall back to `DefaultPipeline(repoID, hasTextProvider)` and save it lazily on first access.
