@@ -99,3 +99,20 @@ PostgreSQL runs in the `kodit-vectorchord` container (database: `kodit`, user: `
 ```bash
 docker exec kodit-vectorchord psql -U postgres -d kodit -c "SELECT * FROM repositories LIMIT 5;"
 ```
+
+## Software Engineering
+
+Object-oriented design principles:
+
+- **Naming**: Classes by what they are, not what they do (avoid -er suffixes). Methods are builders (noun) or manipulators (verb), rarely both. Variables should be explainable as single/plural nouns; prefer simple names over compound ones.
+- **Constructors**: One primary constructor, secondaries delegate to it. Keep constructors light. Prefer `new` only in secondary constructors.
+- **Methods**: Prefer fewer than five public methods per class. Avoid static methods. Avoid null arguments and return values. Prefer richer encapsulation over getters/setters.
+- **Encapsulation**: Prefer four or fewer encapsulated objects per class. Favour composition over inheritance.
+- **Interfaces**: Prefer interfaces. Keep them small.
+- **Immutability**: Default to immutable classes. Avoid type introspection and reflection unless the language idiom demands it.
+- **No globals**: Prefer classes over public constants or enums.
+- **Testing**: Prefer fakes over mocks.
+- **Design**: Think in objects, not algorithms. Tell objects what you want; don't ask for data.
+- **Boolean parameters**: Don't use a boolean to switch between fundamentally different behaviours (split the method or use polymorphism). Booleans are fine for orthogonal modifiers like filters or formatting options.
+- **Dependency injection**: Use constructor injection. When a constructor accumulates many parameters, group related ones into a parameter/options object.
+- **Language idioms**: Where these principles conflict with strong language conventions (e.g. Go exported struct fields, Python dataclasses), follow the language idiom and note the deviation.
