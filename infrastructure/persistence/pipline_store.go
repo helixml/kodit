@@ -13,12 +13,7 @@ type PipelineMapper struct{}
 
 // ToDomain converts a models.Pipeline to a domain Pipeline.
 func (m PipelineMapper) ToDomain(e models.Pipeline) repository.Pipeline {
-	return repository.ReconstructPipeline(
-		int64(e.ID),
-		e.Name,
-		e.CreatedAt,
-		e.UpdatedAt,
-	)
+	return repository.ReconstructPipeline(e.ID, e.Name, e.CreatedAt, e.UpdatedAt)
 }
 
 // ToModel converts a domain Pipeline to a models.Pipeline.
@@ -27,7 +22,7 @@ func (m PipelineMapper) ToModel(p repository.Pipeline) models.Pipeline {
 		Name: p.Name(),
 	}
 	if p.ID() != 0 {
-		pipeline.ID = uint(p.ID())
+		pipeline.ID = p.ID()
 		pipeline.CreatedAt = p.CreatedAt()
 		pipeline.UpdatedAt = time.Now()
 	}
@@ -51,13 +46,7 @@ type StepMapper struct{}
 
 // ToDomain converts a models.Step to a domain Step.
 func (m StepMapper) ToDomain(e models.Step) repository.Step {
-	return repository.ReconstructStep(
-		int64(e.ID),
-		e.Name,
-		e.Kind,
-		e.CreatedAt,
-		e.UpdatedAt,
-	)
+	return repository.ReconstructStep(e.ID, e.Name, e.Kind, e.CreatedAt, e.UpdatedAt)
 }
 
 // ToModel converts a domain Step to a models.Step.
@@ -67,7 +56,7 @@ func (m StepMapper) ToModel(s repository.Step) models.Step {
 		Kind: s.Kind(),
 	}
 	if s.ID() != 0 {
-		step.ID = uint(s.ID())
+		step.ID = s.ID()
 		step.CreatedAt = s.CreatedAt()
 		step.UpdatedAt = time.Now()
 	}
@@ -91,23 +80,17 @@ type PipelineStepMapper struct{}
 
 // ToDomain converts a models.PipelineStep to a domain PipelineStep.
 func (m PipelineStepMapper) ToDomain(e models.PipelineStep) repository.PipelineStep {
-	return repository.ReconstructPipelineStep(
-		int64(e.ID),
-		int64(e.PipelineID),
-		int64(e.StepID),
-		e.CreatedAt,
-		e.UpdatedAt,
-	)
+	return repository.ReconstructPipelineStep(e.ID, e.PipelineID, e.StepID, e.CreatedAt, e.UpdatedAt)
 }
 
 // ToModel converts a domain PipelineStep to a models.PipelineStep.
 func (m PipelineStepMapper) ToModel(ps repository.PipelineStep) models.PipelineStep {
 	assoc := models.PipelineStep{
-		PipelineID: uint(ps.PipelineID()),
-		StepID:     uint(ps.StepID()),
+		PipelineID: ps.PipelineID(),
+		StepID:     ps.StepID(),
 	}
 	if ps.ID() != 0 {
-		assoc.ID = uint(ps.ID())
+		assoc.ID = ps.ID()
 		assoc.CreatedAt = ps.CreatedAt()
 		assoc.UpdatedAt = time.Now()
 	}
@@ -131,23 +114,17 @@ type StepDependencyMapper struct{}
 
 // ToDomain converts a models.StepDependency to a domain StepDependency.
 func (m StepDependencyMapper) ToDomain(e models.StepDependency) repository.StepDependency {
-	return repository.ReconstructStepDependency(
-		int64(e.ID),
-		int64(e.StepID),
-		int64(e.DependsOnID),
-		e.CreatedAt,
-		e.UpdatedAt,
-	)
+	return repository.ReconstructStepDependency(e.ID, e.StepID, e.DependsOnID, e.CreatedAt, e.UpdatedAt)
 }
 
 // ToModel converts a domain StepDependency to a models.StepDependency.
 func (m StepDependencyMapper) ToModel(d repository.StepDependency) models.StepDependency {
 	dep := models.StepDependency{
-		StepID:      uint(d.StepID()),
-		DependsOnID: uint(d.DependsOnID()),
+		StepID:      d.StepID(),
+		DependsOnID: d.DependsOnID(),
 	}
 	if d.ID() != 0 {
-		dep.ID = uint(d.ID())
+		dep.ID = d.ID()
 		dep.CreatedAt = d.CreatedAt()
 		dep.UpdatedAt = time.Now()
 	}
