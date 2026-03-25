@@ -60,6 +60,103 @@
                 },
                 "type": "object"
             },
+            "dto.DuplicatePairAttributes": {
+                "properties": {
+                    "similarity": {
+                        "type": "number"
+                    },
+                    "snippet_a": {
+                        "$ref": "#/components/schemas/dto.DuplicateSnippetSchema"
+                    },
+                    "snippet_b": {
+                        "$ref": "#/components/schemas/dto.DuplicateSnippetSchema"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.DuplicatePairData": {
+                "properties": {
+                    "attributes": {
+                        "$ref": "#/components/schemas/dto.DuplicatePairAttributes"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.DuplicateSearchAttributes": {
+                "properties": {
+                    "limit": {
+                        "type": "integer"
+                    },
+                    "repository_ids": {
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array"
+                    },
+                    "threshold": {
+                        "type": "number"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.DuplicateSearchData": {
+                "properties": {
+                    "attributes": {
+                        "$ref": "#/components/schemas/dto.DuplicateSearchAttributes"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.DuplicateSearchRequest": {
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/dto.DuplicateSearchData"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.DuplicateSnippetSchema": {
+                "properties": {
+                    "content": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "language": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.DuplicatesMeta": {
+                "properties": {
+                    "truncated": {
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.DuplicatesResponse": {
+                "properties": {
+                    "data": {
+                        "items": {
+                            "$ref": "#/components/schemas/dto.DuplicatePairData"
+                        },
+                        "type": "array"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/dto.DuplicatesMeta"
+                    }
+                },
+                "type": "object"
+            },
             "dto.EnrichmentAttributes": {
                 "properties": {
                     "content": {
@@ -3272,6 +3369,59 @@
                     }
                 },
                 "summary": "Search code",
+                "tags": [
+                    "search"
+                ]
+            }
+        },
+        "/search/duplicates": {
+            "post": {
+                "description": "Finds pairs of semantically similar code snippets using pairwise embedding comparison",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/dto.DuplicateSearchRequest"
+                            }
+                        }
+                    },
+                    "description": "Duplicate search request",
+                    "required": true,
+                    "x-originalParamName": "body"
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.DuplicatesResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "summary": "Find duplicate code snippets",
                 "tags": [
                     "search"
                 ]

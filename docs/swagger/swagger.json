@@ -1890,6 +1890,52 @@
                 }
             }
         },
+        "/search/duplicates": {
+            "post": {
+                "description": "Finds pairs of semantically similar code snippets using pairwise embedding comparison",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "search"
+                ],
+                "summary": "Find duplicate code snippets",
+                "parameters": [
+                    {
+                        "description": "Duplicate search request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.DuplicateSearchRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.DuplicatesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/search/grep": {
             "get": {
                 "description": "Search file contents in a repository using git grep with regex patterns",
@@ -2201,6 +2247,103 @@
             "properties": {
                 "data": {
                     "$ref": "#/definitions/dto.CommitData"
+                }
+            }
+        },
+        "dto.DuplicatePairAttributes": {
+            "type": "object",
+            "properties": {
+                "similarity": {
+                    "type": "number"
+                },
+                "snippet_a": {
+                    "$ref": "#/definitions/dto.DuplicateSnippetSchema"
+                },
+                "snippet_b": {
+                    "$ref": "#/definitions/dto.DuplicateSnippetSchema"
+                }
+            }
+        },
+        "dto.DuplicatePairData": {
+            "type": "object",
+            "properties": {
+                "attributes": {
+                    "$ref": "#/definitions/dto.DuplicatePairAttributes"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.DuplicateSearchAttributes": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer"
+                },
+                "repository_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "threshold": {
+                    "type": "number"
+                }
+            }
+        },
+        "dto.DuplicateSearchData": {
+            "type": "object",
+            "properties": {
+                "attributes": {
+                    "$ref": "#/definitions/dto.DuplicateSearchAttributes"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.DuplicateSearchRequest": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/dto.DuplicateSearchData"
+                }
+            }
+        },
+        "dto.DuplicateSnippetSchema": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "language": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.DuplicatesMeta": {
+            "type": "object",
+            "properties": {
+                "truncated": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "dto.DuplicatesResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.DuplicatePairData"
+                    }
+                },
+                "meta": {
+                    "$ref": "#/definitions/dto.DuplicatesMeta"
                 }
             }
         },

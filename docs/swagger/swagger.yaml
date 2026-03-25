@@ -38,6 +38,68 @@ definitions:
       data:
         $ref: '#/definitions/dto.CommitData'
     type: object
+  dto.DuplicatePairAttributes:
+    properties:
+      similarity:
+        type: number
+      snippet_a:
+        $ref: '#/definitions/dto.DuplicateSnippetSchema'
+      snippet_b:
+        $ref: '#/definitions/dto.DuplicateSnippetSchema'
+    type: object
+  dto.DuplicatePairData:
+    properties:
+      attributes:
+        $ref: '#/definitions/dto.DuplicatePairAttributes'
+      type:
+        type: string
+    type: object
+  dto.DuplicateSearchAttributes:
+    properties:
+      limit:
+        type: integer
+      repository_ids:
+        items:
+          type: integer
+        type: array
+      threshold:
+        type: number
+    type: object
+  dto.DuplicateSearchData:
+    properties:
+      attributes:
+        $ref: '#/definitions/dto.DuplicateSearchAttributes'
+      type:
+        type: string
+    type: object
+  dto.DuplicateSearchRequest:
+    properties:
+      data:
+        $ref: '#/definitions/dto.DuplicateSearchData'
+    type: object
+  dto.DuplicateSnippetSchema:
+    properties:
+      content:
+        type: string
+      id:
+        type: string
+      language:
+        type: string
+    type: object
+  dto.DuplicatesMeta:
+    properties:
+      truncated:
+        type: boolean
+    type: object
+  dto.DuplicatesResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/dto.DuplicatePairData'
+        type: array
+      meta:
+        $ref: '#/definitions/dto.DuplicatesMeta'
+    type: object
   dto.EnrichmentAttributes:
     properties:
       content:
@@ -1890,6 +1952,37 @@ paths:
           schema:
             $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       summary: Search code
+      tags:
+      - search
+  /search/duplicates:
+    post:
+      consumes:
+      - application/json
+      description: Finds pairs of semantically similar code snippets using pairwise
+        embedding comparison
+      parameters:
+      - description: Duplicate search request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.DuplicateSearchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.DuplicatesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      summary: Find duplicate code snippets
       tags:
       - search
   /search/grep:
