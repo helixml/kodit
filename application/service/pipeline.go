@@ -81,7 +81,7 @@ func NewPipeline(
 	}
 }
 
-// Initialise seeds the default pipeline if no pipelines exist yet.
+// Initialise seeds the default and RAG pipelines if no pipelines exist yet.
 func (s *Pipeline) Initialise(ctx context.Context) error {
 	count, err := s.pipelineStore.Count(ctx)
 	if err != nil {
@@ -91,7 +91,30 @@ func (s *Pipeline) Initialise(ctx context.Context) error {
 		return nil
 	}
 
-	ops := s.prescribedOps.ScanAndIndexCommit()
+	// "default" pipeline — the full operation set from prescribedOps.
+	defaultOps := s.prescribedOps.ScanAndIndexCommit()
+	if _, err := s.Create(ctx, &CreatePipelineParams{
+		Name:  "default",
+		Steps: operationsToStepParams(defaultOps),
+	}); err != nil {
+		return fmt.Errorf("seed default pipeline: %w", err)
+	}
+
+	// "rag" pipeline — RAG-only subset (no enrichments).
+	ragOps := task.RAGOnlyPrescribedOperations().ScanAndIndexCommit()
+	if _, err := s.Create(ctx, &CreatePipelineParams{
+		Name:  "rag",
+		Steps: operationsToStepParams(ragOps),
+	}); err != nil {
+		return fmt.Errorf("seed rag pipeline: %w", err)
+	}
+
+	return nil
+}
+
+// operationsToStepParams converts an ordered slice of operations into step
+// params with a linear dependency chain.
+func operationsToStepParams(ops []task.Operation) []StepParams {
 	steps := make([]StepParams, len(ops))
 	for i, op := range ops {
 		name := string(op)
@@ -108,20 +131,61 @@ func (s *Pipeline) Initialise(ctx context.Context) error {
 			DependsOn: dependsOn,
 		}
 	}
-
-	_, err = s.Create(ctx, &CreatePipelineParams{
-		Name:  "default",
-		Steps: steps,
-	})
-	if err != nil {
-		return fmt.Errorf("seed default pipeline: %w", err)
-	}
-	return nil
+	return steps
 }
 
 // RequiredOperations returns all operations that handlers must support.
 func (s *Pipeline) RequiredOperations() []task.Operation {
 	return s.prescribedOps.All()
+}
+
+// FindSteps delegates to the step store for top-level step queries.
+func (s *Pipeline) FindSteps(ctx context.Context, options ...repository.Option) ([]repository.Step, error) {
+	return s.stepStore.Find(ctx, options...)
+}
+
+// FindStep returns a single step by ID.
+func (s *Pipeline) FindStep(ctx context.Context, id int64) (repository.Step, error) {
+	return s.stepStore.FindOne(ctx, repository.WithID(id))
+}
+
+// CountSteps delegates to the step store for counting steps.
+func (s *Pipeline) CountSteps(ctx context.Context, options ...repository.Option) (int64, error) {
+	return s.stepStore.Count(ctx, options...)
+}
+
+// StepDetail is an immutable read-only view of a step with its dependencies.
+type StepDetail struct {
+	step         repository.Step
+	dependencies []repository.StepDependency
+}
+
+// Step returns the step entity.
+func (d StepDetail) Step() repository.Step { return d.step }
+
+// Dependencies returns the step dependencies.
+func (d StepDetail) Dependencies() []repository.StepDependency {
+	result := make([]repository.StepDependency, len(d.dependencies))
+	copy(result, d.dependencies)
+	return result
+}
+
+// DetailStep loads a step with its dependencies.
+func (s *Pipeline) DetailStep(ctx context.Context, stepID int64) (StepDetail, error) {
+	step, err := s.stepStore.FindOne(ctx, repository.WithID(stepID))
+	if err != nil {
+		return StepDetail{}, fmt.Errorf("find step: %w", err)
+	}
+
+	deps, err := s.dependencyStore.Find(ctx, repository.WithStepID(stepID))
+	if err != nil {
+		return StepDetail{}, fmt.Errorf("find dependencies: %w", err)
+	}
+
+	return StepDetail{
+		step:         step,
+		dependencies: deps,
+	}, nil
 }
 
 // Create validates and persists a new pipeline with its steps and dependencies.
@@ -270,20 +334,21 @@ func topologicalSort(steps []repository.Step, deps []repository.StepDependency) 
 	return operations
 }
 
-// createSteps saves steps, pipeline-step associations, and dependencies.
+// createSteps finds or creates steps by kind, then saves pipeline-step
+// associations and dependencies. Steps are shared across pipelines.
 func (s *Pipeline) createSteps(ctx context.Context, pipelineID int64, params []StepParams) ([]repository.Step, []repository.StepDependency, error) {
 	nameToID := make(map[string]int64, len(params))
 	steps := make([]repository.Step, 0, len(params))
 
 	for _, sp := range params {
-		saved, err := s.stepStore.Save(ctx, repository.NewStep(sp.Name, sp.Kind))
+		step, err := s.findOrCreateStep(ctx, sp.Name, sp.Kind)
 		if err != nil {
-			return nil, nil, fmt.Errorf("save step %q: %w", sp.Name, err)
+			return nil, nil, err
 		}
-		nameToID[sp.Name] = saved.ID()
-		steps = append(steps, saved)
+		nameToID[sp.Name] = step.ID()
+		steps = append(steps, step)
 
-		_, err = s.pipelineStepStore.Save(ctx, repository.NewPipelineStep(pipelineID, saved.ID()))
+		_, err = s.pipelineStepStore.Save(ctx, repository.NewPipelineStep(pipelineID, step.ID()))
 		if err != nil {
 			return nil, nil, fmt.Errorf("save pipeline step for %q: %w", sp.Name, err)
 		}
@@ -294,15 +359,43 @@ func (s *Pipeline) createSteps(ctx context.Context, pipelineID int64, params []S
 		stepID := nameToID[sp.Name]
 		for _, depName := range sp.DependsOn {
 			depID := nameToID[depName]
-			saved, err := s.dependencyStore.Save(ctx, repository.NewStepDependency(stepID, depID))
+			dep, err := s.findOrCreateDependency(ctx, stepID, depID)
 			if err != nil {
-				return nil, nil, fmt.Errorf("save dependency %q -> %q: %w", sp.Name, depName, err)
+				return nil, nil, fmt.Errorf("dependency %q -> %q: %w", sp.Name, depName, err)
 			}
-			deps = append(deps, saved)
+			deps = append(deps, dep)
 		}
 	}
 
 	return steps, deps, nil
+}
+
+// findOrCreateStep returns an existing step with the given kind, or creates one.
+func (s *Pipeline) findOrCreateStep(ctx context.Context, name, kind string) (repository.Step, error) {
+	existing, err := s.stepStore.FindOne(ctx, repository.WithKind(kind))
+	if err == nil {
+		return existing, nil
+	}
+
+	saved, err := s.stepStore.Save(ctx, repository.NewStep(name, kind))
+	if err != nil {
+		return repository.Step{}, fmt.Errorf("save step %q: %w", name, err)
+	}
+	return saved, nil
+}
+
+// findOrCreateDependency returns an existing dependency or creates one.
+func (s *Pipeline) findOrCreateDependency(ctx context.Context, stepID, dependsOnID int64) (repository.StepDependency, error) {
+	existing, err := s.dependencyStore.FindOne(ctx, repository.WithStepID(stepID), repository.WithDependsOnID(dependsOnID))
+	if err == nil {
+		return existing, nil
+	}
+
+	saved, err := s.dependencyStore.Save(ctx, repository.NewStepDependency(stepID, dependsOnID))
+	if err != nil {
+		return repository.StepDependency{}, fmt.Errorf("save dependency: %w", err)
+	}
+	return saved, nil
 }
 
 // loadStepsAndDependencies fetches steps and their dependencies for a pipeline.
@@ -334,7 +427,8 @@ func (s *Pipeline) loadStepsAndDependencies(ctx context.Context, pipelineID int6
 	return steps, deps, nil
 }
 
-// deleteStepsForPipeline removes all steps (and cascaded associations/dependencies) for a pipeline.
+// deleteStepsForPipeline removes pipeline-step associations for a pipeline,
+// then deletes any orphaned steps (steps no longer referenced by any pipeline).
 func (s *Pipeline) deleteStepsForPipeline(ctx context.Context, pipelineID int64) error {
 	associations, err := s.pipelineStepStore.Find(ctx, repository.WithPipelineID(pipelineID))
 	if err != nil {
@@ -350,9 +444,22 @@ func (s *Pipeline) deleteStepsForPipeline(ctx context.Context, pipelineID int64)
 		stepIDs[i] = a.StepID()
 	}
 
-	// Delete steps — cascade constraints remove pipeline_steps and step_dependencies.
-	if err := s.stepStore.DeleteBy(ctx, repository.WithIDIn(stepIDs)); err != nil {
-		return fmt.Errorf("delete steps: %w", err)
+	// Remove the pipeline-step associations.
+	if err := s.pipelineStepStore.DeleteBy(ctx, repository.WithPipelineID(pipelineID)); err != nil {
+		return fmt.Errorf("delete pipeline steps: %w", err)
+	}
+
+	// Delete orphaned steps — those no longer associated with any pipeline.
+	for _, stepID := range stepIDs {
+		remaining, err := s.pipelineStepStore.Find(ctx, repository.WithStepID(stepID))
+		if err != nil {
+			return fmt.Errorf("check step %d associations: %w", stepID, err)
+		}
+		if len(remaining) == 0 {
+			if err := s.stepStore.DeleteBy(ctx, repository.WithID(stepID)); err != nil {
+				return fmt.Errorf("delete orphaned step %d: %w", stepID, err)
+			}
+		}
 	}
 
 	return nil

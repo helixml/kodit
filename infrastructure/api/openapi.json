@@ -1,6 +1,25 @@
 {
     "components": {
         "schemas": {
+            "dto.AssignPipelineData": {
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.AssignPipelineRequest": {
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/dto.AssignPipelineData"
+                    }
+                },
+                "type": "object"
+            },
             "dto.CommitAttributes": {
                 "properties": {
                     "author": {
@@ -325,6 +344,142 @@
                 },
                 "type": "object"
             },
+            "dto.PipelineAttributes": {
+                "properties": {
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "updated_at": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.PipelineCreateAttributes": {
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "steps": {
+                        "items": {
+                            "$ref": "#/components/schemas/dto.StepInput"
+                        },
+                        "type": "array"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.PipelineCreateData": {
+                "properties": {
+                    "attributes": {
+                        "$ref": "#/components/schemas/dto.PipelineCreateAttributes"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.PipelineCreateRequest": {
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/dto.PipelineCreateData"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.PipelineData": {
+                "properties": {
+                    "attributes": {
+                        "$ref": "#/components/schemas/dto.PipelineAttributes"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/dto.PipelineLinks"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.PipelineDetailResponse": {
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/dto.PipelineData"
+                    },
+                    "included": {
+                        "items": {
+                            "$ref": "#/components/schemas/dto.StepData"
+                        },
+                        "type": "array"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.PipelineLinks": {
+                "properties": {
+                    "self": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.PipelineListResponse": {
+                "properties": {
+                    "data": {
+                        "items": {
+                            "$ref": "#/components/schemas/dto.PipelineData"
+                        },
+                        "type": "array"
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/jsonapi.Links"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/jsonapi.Meta"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.PipelineUpdateAttributes": {
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "steps": {
+                        "items": {
+                            "$ref": "#/components/schemas/dto.StepInput"
+                        },
+                        "type": "array"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.PipelineUpdateData": {
+                "properties": {
+                    "attributes": {
+                        "$ref": "#/components/schemas/dto.PipelineUpdateAttributes"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.PipelineUpdateRequest": {
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/dto.PipelineUpdateData"
+                    }
+                },
+                "type": "object"
+            },
             "dto.RepositoryAttributes": {
                 "properties": {
                     "cloned_path": {
@@ -343,6 +498,9 @@
                         "type": "integer"
                     },
                     "num_tags": {
+                        "type": "integer"
+                    },
+                    "pipeline_id": {
                         "type": "integer"
                     },
                     "remote_uri": {
@@ -431,6 +589,9 @@
                     "id": {
                         "type": "string"
                     },
+                    "links": {
+                        "$ref": "#/components/schemas/dto.RepositoryLinks"
+                    },
                     "type": {
                         "type": "string"
                     }
@@ -453,6 +614,14 @@
                             "$ref": "#/components/schemas/dto.RepositoryCommitData"
                         },
                         "type": "array"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.RepositoryLinks": {
+                "properties": {
+                    "pipeline": {
+                        "type": "string"
                     }
                 },
                 "type": "object"
@@ -711,6 +880,90 @@
                     },
                     "meta": {
                         "$ref": "#/components/schemas/jsonapi.Meta"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.StepAttributes": {
+                "properties": {
+                    "depends_on": {
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array"
+                    },
+                    "kind": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.StepData": {
+                "properties": {
+                    "attributes": {
+                        "$ref": "#/components/schemas/dto.StepAttributes"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/dto.StepLinks"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.StepInput": {
+                "properties": {
+                    "depends_on": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "kind": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.StepLinks": {
+                "properties": {
+                    "self": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.StepListResponse": {
+                "properties": {
+                    "data": {
+                        "items": {
+                            "$ref": "#/components/schemas/dto.StepData"
+                        },
+                        "type": "array"
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/jsonapi.Links"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/jsonapi.Meta"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.StepResponse": {
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/dto.StepData"
                     }
                 },
                 "type": "object"
@@ -1294,6 +1547,298 @@
                 "summary": "Update enrichment",
                 "tags": [
                     "enrichments"
+                ]
+            }
+        },
+        "/pipelines": {
+            "get": {
+                "description": "List all pipelines with pagination",
+                "parameters": [
+                    {
+                        "description": "Page number (default: 1)",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Results per page (default: 20, max: 100)",
+                        "in": "query",
+                        "name": "page_size",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.PipelineListResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "List pipelines",
+                "tags": [
+                    "pipelines"
+                ]
+            },
+            "post": {
+                "description": "Create a new pipeline with steps",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/dto.PipelineCreateRequest"
+                            }
+                        }
+                    },
+                    "description": "Pipeline to create",
+                    "required": true,
+                    "x-originalParamName": "body"
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.PipelineDetailResponse"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Create pipeline",
+                "tags": [
+                    "pipelines"
+                ]
+            }
+        },
+        "/pipelines/{id}": {
+            "delete": {
+                "description": "Delete a pipeline and all its steps",
+                "parameters": [
+                    {
+                        "description": "Pipeline ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Delete pipeline",
+                "tags": [
+                    "pipelines"
+                ]
+            },
+            "get": {
+                "description": "Get a pipeline with its steps and dependencies",
+                "parameters": [
+                    {
+                        "description": "Pipeline ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.PipelineDetailResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Get pipeline",
+                "tags": [
+                    "pipelines"
+                ]
+            },
+            "put": {
+                "description": "Replace pipeline name and steps",
+                "parameters": [
+                    {
+                        "description": "Pipeline ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/dto.PipelineUpdateRequest"
+                            }
+                        }
+                    },
+                    "description": "Pipeline update",
+                    "required": true,
+                    "x-originalParamName": "body"
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.PipelineDetailResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Update pipeline",
+                "tags": [
+                    "pipelines"
                 ]
             }
         },
@@ -2624,6 +3169,85 @@
                 ]
             }
         },
+        "/repositories/{id}/pipeline": {
+            "put": {
+                "description": "Link a pipeline to a repository",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/dto.AssignPipelineRequest"
+                            }
+                        }
+                    },
+                    "description": "Pipeline assignment",
+                    "required": true,
+                    "x-originalParamName": "body"
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.RepositoryResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Assign pipeline to repository",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
         "/repositories/{id}/status": {
             "get": {
                 "description": "Get indexing task status for a repository",
@@ -3600,6 +4224,117 @@
                 "summary": "Semantic code search",
                 "tags": [
                     "search"
+                ]
+            }
+        },
+        "/steps": {
+            "get": {
+                "description": "List all steps with pagination",
+                "parameters": [
+                    {
+                        "description": "Page number (default: 1)",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Results per page (default: 20, max: 100)",
+                        "in": "query",
+                        "name": "page_size",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.StepListResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "List steps",
+                "tags": [
+                    "steps"
+                ]
+            }
+        },
+        "/steps/{id}": {
+            "get": {
+                "description": "Get a step by ID",
+                "parameters": [
+                    {
+                        "description": "Step ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.StepResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Get step",
+                "tags": [
+                    "steps"
                 ]
             }
         }

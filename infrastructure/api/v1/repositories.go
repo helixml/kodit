@@ -75,6 +75,7 @@ func (r *RepositoriesRouter) Routes() chi.Router {
 	})
 	router.Get("/{id}/blob/{blob_name}/*", r.GetBlob)
 	router.Get("/{id}/grep", r.Grep)
+	router.Put("/{id}/pipeline", r.AssignPipeline)
 
 	return router
 }
@@ -1655,6 +1656,52 @@ func trackingConfigToResponse(tc repository.TrackingConfig) dto.TrackingConfigRe
 	}
 }
 
+// AssignPipeline handles PUT /api/v1/repositories/{id}/pipeline.
+//
+//	@Summary		Assign pipeline to repository
+//	@Description	Link a pipeline to a repository
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int							true	"Repository ID"
+//	@Param			body	body		dto.AssignPipelineRequest	true	"Pipeline assignment"
+//	@Success		200		{object}	dto.RepositoryResponse
+//	@Failure		400		{object}	middleware.JSONAPIErrorResponse
+//	@Failure		404		{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500		{object}	middleware.JSONAPIErrorResponse
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/pipeline [put]
+func (r *RepositoriesRouter) AssignPipeline(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	repoID, err := r.repositoryID(req)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	var body dto.AssignPipelineRequest
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	source, err := r.client.Repositories.AssignPipeline(ctx, repoID, body.Data.ID)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	repo := source.Repository()
+	numCommits, _ := r.client.Commits.Count(ctx, repository.WithRepoID(repo.ID()))
+	branches, _ := r.client.Repositories.BranchesForRepository(ctx, repo.ID())
+	numTags, _ := r.client.Tags.Count(ctx, repository.WithRepoID(repo.ID()))
+
+	middleware.WriteJSON(w, http.StatusOK, dto.RepositoryResponse{
+		Data: repoToDTO(repo, numCommits, int64(len(branches)), numTags),
+	})
+}
+
 func repoToDTO(repo repository.Repository, numCommits, numBranches, numTags int64) dto.RepositoryData {
 	createdAt := repo.CreatedAt()
 	updatedAt := repo.UpdatedAt()
@@ -1663,6 +1710,7 @@ func repoToDTO(repo repository.Repository, numCommits, numBranches, numTags int6
 	attrs := dto.RepositoryAttributes{
 		RemoteURI:   repo.SanitizedURL(),
 		UpstreamURL: repo.UpstreamURL(),
+		PipelineID:  repo.PipelineID(),
 		CreatedAt:   &createdAt,
 		UpdatedAt:   &updatedAt,
 		ClonedPath:  &clonedPath,
@@ -1676,11 +1724,18 @@ func repoToDTO(repo repository.Repository, numCommits, numBranches, numTags int6
 		attrs.TrackingBranch = &branch
 	}
 
-	return dto.RepositoryData{
+	data := dto.RepositoryData{
 		Type:       "repository",
 		ID:         fmt.Sprintf("%d", repo.ID()),
 		Attributes: attrs,
 	}
+
+	if pid := repo.PipelineID(); pid != nil {
+		link := fmt.Sprintf("/api/v1/pipelines/%d", *pid)
+		data.Links = &dto.RepositoryLinks{Pipeline: &link}
+	}
+
+	return data
 }
 
 // GetBlob handles GET /api/v1/repositories/{id}/blob/{blob_name}/*.

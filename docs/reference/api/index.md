@@ -134,6 +134,138 @@ Update an enrichment's content
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+### GET /pipelines
+
+List all pipelines with pagination
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| page | integer |  | Page number (default: 1) |
+| page_size | integer |  | Results per page (default: 20, max: 100) |
+
+
+#### Responses
+
+- 200: OK
+
+[dto.PipelineListResponse](#dto.pipelinelistresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### POST /pipelines
+
+Create a new pipeline with steps
+
+
+#### Request Body
+
+[dto.PipelineCreateRequest](#dto.pipelinecreaterequest)
+
+
+#### Responses
+
+- 201: Created
+
+[dto.PipelineDetailResponse](#dto.pipelinedetailresponse)
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### DELETE /pipelines/{id}
+
+Delete a pipeline and all its steps
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Pipeline ID |
+
+
+#### Responses
+
+- 204: No Content
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### GET /pipelines/{id}
+
+Get a pipeline with its steps and dependencies
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Pipeline ID |
+
+
+#### Responses
+
+- 200: OK
+
+[dto.PipelineDetailResponse](#dto.pipelinedetailresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### PUT /pipelines/{id}
+
+Replace pipeline name and steps
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Pipeline ID |
+
+
+#### Request Body
+
+[dto.PipelineUpdateRequest](#dto.pipelineupdaterequest)
+
+
+#### Responses
+
+- 200: OK
+
+[dto.PipelineDetailResponse](#dto.pipelinedetailresponse)
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 ### GET /queue
 
 List tasks in the queue
@@ -652,6 +784,41 @@ List recent enrichments across commits for a repository
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+### PUT /repositories/{id}/pipeline
+
+Link a pipeline to a repository
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Repository ID |
+
+
+#### Request Body
+
+[dto.AssignPipelineRequest](#dto.assignpipelinerequest)
+
+
+#### Responses
+
+- 200: OK
+
+[dto.RepositoryResponse](#dto.repositoryresponse)
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 ### GET /repositories/{id}/status
 
 Get indexing task status for a repository
@@ -1065,8 +1232,76 @@ Search code snippets using semantic similarity
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+### GET /steps
+
+List all steps with pagination
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| page | integer |  | Page number (default: 1) |
+| page_size | integer |  | Results per page (default: 20, max: 100) |
+
+
+#### Responses
+
+- 200: OK
+
+[dto.StepListResponse](#dto.steplistresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### GET /steps/{id}
+
+Get a step by ID
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Step ID |
+
+
+#### Responses
+
+- 200: OK
+
+[dto.StepResponse](#dto.stepresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 ## Components
 
+
+
+### dto.AssignPipelineData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | integer |  |
+| type | string |  |
+
+
+### dto.AssignPipelineRequest
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
 
 
 ### dto.CommitAttributes
@@ -1323,6 +1558,117 @@ Search code snippets using semantic similarity
 | meta |  |  |
 
 
+### dto.PipelineAttributes
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| created_at | string |  |
+| name | string |  |
+| updated_at | string |  |
+
+
+### dto.PipelineCreateAttributes
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| name | string |  |
+| steps | array |  |
+
+
+### dto.PipelineCreateData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| type | string |  |
+
+
+### dto.PipelineCreateRequest
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+
+
+### dto.PipelineData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| id | integer |  |
+| links |  |  |
+| type | string |  |
+
+
+### dto.PipelineDetailResponse
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+| included | array |  |
+
+
+### dto.PipelineLinks
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| self | string |  |
+
+
+### dto.PipelineListResponse
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data | array |  |
+| links |  |  |
+| meta |  |  |
+
+
+### dto.PipelineUpdateAttributes
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| name | string |  |
+| steps | array |  |
+
+
+### dto.PipelineUpdateData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| type | string |  |
+
+
+### dto.PipelineUpdateRequest
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+
+
 ### dto.RepositoryAttributes
 
 
@@ -1335,6 +1681,7 @@ Search code snippets using semantic similarity
 | num_branches | integer |  |
 | num_commits | integer |  |
 | num_tags | integer |  |
+| pipeline_id | integer |  |
 | remote_uri | string |  |
 | tracking_branch | string |  |
 | updated_at | string |  |
@@ -1401,6 +1748,7 @@ Search code snippets using semantic similarity
 |-------|------|-------------|
 | attributes |  |  |
 | id | string |  |
+| links |  |  |
 | type | string |  |
 
 
@@ -1413,6 +1761,15 @@ Search code snippets using semantic similarity
 | branches | array |  |
 | data |  |  |
 | recent_commits | array |  |
+
+
+### dto.RepositoryLinks
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| pipeline | string |  |
 
 
 ### dto.RepositoryListResponse
@@ -1581,6 +1938,69 @@ Search code snippets using semantic similarity
 | data | array |  |
 | links |  |  |
 | meta |  |  |
+
+
+### dto.StepAttributes
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| depends_on | array |  |
+| kind | string |  |
+| name | string |  |
+
+
+### dto.StepData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| id | integer |  |
+| links |  |  |
+| type | string |  |
+
+
+### dto.StepInput
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| depends_on | array |  |
+| kind | string |  |
+| name | string |  |
+
+
+### dto.StepLinks
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| self | string |  |
+
+
+### dto.StepListResponse
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data | array |  |
+| links |  |  |
+| meta |  |  |
+
+
+### dto.StepResponse
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
 
 
 ### dto.TagAttributes

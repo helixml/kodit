@@ -31,9 +31,9 @@ func TestPipeline_Create(t *testing.T) {
 	detail, err := svc.Create(ctx, &CreatePipelineParams{
 		Name: "build-pipeline",
 		Steps: []StepParams{
-			{Name: "clone", Kind: "git"},
-			{Name: "test", Kind: "shell", DependsOn: []string{"clone"}},
-			{Name: "deploy", Kind: "shell", DependsOn: []string{"test"}},
+			{Name: "clone", Kind: "git.clone"},
+			{Name: "test", Kind: "shell.test", DependsOn: []string{"clone"}},
+			{Name: "deploy", Kind: "shell.deploy", DependsOn: []string{"test"}},
 		},
 	})
 	if err != nil {
@@ -58,8 +58,8 @@ func TestPipeline_Detail(t *testing.T) {
 	created, err := svc.Create(ctx, &CreatePipelineParams{
 		Name: "my-pipeline",
 		Steps: []StepParams{
-			{Name: "fetch", Kind: "git"},
-			{Name: "build", Kind: "shell", DependsOn: []string{"fetch"}},
+			{Name: "fetch", Kind: "git.fetch"},
+			{Name: "build", Kind: "shell.build", DependsOn: []string{"fetch"}},
 		},
 	})
 	if err != nil {
@@ -89,7 +89,7 @@ func TestPipeline_Update(t *testing.T) {
 	created, err := svc.Create(ctx, &CreatePipelineParams{
 		Name: "original",
 		Steps: []StepParams{
-			{Name: "step-a", Kind: "shell"},
+			{Name: "step-a", Kind: "shell.a"},
 		},
 	})
 	if err != nil {
@@ -99,8 +99,8 @@ func TestPipeline_Update(t *testing.T) {
 	updated, err := svc.Update(ctx, created.Pipeline().ID(), &UpdatePipelineParams{
 		Name: "updated",
 		Steps: []StepParams{
-			{Name: "step-x", Kind: "git"},
-			{Name: "step-y", Kind: "shell", DependsOn: []string{"step-x"}},
+			{Name: "step-x", Kind: "git.x"},
+			{Name: "step-y", Kind: "shell.y", DependsOn: []string{"step-x"}},
 		},
 	})
 	if err != nil {
@@ -139,8 +139,8 @@ func TestPipeline_Delete(t *testing.T) {
 	created, err := svc.Create(ctx, &CreatePipelineParams{
 		Name: "to-delete",
 		Steps: []StepParams{
-			{Name: "step-1", Kind: "shell"},
-			{Name: "step-2", Kind: "shell", DependsOn: []string{"step-1"}},
+			{Name: "step-1", Kind: "shell.one"},
+			{Name: "step-2", Kind: "shell.two", DependsOn: []string{"step-1"}},
 		},
 	})
 	if err != nil {
@@ -382,15 +382,32 @@ func TestPipeline_Initialise(t *testing.T) {
 		t.Fatalf("Initialise: %v", err)
 	}
 
-	pipelines, err := svc.Find(ctx)
+	pipelines, err := svc.Find(ctx, repository.WithOrderAsc("id"))
 	if err != nil {
 		t.Fatalf("Find: %v", err)
 	}
-	if len(pipelines) != 1 {
-		t.Fatalf("expected 1 pipeline, got %d", len(pipelines))
+	if len(pipelines) != 2 {
+		t.Fatalf("expected 2 pipelines, got %d", len(pipelines))
 	}
 	if pipelines[0].Name() != "default" {
-		t.Errorf("expected name %q, got %q", "default", pipelines[0].Name())
+		t.Errorf("expected first pipeline %q, got %q", "default", pipelines[0].Name())
+	}
+	if pipelines[1].Name() != "rag" {
+		t.Errorf("expected second pipeline %q, got %q", "rag", pipelines[1].Name())
+	}
+
+	// RAG pipeline should have fewer steps than default.
+	defaultDetail, err := svc.Detail(ctx, pipelines[0].ID())
+	if err != nil {
+		t.Fatalf("Detail default: %v", err)
+	}
+	ragDetail, err := svc.Detail(ctx, pipelines[1].ID())
+	if err != nil {
+		t.Fatalf("Detail rag: %v", err)
+	}
+	if len(ragDetail.Steps()) >= len(defaultDetail.Steps()) {
+		t.Errorf("expected rag pipeline (%d steps) to have fewer steps than default (%d steps)",
+			len(ragDetail.Steps()), len(defaultDetail.Steps()))
 	}
 
 	// Calling Initialise again should be idempotent.
@@ -402,8 +419,8 @@ func TestPipeline_Initialise(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Find after second Initialise: %v", err)
 	}
-	if len(pipelines) != 1 {
-		t.Errorf("expected 1 pipeline after idempotent call, got %d", len(pipelines))
+	if len(pipelines) != 2 {
+		t.Errorf("expected 2 pipelines after idempotent call, got %d", len(pipelines))
 	}
 }
 

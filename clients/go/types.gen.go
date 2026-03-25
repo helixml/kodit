@@ -13,6 +13,17 @@ const (
 	Tag    DtoTrackingMode = "tag"
 )
 
+// DtoAssignPipelineData defines model for dto.AssignPipelineData.
+type DtoAssignPipelineData struct {
+	Id   *int    `json:"id,omitempty"`
+	Type *string `json:"type,omitempty"`
+}
+
+// DtoAssignPipelineRequest defines model for dto.AssignPipelineRequest.
+type DtoAssignPipelineRequest struct {
+	Data *DtoAssignPipelineData `json:"data,omitempty"`
+}
+
 // DtoCommitAttributes defines model for dto.CommitAttributes.
 type DtoCommitAttributes struct {
 	Author          *string `json:"author,omitempty"`
@@ -171,6 +182,73 @@ type DtoLsResponse struct {
 	Meta  *JsonapiMeta     `json:"meta,omitempty"`
 }
 
+// DtoPipelineAttributes defines model for dto.PipelineAttributes.
+type DtoPipelineAttributes struct {
+	CreatedAt *string `json:"created_at,omitempty"`
+	Name      *string `json:"name,omitempty"`
+	UpdatedAt *string `json:"updated_at,omitempty"`
+}
+
+// DtoPipelineCreateAttributes defines model for dto.PipelineCreateAttributes.
+type DtoPipelineCreateAttributes struct {
+	Name  *string         `json:"name,omitempty"`
+	Steps *[]DtoStepInput `json:"steps,omitempty"`
+}
+
+// DtoPipelineCreateData defines model for dto.PipelineCreateData.
+type DtoPipelineCreateData struct {
+	Attributes *DtoPipelineCreateAttributes `json:"attributes,omitempty"`
+	Type       *string                      `json:"type,omitempty"`
+}
+
+// DtoPipelineCreateRequest defines model for dto.PipelineCreateRequest.
+type DtoPipelineCreateRequest struct {
+	Data *DtoPipelineCreateData `json:"data,omitempty"`
+}
+
+// DtoPipelineData defines model for dto.PipelineData.
+type DtoPipelineData struct {
+	Attributes *DtoPipelineAttributes `json:"attributes,omitempty"`
+	Id         *int                   `json:"id,omitempty"`
+	Links      *DtoPipelineLinks      `json:"links,omitempty"`
+	Type       *string                `json:"type,omitempty"`
+}
+
+// DtoPipelineDetailResponse defines model for dto.PipelineDetailResponse.
+type DtoPipelineDetailResponse struct {
+	Data     *DtoPipelineData `json:"data,omitempty"`
+	Included *[]DtoStepData   `json:"included,omitempty"`
+}
+
+// DtoPipelineLinks defines model for dto.PipelineLinks.
+type DtoPipelineLinks struct {
+	Self *string `json:"self,omitempty"`
+}
+
+// DtoPipelineListResponse defines model for dto.PipelineListResponse.
+type DtoPipelineListResponse struct {
+	Data  *[]DtoPipelineData `json:"data,omitempty"`
+	Links *JsonapiLinks      `json:"links,omitempty"`
+	Meta  *JsonapiMeta       `json:"meta,omitempty"`
+}
+
+// DtoPipelineUpdateAttributes defines model for dto.PipelineUpdateAttributes.
+type DtoPipelineUpdateAttributes struct {
+	Name  *string         `json:"name,omitempty"`
+	Steps *[]DtoStepInput `json:"steps,omitempty"`
+}
+
+// DtoPipelineUpdateData defines model for dto.PipelineUpdateData.
+type DtoPipelineUpdateData struct {
+	Attributes *DtoPipelineUpdateAttributes `json:"attributes,omitempty"`
+	Type       *string                      `json:"type,omitempty"`
+}
+
+// DtoPipelineUpdateRequest defines model for dto.PipelineUpdateRequest.
+type DtoPipelineUpdateRequest struct {
+	Data *DtoPipelineUpdateData `json:"data,omitempty"`
+}
+
 // DtoRepositoryAttributes defines model for dto.RepositoryAttributes.
 type DtoRepositoryAttributes struct {
 	ClonedPath     *string `json:"cloned_path,omitempty"`
@@ -179,6 +257,7 @@ type DtoRepositoryAttributes struct {
 	NumBranches    *int    `json:"num_branches,omitempty"`
 	NumCommits     *int    `json:"num_commits,omitempty"`
 	NumTags        *int    `json:"num_tags,omitempty"`
+	PipelineId     *int    `json:"pipeline_id,omitempty"`
 	RemoteUri      *string `json:"remote_uri,omitempty"`
 	TrackingBranch *string `json:"tracking_branch,omitempty"`
 	UpdatedAt      *string `json:"updated_at,omitempty"`
@@ -225,6 +304,7 @@ type DtoRepositoryCreateRequest struct {
 type DtoRepositoryData struct {
 	Attributes *DtoRepositoryAttributes `json:"attributes,omitempty"`
 	Id         *string                  `json:"id,omitempty"`
+	Links      *DtoRepositoryLinks      `json:"links,omitempty"`
 	Type       *string                  `json:"type,omitempty"`
 }
 
@@ -233,6 +313,11 @@ type DtoRepositoryDetailsResponse struct {
 	Branches      *[]DtoRepositoryBranchData `json:"branches,omitempty"`
 	Data          *DtoRepositoryData         `json:"data,omitempty"`
 	RecentCommits *[]DtoRepositoryCommitData `json:"recent_commits,omitempty"`
+}
+
+// DtoRepositoryLinks defines model for dto.RepositoryLinks.
+type DtoRepositoryLinks struct {
+	Pipeline *string `json:"pipeline,omitempty"`
 }
 
 // DtoRepositoryListResponse defines model for dto.RepositoryListResponse.
@@ -341,6 +426,45 @@ type DtoSnippetListResponse struct {
 	Data  *[]DtoSnippetData `json:"data,omitempty"`
 	Links *JsonapiLinks     `json:"links,omitempty"`
 	Meta  *JsonapiMeta      `json:"meta,omitempty"`
+}
+
+// DtoStepAttributes defines model for dto.StepAttributes.
+type DtoStepAttributes struct {
+	DependsOn *[]int  `json:"depends_on,omitempty"`
+	Kind      *string `json:"kind,omitempty"`
+	Name      *string `json:"name,omitempty"`
+}
+
+// DtoStepData defines model for dto.StepData.
+type DtoStepData struct {
+	Attributes *DtoStepAttributes `json:"attributes,omitempty"`
+	Id         *int               `json:"id,omitempty"`
+	Links      *DtoStepLinks      `json:"links,omitempty"`
+	Type       *string            `json:"type,omitempty"`
+}
+
+// DtoStepInput defines model for dto.StepInput.
+type DtoStepInput struct {
+	DependsOn *[]string `json:"depends_on,omitempty"`
+	Kind      *string   `json:"kind,omitempty"`
+	Name      *string   `json:"name,omitempty"`
+}
+
+// DtoStepLinks defines model for dto.StepLinks.
+type DtoStepLinks struct {
+	Self *string `json:"self,omitempty"`
+}
+
+// DtoStepListResponse defines model for dto.StepListResponse.
+type DtoStepListResponse struct {
+	Data  *[]DtoStepData `json:"data,omitempty"`
+	Links *JsonapiLinks  `json:"links,omitempty"`
+	Meta  *JsonapiMeta   `json:"meta,omitempty"`
+}
+
+// DtoStepResponse defines model for dto.StepResponse.
+type DtoStepResponse struct {
+	Data *DtoStepData `json:"data,omitempty"`
 }
 
 // DtoTagAttributes defines model for dto.TagAttributes.
@@ -514,6 +638,15 @@ type GetEnrichmentsParams struct {
 	PageSize *int `form:"page_size,omitempty" json:"page_size,omitempty"`
 }
 
+// GetPipelinesParams defines parameters for GetPipelines.
+type GetPipelinesParams struct {
+	// Page Page number (default: 1)
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+
+	// PageSize Results per page (default: 20, max: 100)
+	PageSize *int `form:"page_size,omitempty" json:"page_size,omitempty"`
+}
+
 // GetQueueParams defines parameters for GetQueue.
 type GetQueueParams struct {
 	// Page Page number (default: 1)
@@ -670,11 +803,29 @@ type GetSearchSemanticParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// GetStepsParams defines parameters for GetSteps.
+type GetStepsParams struct {
+	// Page Page number (default: 1)
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+
+	// PageSize Results per page (default: 20, max: 100)
+	PageSize *int `form:"page_size,omitempty" json:"page_size,omitempty"`
+}
+
 // PatchEnrichmentsIdJSONRequestBody defines body for PatchEnrichmentsId for application/json ContentType.
 type PatchEnrichmentsIdJSONRequestBody = DtoEnrichmentUpdateRequest
 
+// PostPipelinesJSONRequestBody defines body for PostPipelines for application/json ContentType.
+type PostPipelinesJSONRequestBody = DtoPipelineCreateRequest
+
+// PutPipelinesIdJSONRequestBody defines body for PutPipelinesId for application/json ContentType.
+type PutPipelinesIdJSONRequestBody = DtoPipelineUpdateRequest
+
 // PostRepositoriesJSONRequestBody defines body for PostRepositories for application/json ContentType.
 type PostRepositoriesJSONRequestBody = DtoRepositoryCreateRequest
+
+// PutRepositoriesIdPipelineJSONRequestBody defines body for PutRepositoriesIdPipeline for application/json ContentType.
+type PutRepositoriesIdPipelineJSONRequestBody = DtoAssignPipelineRequest
 
 // PutRepositoriesIdTrackingConfigJSONRequestBody defines body for PutRepositoriesIdTrackingConfig for application/json ContentType.
 type PutRepositoriesIdTrackingConfigJSONRequestBody = DtoTrackingConfigUpdateRequest

@@ -57,6 +57,16 @@ func WithStepID(id int64) Option {
 	return WithCondition("step_id", id)
 }
 
+// WithKind filters by the "kind" column.
+func WithKind(kind string) Option {
+	return WithCondition("kind", kind)
+}
+
+// WithDependsOnID filters by the "depends_on_id" column.
+func WithDependsOnID(id int64) Option {
+	return WithCondition("depends_on_id", id)
+}
+
 // WithStepIDIn filters by the "step_id" column using IN.
 func WithStepIDIn(ids []int64) Option {
 	return WithConditionIn("step_id", ids)

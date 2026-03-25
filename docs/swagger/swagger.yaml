@@ -1,5 +1,17 @@
 basePath: /api/v1
 definitions:
+  dto.AssignPipelineData:
+    properties:
+      id:
+        type: integer
+      type:
+        type: string
+    type: object
+  dto.AssignPipelineRequest:
+    properties:
+      data:
+        $ref: '#/definitions/dto.AssignPipelineData'
+    type: object
   dto.CommitAttributes:
     properties:
       author:
@@ -208,6 +220,93 @@ definitions:
       meta:
         $ref: '#/definitions/jsonapi.Meta'
     type: object
+  dto.PipelineAttributes:
+    properties:
+      created_at:
+        type: string
+      name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  dto.PipelineCreateAttributes:
+    properties:
+      name:
+        type: string
+      steps:
+        items:
+          $ref: '#/definitions/dto.StepInput'
+        type: array
+    type: object
+  dto.PipelineCreateData:
+    properties:
+      attributes:
+        $ref: '#/definitions/dto.PipelineCreateAttributes'
+      type:
+        type: string
+    type: object
+  dto.PipelineCreateRequest:
+    properties:
+      data:
+        $ref: '#/definitions/dto.PipelineCreateData'
+    type: object
+  dto.PipelineData:
+    properties:
+      attributes:
+        $ref: '#/definitions/dto.PipelineAttributes'
+      id:
+        type: integer
+      links:
+        $ref: '#/definitions/dto.PipelineLinks'
+      type:
+        type: string
+    type: object
+  dto.PipelineDetailResponse:
+    properties:
+      data:
+        $ref: '#/definitions/dto.PipelineData'
+      included:
+        items:
+          $ref: '#/definitions/dto.StepData'
+        type: array
+    type: object
+  dto.PipelineLinks:
+    properties:
+      self:
+        type: string
+    type: object
+  dto.PipelineListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/dto.PipelineData'
+        type: array
+      links:
+        $ref: '#/definitions/jsonapi.Links'
+      meta:
+        $ref: '#/definitions/jsonapi.Meta'
+    type: object
+  dto.PipelineUpdateAttributes:
+    properties:
+      name:
+        type: string
+      steps:
+        items:
+          $ref: '#/definitions/dto.StepInput'
+        type: array
+    type: object
+  dto.PipelineUpdateData:
+    properties:
+      attributes:
+        $ref: '#/definitions/dto.PipelineUpdateAttributes'
+      type:
+        type: string
+    type: object
+  dto.PipelineUpdateRequest:
+    properties:
+      data:
+        $ref: '#/definitions/dto.PipelineUpdateData'
+    type: object
   dto.RepositoryAttributes:
     properties:
       cloned_path:
@@ -221,6 +320,8 @@ definitions:
       num_commits:
         type: integer
       num_tags:
+        type: integer
+      pipeline_id:
         type: integer
       remote_uri:
         type: string
@@ -280,6 +381,8 @@ definitions:
         $ref: '#/definitions/dto.RepositoryAttributes'
       id:
         type: string
+      links:
+        $ref: '#/definitions/dto.RepositoryLinks'
       type:
         type: string
     type: object
@@ -295,6 +398,11 @@ definitions:
         items:
           $ref: '#/definitions/dto.RepositoryCommitData'
         type: array
+    type: object
+  dto.RepositoryLinks:
+    properties:
+      pipeline:
+        type: string
     type: object
   dto.RepositoryListResponse:
     properties:
@@ -462,6 +570,60 @@ definitions:
         $ref: '#/definitions/jsonapi.Links'
       meta:
         $ref: '#/definitions/jsonapi.Meta'
+    type: object
+  dto.StepAttributes:
+    properties:
+      depends_on:
+        items:
+          type: integer
+        type: array
+      kind:
+        type: string
+      name:
+        type: string
+    type: object
+  dto.StepData:
+    properties:
+      attributes:
+        $ref: '#/definitions/dto.StepAttributes'
+      id:
+        type: integer
+      links:
+        $ref: '#/definitions/dto.StepLinks'
+      type:
+        type: string
+    type: object
+  dto.StepInput:
+    properties:
+      depends_on:
+        items:
+          type: string
+        type: array
+      kind:
+        type: string
+      name:
+        type: string
+    type: object
+  dto.StepLinks:
+    properties:
+      self:
+        type: string
+    type: object
+  dto.StepListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/dto.StepData'
+        type: array
+      links:
+        $ref: '#/definitions/jsonapi.Links'
+      meta:
+        $ref: '#/definitions/jsonapi.Meta'
+    type: object
+  dto.StepResponse:
+    properties:
+      data:
+        $ref: '#/definitions/dto.StepData'
     type: object
   dto.TagAttributes:
     properties:
@@ -815,6 +977,166 @@ paths:
       summary: Update enrichment
       tags:
       - enrichments
+  /pipelines:
+    get:
+      consumes:
+      - application/json
+      description: List all pipelines with pagination
+      parameters:
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Results per page (default: 20, max: 100)'
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PipelineListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: List pipelines
+      tags:
+      - pipelines
+    post:
+      consumes:
+      - application/json
+      description: Create a new pipeline with steps
+      parameters:
+      - description: Pipeline to create
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.PipelineCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.PipelineDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: Create pipeline
+      tags:
+      - pipelines
+  /pipelines/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a pipeline and all its steps
+      parameters:
+      - description: Pipeline ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: Delete pipeline
+      tags:
+      - pipelines
+    get:
+      consumes:
+      - application/json
+      description: Get a pipeline with its steps and dependencies
+      parameters:
+      - description: Pipeline ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PipelineDetailResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: Get pipeline
+      tags:
+      - pipelines
+    put:
+      consumes:
+      - application/json
+      description: Replace pipeline name and steps
+      parameters:
+      - description: Pipeline ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Pipeline update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.PipelineUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PipelineDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: Update pipeline
+      tags:
+      - pipelines
   /queue:
     get:
       consumes:
@@ -1534,6 +1856,47 @@ paths:
       summary: List repository enrichments
       tags:
       - repositories
+  /repositories/{id}/pipeline:
+    put:
+      consumes:
+      - application/json
+      description: Link a pipeline to a repository
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Pipeline assignment
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.AssignPipelineRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.RepositoryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: Assign pipeline to repository
+      tags:
+      - repositories
   /repositories/{id}/status:
     get:
       consumes:
@@ -2062,6 +2425,67 @@ paths:
       summary: Semantic code search
       tags:
       - search
+  /steps:
+    get:
+      consumes:
+      - application/json
+      description: List all steps with pagination
+      parameters:
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Results per page (default: 20, max: 100)'
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.StepListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: List steps
+      tags:
+      - steps
+  /steps/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get a step by ID
+      parameters:
+      - description: Step ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.StepResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: Get step
+      tags:
+      - steps
 securityDefinitions:
   APIKeyAuth:
     in: header

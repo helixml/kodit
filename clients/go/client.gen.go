@@ -103,6 +103,25 @@ type ClientInterface interface {
 
 	PatchEnrichmentsId(ctx context.Context, id int, body PatchEnrichmentsIdJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetPipelines request
+	GetPipelines(ctx context.Context, params *GetPipelinesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostPipelinesWithBody request with any body
+	PostPipelinesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostPipelines(ctx context.Context, body PostPipelinesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeletePipelinesId request
+	DeletePipelinesId(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetPipelinesId request
+	GetPipelinesId(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutPipelinesIdWithBody request with any body
+	PutPipelinesIdWithBody(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PutPipelinesId(ctx context.Context, id int, body PutPipelinesIdJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetQueue request
 	GetQueue(ctx context.Context, params *GetQueueParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -162,6 +181,11 @@ type ClientInterface interface {
 	// GetRepositoriesIdEnrichments request
 	GetRepositoriesIdEnrichments(ctx context.Context, id int, params *GetRepositoriesIdEnrichmentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PutRepositoriesIdPipelineWithBody request with any body
+	PutRepositoriesIdPipelineWithBody(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PutRepositoriesIdPipeline(ctx context.Context, id int, body PutRepositoriesIdPipelineJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetRepositoriesIdStatus request
 	GetRepositoriesIdStatus(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -210,6 +234,12 @@ type ClientInterface interface {
 
 	// GetSearchSemantic request
 	GetSearchSemantic(ctx context.Context, params *GetSearchSemanticParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetSteps request
+	GetSteps(ctx context.Context, params *GetStepsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetStepsId request
+	GetStepsId(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) GetEnrichments(ctx context.Context, params *GetEnrichmentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -262,6 +292,90 @@ func (c *Client) PatchEnrichmentsIdWithBody(ctx context.Context, id int, content
 
 func (c *Client) PatchEnrichmentsId(ctx context.Context, id int, body PatchEnrichmentsIdJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPatchEnrichmentsIdRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetPipelines(ctx context.Context, params *GetPipelinesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetPipelinesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostPipelinesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostPipelinesRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostPipelines(ctx context.Context, body PostPipelinesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostPipelinesRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeletePipelinesId(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeletePipelinesIdRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetPipelinesId(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetPipelinesIdRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutPipelinesIdWithBody(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutPipelinesIdRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutPipelinesId(ctx context.Context, id int, body PutPipelinesIdJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutPipelinesIdRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -512,6 +626,30 @@ func (c *Client) GetRepositoriesIdEnrichments(ctx context.Context, id int, param
 	return c.Client.Do(req)
 }
 
+func (c *Client) PutRepositoriesIdPipelineWithBody(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutRepositoriesIdPipelineRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutRepositoriesIdPipeline(ctx context.Context, id int, body PutRepositoriesIdPipelineJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutRepositoriesIdPipelineRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetRepositoriesIdStatus(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetRepositoriesIdStatusRequest(c.Server, id)
 	if err != nil {
@@ -706,6 +844,30 @@ func (c *Client) GetSearchLs(ctx context.Context, params *GetSearchLsParams, req
 
 func (c *Client) GetSearchSemantic(ctx context.Context, params *GetSearchSemanticParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetSearchSemanticRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetSteps(ctx context.Context, params *GetStepsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetStepsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetStepsId(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetStepsIdRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -919,6 +1081,226 @@ func NewPatchEnrichmentsIdRequestWithBody(server string, id int, contentType str
 	}
 
 	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetPipelinesRequest generates requests for GetPipelines
+func NewGetPipelinesRequest(server string, params *GetPipelinesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/pipelines")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_size", runtime.ParamLocationQuery, *params.PageSize); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPostPipelinesRequest calls the generic PostPipelines builder with application/json body
+func NewPostPipelinesRequest(server string, body PostPipelinesJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostPipelinesRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostPipelinesRequestWithBody generates requests for PostPipelines with any type of body
+func NewPostPipelinesRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/pipelines")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeletePipelinesIdRequest generates requests for DeletePipelinesId
+func NewDeletePipelinesIdRequest(server string, id int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/pipelines/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetPipelinesIdRequest generates requests for GetPipelinesId
+func NewGetPipelinesIdRequest(server string, id int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/pipelines/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPutPipelinesIdRequest calls the generic PutPipelinesId builder with application/json body
+func NewPutPipelinesIdRequest(server string, id int, body PutPipelinesIdJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPutPipelinesIdRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPutPipelinesIdRequestWithBody generates requests for PutPipelinesId with any type of body
+func NewPutPipelinesIdRequestWithBody(server string, id int, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/pipelines/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -2055,6 +2437,53 @@ func NewGetRepositoriesIdEnrichmentsRequest(server string, id int, params *GetRe
 	return req, nil
 }
 
+// NewPutRepositoriesIdPipelineRequest calls the generic PutRepositoriesIdPipeline builder with application/json body
+func NewPutRepositoriesIdPipelineRequest(server string, id int, body PutRepositoriesIdPipelineJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPutRepositoriesIdPipelineRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPutRepositoriesIdPipelineRequestWithBody generates requests for PutRepositoriesIdPipeline with any type of body
+func NewPutRepositoriesIdPipelineRequestWithBody(server string, id int, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/repositories/%s/pipeline", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetRepositoriesIdStatusRequest generates requests for GetRepositoriesIdStatus
 func NewGetRepositoriesIdStatusRequest(server string, id int) (*http.Request, error) {
 	var err error
@@ -2864,6 +3293,105 @@ func NewGetSearchSemanticRequest(server string, params *GetSearchSemanticParams)
 	return req, nil
 }
 
+// NewGetStepsRequest generates requests for GetSteps
+func NewGetStepsRequest(server string, params *GetStepsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/steps")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_size", runtime.ParamLocationQuery, *params.PageSize); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetStepsIdRequest generates requests for GetStepsId
+func NewGetStepsIdRequest(server string, id int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/steps/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -2920,6 +3448,25 @@ type ClientWithResponsesInterface interface {
 	PatchEnrichmentsIdWithBodyWithResponse(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchEnrichmentsIdResponse, error)
 
 	PatchEnrichmentsIdWithResponse(ctx context.Context, id int, body PatchEnrichmentsIdJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchEnrichmentsIdResponse, error)
+
+	// GetPipelinesWithResponse request
+	GetPipelinesWithResponse(ctx context.Context, params *GetPipelinesParams, reqEditors ...RequestEditorFn) (*GetPipelinesResponse, error)
+
+	// PostPipelinesWithBodyWithResponse request with any body
+	PostPipelinesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostPipelinesResponse, error)
+
+	PostPipelinesWithResponse(ctx context.Context, body PostPipelinesJSONRequestBody, reqEditors ...RequestEditorFn) (*PostPipelinesResponse, error)
+
+	// DeletePipelinesIdWithResponse request
+	DeletePipelinesIdWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*DeletePipelinesIdResponse, error)
+
+	// GetPipelinesIdWithResponse request
+	GetPipelinesIdWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetPipelinesIdResponse, error)
+
+	// PutPipelinesIdWithBodyWithResponse request with any body
+	PutPipelinesIdWithBodyWithResponse(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutPipelinesIdResponse, error)
+
+	PutPipelinesIdWithResponse(ctx context.Context, id int, body PutPipelinesIdJSONRequestBody, reqEditors ...RequestEditorFn) (*PutPipelinesIdResponse, error)
 
 	// GetQueueWithResponse request
 	GetQueueWithResponse(ctx context.Context, params *GetQueueParams, reqEditors ...RequestEditorFn) (*GetQueueResponse, error)
@@ -2980,6 +3527,11 @@ type ClientWithResponsesInterface interface {
 	// GetRepositoriesIdEnrichmentsWithResponse request
 	GetRepositoriesIdEnrichmentsWithResponse(ctx context.Context, id int, params *GetRepositoriesIdEnrichmentsParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdEnrichmentsResponse, error)
 
+	// PutRepositoriesIdPipelineWithBodyWithResponse request with any body
+	PutRepositoriesIdPipelineWithBodyWithResponse(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutRepositoriesIdPipelineResponse, error)
+
+	PutRepositoriesIdPipelineWithResponse(ctx context.Context, id int, body PutRepositoriesIdPipelineJSONRequestBody, reqEditors ...RequestEditorFn) (*PutRepositoriesIdPipelineResponse, error)
+
 	// GetRepositoriesIdStatusWithResponse request
 	GetRepositoriesIdStatusWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdStatusResponse, error)
 
@@ -3028,6 +3580,12 @@ type ClientWithResponsesInterface interface {
 
 	// GetSearchSemanticWithResponse request
 	GetSearchSemanticWithResponse(ctx context.Context, params *GetSearchSemanticParams, reqEditors ...RequestEditorFn) (*GetSearchSemanticResponse, error)
+
+	// GetStepsWithResponse request
+	GetStepsWithResponse(ctx context.Context, params *GetStepsParams, reqEditors ...RequestEditorFn) (*GetStepsResponse, error)
+
+	// GetStepsIdWithResponse request
+	GetStepsIdWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetStepsIdResponse, error)
 }
 
 type GetEnrichmentsResponse struct {
@@ -3118,6 +3676,125 @@ func (r PatchEnrichmentsIdResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r PatchEnrichmentsIdResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetPipelinesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DtoPipelineListResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetPipelinesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetPipelinesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PostPipelinesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *DtoPipelineDetailResponse
+	JSON400      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r PostPipelinesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostPipelinesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeletePipelinesIdResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeletePipelinesIdResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeletePipelinesIdResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetPipelinesIdResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DtoPipelineDetailResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetPipelinesIdResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetPipelinesIdResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PutPipelinesIdResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DtoPipelineDetailResponse
+	JSON400      *MiddlewareJSONAPIErrorResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r PutPipelinesIdResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutPipelinesIdResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3571,6 +4248,31 @@ func (r GetRepositoriesIdEnrichmentsResponse) StatusCode() int {
 	return 0
 }
 
+type PutRepositoriesIdPipelineResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DtoRepositoryResponse
+	JSON400      *MiddlewareJSONAPIErrorResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r PutRepositoriesIdPipelineResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutRepositoriesIdPipelineResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetRepositoriesIdStatusResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3928,6 +4630,53 @@ func (r GetSearchSemanticResponse) StatusCode() int {
 	return 0
 }
 
+type GetStepsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DtoStepListResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetStepsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetStepsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetStepsIdResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DtoStepResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetStepsIdResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetStepsIdResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 // GetEnrichmentsWithResponse request returning *GetEnrichmentsResponse
 func (c *ClientWithResponses) GetEnrichmentsWithResponse(ctx context.Context, params *GetEnrichmentsParams, reqEditors ...RequestEditorFn) (*GetEnrichmentsResponse, error) {
 	rsp, err := c.GetEnrichments(ctx, params, reqEditors...)
@@ -3970,6 +4719,67 @@ func (c *ClientWithResponses) PatchEnrichmentsIdWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParsePatchEnrichmentsIdResponse(rsp)
+}
+
+// GetPipelinesWithResponse request returning *GetPipelinesResponse
+func (c *ClientWithResponses) GetPipelinesWithResponse(ctx context.Context, params *GetPipelinesParams, reqEditors ...RequestEditorFn) (*GetPipelinesResponse, error) {
+	rsp, err := c.GetPipelines(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetPipelinesResponse(rsp)
+}
+
+// PostPipelinesWithBodyWithResponse request with arbitrary body returning *PostPipelinesResponse
+func (c *ClientWithResponses) PostPipelinesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostPipelinesResponse, error) {
+	rsp, err := c.PostPipelinesWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostPipelinesResponse(rsp)
+}
+
+func (c *ClientWithResponses) PostPipelinesWithResponse(ctx context.Context, body PostPipelinesJSONRequestBody, reqEditors ...RequestEditorFn) (*PostPipelinesResponse, error) {
+	rsp, err := c.PostPipelines(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostPipelinesResponse(rsp)
+}
+
+// DeletePipelinesIdWithResponse request returning *DeletePipelinesIdResponse
+func (c *ClientWithResponses) DeletePipelinesIdWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*DeletePipelinesIdResponse, error) {
+	rsp, err := c.DeletePipelinesId(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeletePipelinesIdResponse(rsp)
+}
+
+// GetPipelinesIdWithResponse request returning *GetPipelinesIdResponse
+func (c *ClientWithResponses) GetPipelinesIdWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetPipelinesIdResponse, error) {
+	rsp, err := c.GetPipelinesId(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetPipelinesIdResponse(rsp)
+}
+
+// PutPipelinesIdWithBodyWithResponse request with arbitrary body returning *PutPipelinesIdResponse
+func (c *ClientWithResponses) PutPipelinesIdWithBodyWithResponse(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutPipelinesIdResponse, error) {
+	rsp, err := c.PutPipelinesIdWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutPipelinesIdResponse(rsp)
+}
+
+func (c *ClientWithResponses) PutPipelinesIdWithResponse(ctx context.Context, id int, body PutPipelinesIdJSONRequestBody, reqEditors ...RequestEditorFn) (*PutPipelinesIdResponse, error) {
+	rsp, err := c.PutPipelinesId(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutPipelinesIdResponse(rsp)
 }
 
 // GetQueueWithResponse request returning *GetQueueResponse
@@ -4151,6 +4961,23 @@ func (c *ClientWithResponses) GetRepositoriesIdEnrichmentsWithResponse(ctx conte
 	return ParseGetRepositoriesIdEnrichmentsResponse(rsp)
 }
 
+// PutRepositoriesIdPipelineWithBodyWithResponse request with arbitrary body returning *PutRepositoriesIdPipelineResponse
+func (c *ClientWithResponses) PutRepositoriesIdPipelineWithBodyWithResponse(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutRepositoriesIdPipelineResponse, error) {
+	rsp, err := c.PutRepositoriesIdPipelineWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutRepositoriesIdPipelineResponse(rsp)
+}
+
+func (c *ClientWithResponses) PutRepositoriesIdPipelineWithResponse(ctx context.Context, id int, body PutRepositoriesIdPipelineJSONRequestBody, reqEditors ...RequestEditorFn) (*PutRepositoriesIdPipelineResponse, error) {
+	rsp, err := c.PutRepositoriesIdPipeline(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutRepositoriesIdPipelineResponse(rsp)
+}
+
 // GetRepositoriesIdStatusWithResponse request returning *GetRepositoriesIdStatusResponse
 func (c *ClientWithResponses) GetRepositoriesIdStatusWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdStatusResponse, error) {
 	rsp, err := c.GetRepositoriesIdStatus(ctx, id, reqEditors...)
@@ -4302,6 +5129,24 @@ func (c *ClientWithResponses) GetSearchSemanticWithResponse(ctx context.Context,
 	return ParseGetSearchSemanticResponse(rsp)
 }
 
+// GetStepsWithResponse request returning *GetStepsResponse
+func (c *ClientWithResponses) GetStepsWithResponse(ctx context.Context, params *GetStepsParams, reqEditors ...RequestEditorFn) (*GetStepsResponse, error) {
+	rsp, err := c.GetSteps(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetStepsResponse(rsp)
+}
+
+// GetStepsIdWithResponse request returning *GetStepsIdResponse
+func (c *ClientWithResponses) GetStepsIdWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetStepsIdResponse, error) {
+	rsp, err := c.GetStepsId(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetStepsIdResponse(rsp)
+}
+
 // ParseGetEnrichmentsResponse parses an HTTP response from a GetEnrichmentsWithResponse call
 func ParseGetEnrichmentsResponse(rsp *http.Response) (*GetEnrichmentsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -4428,6 +5273,199 @@ func ParsePatchEnrichmentsIdResponse(rsp *http.Response) (*PatchEnrichmentsIdRes
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetPipelinesResponse parses an HTTP response from a GetPipelinesWithResponse call
+func ParseGetPipelinesResponse(rsp *http.Response) (*GetPipelinesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetPipelinesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DtoPipelineListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostPipelinesResponse parses an HTTP response from a PostPipelinesWithResponse call
+func ParsePostPipelinesResponse(rsp *http.Response) (*PostPipelinesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostPipelinesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest DtoPipelineDetailResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeletePipelinesIdResponse parses an HTTP response from a DeletePipelinesIdWithResponse call
+func ParseDeletePipelinesIdResponse(rsp *http.Response) (*DeletePipelinesIdResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeletePipelinesIdResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetPipelinesIdResponse parses an HTTP response from a GetPipelinesIdWithResponse call
+func ParseGetPipelinesIdResponse(rsp *http.Response) (*GetPipelinesIdResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetPipelinesIdResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DtoPipelineDetailResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePutPipelinesIdResponse parses an HTTP response from a PutPipelinesIdWithResponse call
+func ParsePutPipelinesIdResponse(rsp *http.Response) (*PutPipelinesIdResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutPipelinesIdResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DtoPipelineDetailResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest MiddlewareJSONAPIErrorResponse
@@ -5142,6 +6180,53 @@ func ParseGetRepositoriesIdEnrichmentsResponse(rsp *http.Response) (*GetReposito
 	return response, nil
 }
 
+// ParsePutRepositoriesIdPipelineResponse parses an HTTP response from a PutRepositoriesIdPipelineWithResponse call
+func ParsePutRepositoriesIdPipelineResponse(rsp *http.Response) (*PutRepositoriesIdPipelineResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutRepositoriesIdPipelineResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DtoRepositoryResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetRepositoriesIdStatusResponse parses an HTTP response from a GetRepositoriesIdStatusWithResponse call
 func ParseGetRepositoriesIdStatusResponse(rsp *http.Response) (*GetRepositoriesIdStatusResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -5705,6 +6790,79 @@ func ParseGetSearchSemanticResponse(rsp *http.Response) (*GetSearchSemanticRespo
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetStepsResponse parses an HTTP response from a GetStepsWithResponse call
+func ParseGetStepsResponse(rsp *http.Response) (*GetStepsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetStepsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DtoStepListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetStepsIdResponse parses an HTTP response from a GetStepsIdWithResponse call
+func ParseGetStepsIdResponse(rsp *http.Response) (*GetStepsIdResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetStepsIdResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DtoStepResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest MiddlewareJSONAPIErrorResponse

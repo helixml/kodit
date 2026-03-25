@@ -11,6 +11,7 @@ import (
 type RepositoryAttributes struct {
 	RemoteURI      string     `json:"remote_uri"`
 	UpstreamURL    string     `json:"upstream_url"` // The canonical upstream URL (e.g. github.com/org/repo); falls back to remote_uri when not set
+	PipelineID     *int64     `json:"pipeline_id,omitempty"`
 	CreatedAt      *time.Time `json:"created_at,omitempty"`
 	UpdatedAt      *time.Time `json:"updated_at,omitempty"`
 	LastScannedAt  *time.Time `json:"last_scanned_at,omitempty"`
@@ -21,11 +22,17 @@ type RepositoryAttributes struct {
 	NumTags        int        `json:"num_tags"`
 }
 
+// RepositoryLinks holds links for a repository resource.
+type RepositoryLinks struct {
+	Pipeline *string `json:"pipeline,omitempty"`
+}
+
 // RepositoryData represents repository data in JSON:API format.
 type RepositoryData struct {
 	Type       string               `json:"type"`
 	ID         string               `json:"id"`
 	Attributes RepositoryAttributes `json:"attributes"`
+	Links      *RepositoryLinks     `json:"links,omitempty"`
 }
 
 // RepositoryResponse represents a single repository response in JSON:API format.
