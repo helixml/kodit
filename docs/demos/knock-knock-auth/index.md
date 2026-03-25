@@ -80,13 +80,13 @@ Now let's index the code for my secret server and then leverage Kodit in Cursor.
 
    ```sh
    curl --request POST \
-   --url http://localhost:8080/api/v1/indexes \
+   --url http://localhost:8080/api/v1/repositories \
    --header 'Content-Type: application/json' \
    --data '{
    "data": {
-      "type": "index",
+      "type": "repository",
       "attributes": {
-         "uri": "https://gist.github.com/philwinder/cbf0bd1f3338ddf9f98879148d2d752d.git"
+         "remote_uri": "https://gist.github.com/philwinder/cbf0bd1f3338ddf9f98879148d2d752d.git"
       }
    }
    }'
