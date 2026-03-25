@@ -138,14 +138,13 @@ type Client struct {
 	hugotEmbedding *provider.HugotEmbedding
 	closers        []io.Closer
 
-	logger        zerolog.Logger
-	dataDir       string
-	cloneDir      string
-	apiKeys       []string
-	chunkParams   chunking.ChunkParams
-	prescribedOps task.PrescribedOperations
-	closed        atomic.Bool
-	mu            sync.Mutex
+	logger      zerolog.Logger
+	dataDir     string
+	cloneDir    string
+	apiKeys     []string
+	chunkParams chunking.ChunkParams
+	closed      atomic.Bool
+	mu          sync.Mutex
 }
 
 // New creates a new Client with the given options.
@@ -365,7 +364,7 @@ func New(opts ...Option) (*Client, error) {
 	if prescribedOps.RequiresTextProvider() && cfg.textProvider == nil {
 		return nil, fmt.Errorf("WithFullPipeline requires a text provider (WithOpenAI, WithAnthropic, or WithTextProvider)")
 	}
-	periodicSync := service.NewPeriodicSync(cfg.periodicSync, repoStore, queue, prescribedOps, logger)
+	periodicSync := service.NewPeriodicSync(cfg.periodicSync, repoStore, queue, logger)
 
 	// Create enricher infrastructure (only if text provider is configured)
 	var enricherImpl domainservice.Enricher
@@ -424,14 +423,20 @@ func New(opts ...Option) (*Client, error) {
 		cloneDir:         cloneDir,
 		apiKeys:          cfg.apiKeys,
 		chunkParams:      cfg.chunkParams,
-		prescribedOps:    prescribedOps,
 	}
 
 	// Populate MCP server metadata
 	client.MCPServer = mcpServerFromDefinitions()
 
-	// Initialize service fields directly
-	client.Repositories = service.NewRepository(repoStore, commitStore, branchStore, tagStore, queue, client.prescribedOps, logger)
+	// Initialize Pipeline service first — Repository depends on it as resolver.
+	client.Pipelines = service.NewPipeline(pipelineStore, stepStore, pipelineStepStore, stepDependencyStore, prescribedOps)
+	if err := client.Pipelines.Initialise(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialise pipelines: %w", err)
+	}
+
+	// Initialize remaining service fields
+	client.Repositories = service.NewRepository(repoStore, pipelineStore, commitStore, branchStore, tagStore, queue, client.Pipelines, logger)
 	client.Commits = service.NewCommit(commitStore)
 	client.Tags = service.NewTag(tagStore)
 	client.Files = service.NewFile(fileStore)
@@ -441,7 +446,6 @@ func New(opts ...Option) (*Client, error) {
 	client.Tracking = trackingSvc
 	client.Search = service.NewSearch(domainEmbedder, textEmbeddingStore, codeEmbeddingStore, bm25Store, enrichmentStore, &client.closed, logger)
 	client.Grep = service.NewGrep(repoStore, commitStore, gitAdapter)
-	client.Pipelines = service.NewPipeline(pipelineStore, stepStore, pipelineStepStore, stepDependencyStore)
 
 	// Register task handlers
 	if err := client.registerHandlers(); err != nil {
@@ -453,7 +457,7 @@ func New(opts ...Option) (*Client, error) {
 	if cfg.skipProviderValidation {
 		logger.Warn().Msg("SKIP_PROVIDER_VALIDATION is deprecated and will be removed in a future release — enrichments are now automatically disabled when no enrichment endpoint is configured")
 	}
-	if err := client.validateHandlers(); err != nil {
+	if err := client.validateHandlers(client.Pipelines.RequiredOperations()); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
@@ -473,7 +477,7 @@ func New(opts ...Option) (*Client, error) {
 			_ = db.Close()
 			return nil, fmt.Errorf("find repositories for re-index: %w", repoErr)
 		}
-		operations := prescribedOps.SyncRepository()
+		operations := []task.Operation{task.OperationCloneRepository, task.OperationSyncRepository}
 		for _, repo := range repos {
 			payload := map[string]any{"repository_id": repo.ID()}
 			if enqErr := queue.EnqueueOperations(ctx, operations, task.PriorityNormal, payload); enqErr != nil {

@@ -16,6 +16,7 @@ import (
 // Tests should prefer these over fakes wherever possible.
 type testStores struct {
 	repos        persistence.RepositoryStore
+	pipelines    persistence.PipelineStore
 	commits      persistence.CommitStore
 	branches     persistence.BranchStore
 	tags         persistence.TagStore
@@ -30,6 +31,7 @@ func newTestStores(t *testing.T) testStores {
 	db := testdb.New(t)
 	return testStores{
 		repos:        persistence.NewRepositoryStore(db),
+		pipelines:    persistence.NewPipelineStore(db),
 		commits:      persistence.NewCommitStore(db),
 		branches:     persistence.NewBranchStore(db),
 		tags:         persistence.NewTagStore(db),

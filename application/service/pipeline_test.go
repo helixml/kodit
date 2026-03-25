@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/persistence"
 	"github.com/helixml/kodit/internal/database"
 	"github.com/helixml/kodit/internal/testdb"
@@ -19,6 +20,7 @@ func newPipelineService(t *testing.T) *Pipeline {
 		persistence.NewStepStore(db),
 		persistence.NewPipelineStepStore(db),
 		persistence.NewStepDependencyStore(db),
+		task.FullPrescribedOperations(),
 	)
 }
 
@@ -277,5 +279,144 @@ func TestPipeline_FindAndCount(t *testing.T) {
 	}
 	if got.Name() != "pipeline-a" {
 		t.Errorf("expected %q, got %q", "pipeline-a", got.Name())
+	}
+}
+
+func TestPipeline_Operations(t *testing.T) {
+	svc := newPipelineService(t)
+	ctx := context.Background()
+
+	detail, err := svc.Create(ctx, &CreatePipelineParams{
+		Name: "ordered-pipeline",
+		Steps: []StepParams{
+			{Name: "scan", Kind: string(task.OperationScanCommit)},
+			{Name: "extract", Kind: string(task.OperationExtractSnippetsForCommit), DependsOn: []string{"scan"}},
+			{Name: "index", Kind: string(task.OperationCreateBM25IndexForCommit), DependsOn: []string{"extract"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	pipelineID := detail.Pipeline().ID()
+	ops, err := svc.Operations(ctx, &pipelineID)
+	if err != nil {
+		t.Fatalf("Operations: %v", err)
+	}
+
+	if len(ops) != 3 {
+		t.Fatalf("expected 3 operations, got %d", len(ops))
+	}
+	if ops[0] != task.OperationScanCommit {
+		t.Errorf("expected first operation %q, got %q", task.OperationScanCommit, ops[0])
+	}
+	if ops[1] != task.OperationExtractSnippetsForCommit {
+		t.Errorf("expected second operation %q, got %q", task.OperationExtractSnippetsForCommit, ops[1])
+	}
+	if ops[2] != task.OperationCreateBM25IndexForCommit {
+		t.Errorf("expected third operation %q, got %q", task.OperationCreateBM25IndexForCommit, ops[2])
+	}
+}
+
+func TestPipeline_Operations_NoDependencies(t *testing.T) {
+	svc := newPipelineService(t)
+	ctx := context.Background()
+
+	detail, err := svc.Create(ctx, &CreatePipelineParams{
+		Name: "parallel-pipeline",
+		Steps: []StepParams{
+			{Name: "step-a", Kind: string(task.OperationScanCommit)},
+			{Name: "step-b", Kind: string(task.OperationExtractSnippetsForCommit)},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	pipelineID := detail.Pipeline().ID()
+	ops, err := svc.Operations(ctx, &pipelineID)
+	if err != nil {
+		t.Fatalf("Operations: %v", err)
+	}
+
+	if len(ops) != 2 {
+		t.Fatalf("expected 2 operations, got %d", len(ops))
+	}
+
+	// Without dependencies, steps are returned in insertion order.
+	kinds := map[task.Operation]bool{ops[0]: true, ops[1]: true}
+	if !kinds[task.OperationScanCommit] {
+		t.Errorf("expected %q in operations", task.OperationScanCommit)
+	}
+	if !kinds[task.OperationExtractSnippetsForCommit] {
+		t.Errorf("expected %q in operations", task.OperationExtractSnippetsForCommit)
+	}
+}
+
+func TestPipeline_Operations_DefaultPipeline(t *testing.T) {
+	svc := newPipelineService(t)
+	ctx := context.Background()
+
+	if err := svc.Initialise(ctx); err != nil {
+		t.Fatalf("Initialise: %v", err)
+	}
+
+	ops, err := svc.Operations(ctx, nil)
+	if err != nil {
+		t.Fatalf("Operations with nil: %v", err)
+	}
+
+	if len(ops) == 0 {
+		t.Fatal("expected at least one operation from the default pipeline")
+	}
+	if ops[0] != task.OperationScanCommit {
+		t.Errorf("expected first operation %q, got %q", task.OperationScanCommit, ops[0])
+	}
+}
+
+func TestPipeline_Initialise(t *testing.T) {
+	svc := newPipelineService(t)
+	ctx := context.Background()
+
+	if err := svc.Initialise(ctx); err != nil {
+		t.Fatalf("Initialise: %v", err)
+	}
+
+	pipelines, err := svc.Find(ctx)
+	if err != nil {
+		t.Fatalf("Find: %v", err)
+	}
+	if len(pipelines) != 1 {
+		t.Fatalf("expected 1 pipeline, got %d", len(pipelines))
+	}
+	if pipelines[0].Name() != "default" {
+		t.Errorf("expected name %q, got %q", "default", pipelines[0].Name())
+	}
+
+	// Calling Initialise again should be idempotent.
+	if err := svc.Initialise(ctx); err != nil {
+		t.Fatalf("Initialise (second call): %v", err)
+	}
+
+	pipelines, err = svc.Find(ctx)
+	if err != nil {
+		t.Fatalf("Find after second Initialise: %v", err)
+	}
+	if len(pipelines) != 1 {
+		t.Errorf("expected 1 pipeline after idempotent call, got %d", len(pipelines))
+	}
+}
+
+func TestPipeline_RequiredOperations(t *testing.T) {
+	svc := newPipelineService(t)
+	ops := svc.RequiredOperations()
+
+	if len(ops) == 0 {
+		t.Fatal("expected at least one required operation")
+	}
+
+	expected := task.FullPrescribedOperations().All()
+	if len(ops) != len(expected) {
+		t.Errorf("expected %d operations, got %d", len(expected), len(ops))
 	}
 }

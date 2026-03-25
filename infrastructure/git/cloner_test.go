@@ -132,6 +132,7 @@ func TestUpdate_FileURI_NonGitDir_SkipsGitOps(t *testing.T) {
 
 	repo := repository.ReconstructRepository(
 		3,
+		nil,
 		uri, uri, "",
 		repository.NewWorkingCopy(plainDir, uri),
 		repository.NewTrackingConfigForBranch("main"),
@@ -169,6 +170,7 @@ func TestUpdate_FileURI_GitRepo_SkipsNetworkOps(t *testing.T) {
 
 	repo := repository.ReconstructRepository(
 		4,
+		nil,
 		uri, uri, "",
 		repository.NewWorkingCopy(repoDir, uri),
 		repository.NewTrackingConfigForBranch("main"),
@@ -201,6 +203,7 @@ func TestUpdate_FileURI_MissingDir_DoesNotReclone(t *testing.T) {
 
 	repo := repository.ReconstructRepository(
 		5,
+		nil,
 		uri, uri, "",
 		repository.NewWorkingCopy(missingDir, uri),
 		repository.NewTrackingConfigForBranch("main"),
@@ -229,6 +232,7 @@ func TestUpdate_MissingDirectory(t *testing.T) {
 	remoteURI := "https://github.com/example/repo.git"
 	repo := repository.ReconstructRepository(
 		1,
+		nil,
 		remoteURI,
 		remoteURI,
 		"",
@@ -285,6 +289,7 @@ func TestUpdate_InaccessibleDirectory(t *testing.T) {
 
 	repo := repository.ReconstructRepository(
 		2,
+		nil,
 		"https://github.com/example/repo.git",
 		"https://github.com/example/repo.git",
 		"",

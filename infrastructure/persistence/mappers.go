@@ -47,6 +47,7 @@ func (m RepositoryMapper) ToDomain(e RepositoryModel) repository.Repository {
 
 	return repository.ReconstructRepository(
 		e.ID,
+		e.PipelineID,
 		e.RemoteURI,
 		e.SanitizedRemoteURI,
 		upstreamURL,
@@ -85,6 +86,7 @@ func (m RepositoryMapper) ToModel(r repository.Repository) RepositoryModel {
 
 	return RepositoryModel{
 		ID:                 r.ID(),
+		PipelineID:         r.PipelineID(),
 		SanitizedRemoteURI: sanitizeURI(r.RemoteURL()),
 		RemoteURI:          r.RemoteURL(),
 		UpstreamURL:        upstreamURL,

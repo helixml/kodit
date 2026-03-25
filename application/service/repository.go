@@ -39,37 +39,45 @@ type ChunkingConfigParams struct {
 	MinSize int
 }
 
+// CommitOperationResolver resolves the operation sequence for a pipeline.
+type CommitOperationResolver interface {
+	Operations(ctx context.Context, pipelineID *int64) ([]task.Operation, error)
+}
+
 // Repository provides repository management and query operations.
 // Embeds Collection for Find/Get; bespoke methods handle writes and lifecycle.
 type Repository struct {
 	repository.Collection[repository.Repository]
 	repoStore     repository.RepositoryStore
+	pipelineStore repository.PipelineStore
 	commitStore   repository.CommitStore
 	branchStore   repository.BranchStore
 	tagStore      repository.TagStore
 	queue         *Queue
-	prescribedOps task.PrescribedOperations
+	resolver      CommitOperationResolver
 	logger        zerolog.Logger
 }
 
 // NewRepository creates a new Repository service.
 func NewRepository(
 	repoStore repository.RepositoryStore,
+	pipelineStore repository.PipelineStore,
 	commitStore repository.CommitStore,
 	branchStore repository.BranchStore,
 	tagStore repository.TagStore,
 	queue *Queue,
-	prescribedOps task.PrescribedOperations,
+	resolver CommitOperationResolver,
 	logger zerolog.Logger,
 ) *Repository {
 	return &Repository{
 		Collection:    repository.NewCollection[repository.Repository](repoStore),
 		repoStore:     repoStore,
+		pipelineStore: pipelineStore,
 		commitStore:   commitStore,
 		branchStore:   branchStore,
 		tagStore:      tagStore,
 		queue:         queue,
-		prescribedOps: prescribedOps,
+		resolver:      resolver,
 		logger:        logger,
 	}
 }
@@ -123,7 +131,7 @@ func (s *Repository) Add(ctx context.Context, params *RepositoryAddParams) (repo
 	}
 
 	payload := map[string]any{"repository_id": savedRepo.ID()}
-	operations := s.prescribedOps.CreateNewRepository()
+	operations := []task.Operation{task.OperationCloneRepository}
 
 	if err := s.queue.EnqueueOperations(ctx, operations, task.PriorityUserInitiated, payload); err != nil {
 		s.logger.Warn().Int64("repo_id", repo.ID()).Str("error", err.Error()).Msg("failed to enqueue clone task")
@@ -161,7 +169,7 @@ func (s *Repository) Sync(ctx context.Context, id int64) error {
 	}
 
 	payload := map[string]any{"repository_id": id}
-	operations := s.prescribedOps.SyncRepository()
+	operations := []task.Operation{task.OperationCloneRepository, task.OperationSyncRepository}
 
 	if err := s.queue.EnqueueOperations(ctx, operations, task.PriorityUserInitiated, payload); err != nil {
 		return fmt.Errorf("enqueue sync: %w", err)
@@ -174,11 +182,11 @@ func (s *Repository) Sync(ctx context.Context, id int64) error {
 
 // Rescan triggers a rescan of a specific commit.
 func (s *Repository) Rescan(ctx context.Context, params *RescanParams) error {
-	_, err := s.repoStore.FindOne(ctx, repository.WithID(params.RepositoryID))
+	repo, err := s.repoStore.FindOne(ctx, repository.WithID(params.RepositoryID))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
 	}
-	return s.enqueueRescan(ctx, params)
+	return s.enqueueRescan(ctx, repo, params.CommitSHA)
 }
 
 func (s *Repository) RescanAll(ctx context.Context) error {
@@ -187,7 +195,7 @@ func (s *Repository) RescanAll(ctx context.Context) error {
 		return fmt.Errorf("find repositories: %w", err)
 	}
 	for _, repo := range repos {
-		if err := s.enqueueRescan(ctx, &RescanParams{RepositoryID: repo.ID()}); err != nil {
+		if err := s.enqueueRescan(ctx, repo, ""); err != nil {
 			return fmt.Errorf("enqueue rescan: %w", err)
 		}
 	}
@@ -236,6 +244,30 @@ func (s *Repository) UpdateChunkingConfig(ctx context.Context, id int64, params 
 	s.logger.Info().Int64("repo_id", id).Msg("chunking config updated")
 
 	return saved, nil
+}
+
+// AssignPipeline links a pipeline to a repository.
+func (s *Repository) AssignPipeline(ctx context.Context, repoID, pipelineID int64) (repository.Source, error) {
+	repo, err := s.repoStore.FindOne(ctx, repository.WithID(repoID))
+	if err != nil {
+		return repository.Source{}, fmt.Errorf("get repository: %w", err)
+	}
+
+	_, err = s.pipelineStore.FindOne(ctx, repository.WithID(pipelineID))
+	if err != nil {
+		return repository.Source{}, fmt.Errorf("get pipeline: %w", err)
+	}
+
+	updated := repo.WithPipelineID(pipelineID)
+
+	saved, err := s.repoStore.Save(ctx, updated)
+	if err != nil {
+		return repository.Source{}, fmt.Errorf("save repository: %w", err)
+	}
+
+	s.logger.Info().Int64("repo_id", repoID).Int64("pipeline_id", pipelineID).Msg("pipeline assigned")
+
+	return repository.NewSource(saved), nil
 }
 
 // SummaryByID returns a detailed summary for a repository.
@@ -288,18 +320,23 @@ func (s *Repository) BranchesForRepository(ctx context.Context, repoID int64) ([
 
 // --- internal write operations ---
 
-func (s *Repository) enqueueRescan(ctx context.Context, params *RescanParams) error {
-	payload := map[string]any{
-		"repository_id": params.RepositoryID,
-		"commit_sha":    params.CommitSHA,
+func (s *Repository) enqueueRescan(ctx context.Context, repo repository.Repository, commitSHA string) error {
+	pipelineOps, err := s.resolver.Operations(ctx, repo.PipelineID())
+	if err != nil {
+		return fmt.Errorf("resolve pipeline operations: %w", err)
 	}
-	operations := s.prescribedOps.RescanCommit()
+
+	operations := append([]task.Operation{task.OperationRescanCommit}, pipelineOps...)
+	payload := map[string]any{
+		"repository_id": repo.ID(),
+		"commit_sha":    commitSHA,
+	}
 
 	if err := s.queue.EnqueueOperations(ctx, operations, task.PriorityUserInitiated, payload); err != nil {
 		return fmt.Errorf("enqueue rescan: %w", err)
 	}
 
-	s.logger.Info().Int64("repo_id", params.RepositoryID).Str("commit_sha", params.CommitSHA).Msg("rescan requested")
+	s.logger.Info().Int64("repo_id", repo.ID()).Str("commit_sha", commitSHA).Msg("rescan requested")
 
 	return nil
 }

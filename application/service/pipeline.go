@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/domain/task"
 )
 
 // CreatePipelineParams holds the parameters for creating a new pipeline.
@@ -58,6 +60,7 @@ type Pipeline struct {
 	stepStore         repository.StepStore
 	pipelineStepStore repository.PipelineStepStore
 	dependencyStore   repository.StepDependencyStore
+	prescribedOps     task.PrescribedOperations
 }
 
 // NewPipeline creates a new Pipeline service.
@@ -66,6 +69,7 @@ func NewPipeline(
 	stepStore repository.StepStore,
 	pipelineStepStore repository.PipelineStepStore,
 	dependencyStore repository.StepDependencyStore,
+	prescribedOps task.PrescribedOperations,
 ) *Pipeline {
 	return &Pipeline{
 		Collection:        repository.NewCollection[repository.Pipeline](pipelineStore),
@@ -73,7 +77,51 @@ func NewPipeline(
 		stepStore:         stepStore,
 		pipelineStepStore: pipelineStepStore,
 		dependencyStore:   dependencyStore,
+		prescribedOps:     prescribedOps,
 	}
+}
+
+// Initialise seeds the default pipeline if no pipelines exist yet.
+func (s *Pipeline) Initialise(ctx context.Context) error {
+	count, err := s.pipelineStore.Count(ctx)
+	if err != nil {
+		return fmt.Errorf("count pipelines: %w", err)
+	}
+	if count > 0 {
+		return nil
+	}
+
+	ops := s.prescribedOps.ScanAndIndexCommit()
+	steps := make([]StepParams, len(ops))
+	for i, op := range ops {
+		name := string(op)
+		if idx := strings.LastIndex(name, "."); idx >= 0 {
+			name = name[idx+1:]
+		}
+		var dependsOn []string
+		if i > 0 {
+			dependsOn = []string{steps[i-1].Name}
+		}
+		steps[i] = StepParams{
+			Name:      name,
+			Kind:      string(op),
+			DependsOn: dependsOn,
+		}
+	}
+
+	_, err = s.Create(ctx, &CreatePipelineParams{
+		Name:  "default",
+		Steps: steps,
+	})
+	if err != nil {
+		return fmt.Errorf("seed default pipeline: %w", err)
+	}
+	return nil
+}
+
+// RequiredOperations returns all operations that handlers must support.
+func (s *Pipeline) RequiredOperations() []task.Operation {
+	return s.prescribedOps.All()
 }
 
 // Create validates and persists a new pipeline with its steps and dependencies.
@@ -155,6 +203,71 @@ func (s *Pipeline) Delete(ctx context.Context, id int64) error {
 	}
 
 	return nil
+}
+
+// Operations loads the pipeline, topologically sorts its steps, and returns
+// their Kind values as task.Operation. When pipelineID is nil, the first
+// pipeline by ID is used as a default.
+func (s *Pipeline) Operations(ctx context.Context, pipelineID *int64) ([]task.Operation, error) {
+	var id int64
+	if pipelineID != nil {
+		id = *pipelineID
+	} else {
+		pipelines, err := s.pipelineStore.Find(ctx, repository.WithLimit(1), repository.WithOrderAsc("id"))
+		if err != nil {
+			return nil, fmt.Errorf("find default pipeline: %w", err)
+		}
+		if len(pipelines) == 0 {
+			return nil, fmt.Errorf("no pipelines exist")
+		}
+		id = pipelines[0].ID()
+	}
+
+	detail, err := s.Detail(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return topologicalSort(detail.Steps(), detail.Dependencies()), nil
+}
+
+// topologicalSort returns step kinds in dependency order (Kahn's algorithm).
+func topologicalSort(steps []repository.Step, deps []repository.StepDependency) []task.Operation {
+	idToStep := make(map[int64]repository.Step, len(steps))
+	inDegree := make(map[int64]int, len(steps))
+	dependents := make(map[int64][]int64, len(steps))
+
+	for _, step := range steps {
+		idToStep[step.ID()] = step
+		inDegree[step.ID()] = 0
+	}
+
+	for _, dep := range deps {
+		inDegree[dep.StepID()]++
+		dependents[dep.DependsOnID()] = append(dependents[dep.DependsOnID()], dep.StepID())
+	}
+
+	queue := make([]int64, 0, len(steps))
+	for _, step := range steps {
+		if inDegree[step.ID()] == 0 {
+			queue = append(queue, step.ID())
+		}
+	}
+
+	operations := make([]task.Operation, 0, len(steps))
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		operations = append(operations, task.Operation(idToStep[current].Kind()))
+		for _, depID := range dependents[current] {
+			inDegree[depID]--
+			if inDegree[depID] == 0 {
+				queue = append(queue, depID)
+			}
+		}
+	}
+
+	return operations
 }
 
 // createSteps saves steps, pipeline-step associations, and dependencies.

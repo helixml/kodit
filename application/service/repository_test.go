@@ -11,6 +11,8 @@ import (
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
+	"github.com/helixml/kodit/infrastructure/persistence"
+	"github.com/helixml/kodit/internal/testdb"
 )
 
 type repositoryTestDeps struct {
@@ -22,8 +24,20 @@ func newRepositoryTestDeps(t *testing.T) repositoryTestDeps {
 	t.Helper()
 	stores := newTestStores(t)
 	queue := NewQueue(stores.tasks, zerolog.Nop())
-	prescribedOps := task.FullPrescribedOperations()
-	svc := NewRepository(stores.repos, stores.commits, stores.branches, stores.tags, queue, prescribedOps, zerolog.Nop())
+
+	pipelineDB := testdb.New(t)
+	pipelineSvc := NewPipeline(
+		persistence.NewPipelineStore(pipelineDB),
+		persistence.NewStepStore(pipelineDB),
+		persistence.NewPipelineStepStore(pipelineDB),
+		persistence.NewStepDependencyStore(pipelineDB),
+		task.FullPrescribedOperations(),
+	)
+	if err := pipelineSvc.Initialise(context.Background()); err != nil {
+		t.Fatalf("initialise pipeline: %v", err)
+	}
+
+	svc := NewRepository(stores.repos, stores.pipelines, stores.commits, stores.branches, stores.tags, queue, pipelineSvc, zerolog.Nop())
 	return repositoryTestDeps{service: svc, stores: stores}
 }
 
@@ -397,4 +411,38 @@ func TestRepository_BranchesForRepository(t *testing.T) {
 	}
 	assert.Contains(t, names, "main")
 	assert.Contains(t, names, "develop")
+}
+
+func TestRepository_AssignPipeline(t *testing.T) {
+	deps := newRepositoryTestDeps(t)
+	ctx := context.Background()
+
+	repo, err := repository.NewRepository("https://github.com/test/repo")
+	require.NoError(t, err)
+	saved, err := deps.stores.repos.Save(ctx, repo)
+	require.NoError(t, err)
+
+	pipeline := repository.NewPipeline("my-pipeline")
+	savedPipeline, err := deps.stores.pipelines.Save(ctx, pipeline)
+	require.NoError(t, err)
+
+	source, err := deps.service.AssignPipeline(ctx, saved.ID(), savedPipeline.ID())
+	require.NoError(t, err)
+
+	pipelineID := source.Repository().PipelineID()
+	require.NotNil(t, pipelineID)
+	assert.Equal(t, savedPipeline.ID(), *pipelineID)
+}
+
+func TestRepository_AssignPipeline_PipelineNotFound(t *testing.T) {
+	deps := newRepositoryTestDeps(t)
+	ctx := context.Background()
+
+	repo, err := repository.NewRepository("https://github.com/test/repo")
+	require.NoError(t, err)
+	saved, err := deps.stores.repos.Save(ctx, repo)
+	require.NoError(t, err)
+
+	_, err = deps.service.AssignPipeline(ctx, saved.ID(), 999)
+	assert.Error(t, err)
 }
