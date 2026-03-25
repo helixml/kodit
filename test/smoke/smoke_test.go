@@ -1209,26 +1209,23 @@ func TestSmoke(t *testing.T) {
 // re-syncs when files have not changed (idempotency), and that a keyword search
 // returns results from the indexed content.
 //
-// The test writes source files into testdata/smoke-plain-dir/ (relative to the
-// test package directory) and registers them with the kodit server using the
-// container-side path from KODIT_SMOKE_PLAIN_DIR (default: /app/test/smoke/testdata/smoke-plain-dir).
-// In the make-dev Docker environment the repo root is mounted at /app, so the
-// host-side testdata/ directory is visible to kodit at that path.
+// The test writes source files into a shared temporary directory that is
+// bind-mounted into the kodit container at the same path. The default
+// location is /tmp/kodit-smoke/smoke-plain-dir (override with
+// KODIT_SMOKE_PLAIN_DIR). docker-compose.dev.yaml mounts /tmp/kodit-smoke
+// into the container so the path is identical on host and in-container.
 func TestSmoke_LocalDirectory(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping smoke test in short mode")
 	}
 
-	// Container-side path of the fixture directory.
-	containerDir := os.Getenv("KODIT_SMOKE_PLAIN_DIR")
-	if containerDir == "" {
-		containerDir = "/app/test/smoke/testdata/smoke-plain-dir"
+	// Shared path visible to both the host and the container.
+	fixtureDir := os.Getenv("KODIT_SMOKE_PLAIN_DIR")
+	if fixtureDir == "" {
+		fixtureDir = "/tmp/kodit-smoke/smoke-plain-dir"
 	}
-	plainDirURI := "file://" + containerDir
+	plainDirURI := "file://" + fixtureDir
 
-	// Create the fixture directory and files on the host (visible inside the
-	// container via the .:/app volume mount used by make dev).
-	fixtureDir := filepath.Join("testdata", "smoke-plain-dir")
 	if err := os.MkdirAll(fixtureDir, 0o755); err != nil {
 		t.Fatalf("create fixture dir: %v", err)
 	}
@@ -1501,42 +1498,47 @@ func validateSearchResults(t *testing.T, results []kodit.DtoSnippetData, mode st
 	}
 }
 
-// waitForIndexing waits for all indexing tasks to reach a terminal state.
+// waitForIndexing waits for the repository status summary to reach a terminal state.
 func waitForIndexing(t *testing.T, client *kodit.ClientWithResponses, ctx context.Context, repoID int) {
 	t.Helper()
-	const minTasks = 9
 	t.Logf("waiting for indexing to complete: repo_id=%d", repoID)
 	done := waitForCondition(t, 10*time.Minute, time.Second, func() bool {
-		resp, err := client.GetRepositoriesIdStatusWithResponse(ctx, repoID)
+		// Log individual task states for visibility.
+		if statusResp, err := client.GetRepositoriesIdStatusWithResponse(ctx, repoID); err == nil &&
+			statusResp.JSON200 != nil && statusResp.JSON200.Data != nil {
+			completed, pending, running, failed := 0, 0, 0, 0
+			for _, task := range *statusResp.JSON200.Data {
+				if task.Attributes == nil || task.Attributes.State == nil {
+					continue
+				}
+				switch *task.Attributes.State {
+				case "completed", "skipped":
+					completed++
+				case "pending":
+					pending++
+				case "started", "in_progress":
+					running++
+				case "failed":
+					failed++
+				}
+			}
+			t.Logf("indexing: total=%d completed=%d pending=%d running=%d failed=%d",
+				len(*statusResp.JSON200.Data), completed, pending, running, failed)
+		}
+
+		// Use the summary API for the completion check.
+		resp, err := client.GetRepositoriesIdStatusSummaryWithResponse(ctx, repoID)
 		if err != nil || resp.StatusCode() != http.StatusOK {
 			return false
 		}
-		if resp.JSON200 == nil || resp.JSON200.Data == nil {
+		if resp.JSON200 == nil || resp.JSON200.Data == nil || resp.JSON200.Data.Attributes == nil {
 			return false
 		}
-		tasks := *resp.JSON200.Data
-		if len(tasks) < minTasks {
-			return false
+		status := ""
+		if resp.JSON200.Data.Attributes.Status != nil {
+			status = *resp.JSON200.Data.Attributes.Status
 		}
-		completed, pending, running, failed := 0, 0, 0, 0
-		for _, task := range tasks {
-			if task.Attributes == nil || task.Attributes.State == nil {
-				continue
-			}
-			switch *task.Attributes.State {
-			case "completed", "skipped":
-				completed++
-			case "pending":
-				pending++
-			case "running", "started":
-				running++
-			case "failed":
-				failed++
-			}
-		}
-		t.Logf("indexing: total=%d completed=%d pending=%d running=%d failed=%d",
-			len(tasks), completed, pending, running, failed)
-		return pending == 0 && running == 0
+		return status == "completed" || status == "completed_with_errors" || status == "failed"
 	})
 	if !done {
 		t.Fatal("indexing did not complete within timeout")

@@ -95,6 +95,7 @@ services:
     volumes:
       - .:/app
       - ${KODIT_DIR:-kodit-data}:/kodit-data
+      - /tmp/kodit-smoke:/tmp/kodit-smoke
     extra_hosts:
       - "host.docker.internal:host-gateway"
 volumes:
