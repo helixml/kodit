@@ -17,7 +17,6 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-
 // SQL queries that must stay as raw SQL (extensions, indexes, catalog).
 const (
 	vcCreateVChordExtension = `CREATE EXTENSION IF NOT EXISTS vchord CASCADE`

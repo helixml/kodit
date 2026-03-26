@@ -198,10 +198,11 @@ func (p PrescribedOperations) IndexCommit() []Operation {
 	return ops
 }
 
-// RescanCommit returns the operation sequence for rescanning a commit (full reindex).
+// RescanCommit returns the operation sequence for rescanning a commit (full re-scan and re-index).
 func (p PrescribedOperations) RescanCommit() []Operation {
 	ops := []Operation{
 		OperationRescanCommit,
+		OperationScanCommit,
 		OperationExtractSnippetsForCommit,
 	}
 	if p.examples {

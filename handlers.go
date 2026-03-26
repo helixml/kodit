@@ -38,7 +38,7 @@ func (c *Client) registerHandlers() error {
 		handler.NewFileCleanup(c.repoStores.Commits, c.repoStores.Files),
 	))
 	c.registry.Register(task.OperationRescanCommit, commithandler.NewRescan(
-		c.Enrichments, c.enrichCtx.Associations, c.statusStore, c.enrichCtx.Tracker, c.logger,
+		c.Enrichments, c.enrichCtx.Associations, c.repoStores.Commits, c.repoStores.Files, c.statusStore, c.enrichCtx.Tracker, c.logger,
 	))
 
 	// Indexing handler — chunk files into enrichments

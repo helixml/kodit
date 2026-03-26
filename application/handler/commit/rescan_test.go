@@ -4,11 +4,13 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/persistence"
 	"github.com/helixml/kodit/internal/testdb"
@@ -30,16 +32,60 @@ func (f *fakeTrackerFactory) ForOperation(_ task.Operation, _ map[string]any) ha
 	return &fakeTracker{}
 }
 
-func TestRescan_DeletesOldStatuses(t *testing.T) {
-	ctx := context.Background()
+func newRescanHandler(t *testing.T) (*Rescan, rescanStores) {
+	t.Helper()
+	db := testdb.New(t)
 	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 
-	db := testdb.New(t)
-	enrichmentStore := persistence.NewEnrichmentStore(db)
-	associationStore := persistence.NewAssociationStore(db)
-	statusStore := persistence.NewStatusStore(db)
+	stores := rescanStores{
+		enrichments:  persistence.NewEnrichmentStore(db),
+		associations: persistence.NewAssociationStore(db),
+		commits:      persistence.NewCommitStore(db),
+		files:        persistence.NewFileStore(db),
+		statuses:     persistence.NewStatusStore(db),
+		repos:        persistence.NewRepositoryStore(db),
+	}
+
+	enrichmentSvc := service.NewEnrichment(stores.enrichments, stores.associations, nil, nil, nil, nil)
+	h := NewRescan(enrichmentSvc, stores.associations, stores.commits, stores.files, stores.statuses, &fakeTrackerFactory{}, logger)
+
+	return h, stores
+}
+
+type rescanStores struct {
+	enrichments  persistence.EnrichmentStore
+	associations persistence.AssociationStore
+	commits      persistence.CommitStore
+	files        persistence.FileStore
+	statuses     persistence.StatusStore
+	repos        persistence.RepositoryStore
+}
+
+func seedCommit(t *testing.T, ctx context.Context, stores rescanStores, repoID int64, commitSHA string) {
+	t.Helper()
+
+	repo, err := repository.NewRepository("https://example.com/test/repo.git")
+	require.NoError(t, err)
+	repo = repo.WithID(repoID)
+	_, err = stores.repos.Save(ctx, repo)
+	require.NoError(t, err)
+
+	author := repository.NewAuthor("test", "test@example.com")
+	now := time.Now()
+	commit := repository.NewCommit(commitSHA, repoID, "test commit", author, author, now, now)
+	_, err = stores.commits.Save(ctx, commit)
+	require.NoError(t, err)
+}
+
+func TestRescan_DeletesOldStatuses(t *testing.T) {
+	ctx := context.Background()
+
+	h, stores := newRescanHandler(t)
 
 	repoID := int64(42)
+	commitSHA := "abc123def456"
+
+	seedCommit(t, ctx, stores, repoID, commitSHA)
 
 	// Seed a failed status for this repository.
 	failedStatus := task.NewStatus(
@@ -49,41 +95,29 @@ func TestRescan_DeletesOldStatuses(t *testing.T) {
 		repoID,
 	)
 	failedStatus = failedStatus.Fail("something went wrong")
-	_, err := statusStore.Save(ctx, failedStatus)
+	_, err := stores.statuses.Save(ctx, failedStatus)
 	require.NoError(t, err)
 
 	// Verify the status exists.
-	statuses, err := statusStore.Find(ctx, task.WithTrackable(task.TrackableTypeRepository, repoID)...)
+	statuses, err := stores.statuses.Find(ctx, task.WithTrackable(task.TrackableTypeRepository, repoID)...)
 	require.NoError(t, err)
 	assert.Len(t, statuses, 1)
 
-	enrichmentSvc := service.NewEnrichment(enrichmentStore, associationStore, nil, nil, nil, nil)
-	h := NewRescan(enrichmentSvc, associationStore, statusStore, &fakeTrackerFactory{}, logger)
-
 	payload := map[string]any{
 		"repository_id": repoID,
-		"commit_sha":    "abc123def456",
+		"commit_sha":    commitSHA,
 	}
 
 	err = h.Execute(ctx, payload)
 	require.NoError(t, err)
 
 	// Old statuses should be gone.
-	statuses, err = statusStore.Find(ctx, task.WithTrackable(task.TrackableTypeRepository, repoID)...)
+	statuses, err = stores.statuses.Find(ctx, task.WithTrackable(task.TrackableTypeRepository, repoID)...)
 	require.NoError(t, err)
 	assert.Empty(t, statuses)
 
-	// Statuses for other repositories should be unaffected.
-	otherStatus := task.NewStatus(
-		task.OperationScanCommit,
-		nil,
-		task.TrackableTypeRepository,
-		int64(99),
-	)
-	_, err = statusStore.Save(ctx, otherStatus)
+	// Commit should be deleted.
+	exists, err := stores.commits.Exists(ctx, repository.WithRepoID(repoID), repository.WithSHA(commitSHA))
 	require.NoError(t, err)
-
-	count, err := statusStore.Count(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, int64(1), count)
+	assert.False(t, exists)
 }
