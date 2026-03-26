@@ -42,6 +42,7 @@ func (r *SearchRouter) Routes() chi.Router {
 	router := chi.NewRouter()
 
 	router.Post("/", r.Search)
+	router.Post("/duplicates", r.Duplicates)
 	router.Get("/semantic", r.SemanticSearch)
 	router.Get("/keyword", r.KeywordSearch)
 	router.Get("/ls", r.Ls)
@@ -484,6 +485,129 @@ func (r *SearchRouter) Grep(w http.ResponseWriter, req *http.Request) {
 	}
 
 	middleware.WriteJSON(w, http.StatusOK, response)
+}
+
+// Duplicates handles POST /api/v1/search/duplicates.
+//
+//	@Summary		Find duplicate code snippets
+//	@Description	Finds pairs of semantically similar code snippets using pairwise embedding comparison
+//	@Tags			search
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		dto.DuplicateSearchRequest	true	"Duplicate search request"
+//	@Success		200		{object}	dto.DuplicatesResponse
+//	@Failure		400		{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500		{object}	middleware.JSONAPIErrorResponse
+//	@Router			/search/duplicates [post]
+func (r *SearchRouter) Duplicates(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	var body dto.DuplicateSearchRequest
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		if err == io.EOF {
+			middleware.WriteError(w, req, fmt.Errorf("request body is required: %w", middleware.ErrValidation), r.logger)
+			return
+		}
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	attrs := body.Data.Attributes
+
+	if len(attrs.RepositoryIDs) == 0 {
+		middleware.WriteError(w, req, fmt.Errorf("repository_ids is required and must not be empty: %w", middleware.ErrValidation), r.logger)
+		return
+	}
+
+	threshold := 0.90
+	if attrs.Threshold != nil {
+		if *attrs.Threshold <= 0 || *attrs.Threshold > 1 {
+			middleware.WriteError(w, req, fmt.Errorf("threshold must be in range (0, 1]: %w", middleware.ErrValidation), r.logger)
+			return
+		}
+		threshold = *attrs.Threshold
+	}
+
+	limit := 50
+	if attrs.Limit != nil {
+		if *attrs.Limit < 1 {
+			middleware.WriteError(w, req, fmt.Errorf("limit must be at least 1: %w", middleware.ErrValidation), r.logger)
+			return
+		}
+		if *attrs.Limit > 500 {
+			limit = 500
+		} else {
+			limit = *attrs.Limit
+		}
+	}
+
+	// Validate all repository IDs exist.
+	for _, repoID := range attrs.RepositoryIDs {
+		if _, err := r.client.Repositories.Get(ctx, repository.WithID(repoID)); err != nil {
+			middleware.WriteError(w, req, err, r.logger)
+			return
+		}
+	}
+
+	pairs, truncated, err := r.client.Duplicates.FindDuplicates(ctx, attrs.RepositoryIDs, threshold, limit)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Resolve snippet IDs to enrichment content.
+	snippetIDs := make([]int64, 0, len(pairs)*2)
+	for _, p := range pairs {
+		if idA, err := strconv.ParseInt(p.SnippetIDA, 10, 64); err == nil {
+			snippetIDs = append(snippetIDs, idA)
+		}
+		if idB, err := strconv.ParseInt(p.SnippetIDB, 10, 64); err == nil {
+			snippetIDs = append(snippetIDs, idB)
+		}
+	}
+
+	enrichmentByID := map[string]enrichment.Enrichment{}
+	if len(snippetIDs) > 0 {
+		enrichments, fetchErr := r.client.Enrichments.Find(ctx, repository.WithIDIn(snippetIDs))
+		if fetchErr != nil {
+			r.logger.Warn().Err(fetchErr).Msg("failed to fetch enrichments for duplicate pairs")
+		} else {
+			for _, e := range enrichments {
+				enrichmentByID[strconv.FormatInt(e.ID(), 10)] = e
+			}
+		}
+	}
+
+	data := make([]dto.DuplicatePairData, 0, len(pairs))
+	for _, p := range pairs {
+		snippetA := snippetSchema(p.SnippetIDA, enrichmentByID)
+		snippetB := snippetSchema(p.SnippetIDB, enrichmentByID)
+		data = append(data, dto.DuplicatePairData{
+			Type: "duplicate_pair",
+			Attributes: dto.DuplicatePairAttributes{
+				Similarity: p.Similarity,
+				SnippetA:   snippetA,
+				SnippetB:   snippetB,
+			},
+		})
+	}
+
+	resp := dto.DuplicatesResponse{Data: data}
+	if truncated {
+		resp.Meta = &dto.DuplicatesMeta{Truncated: true}
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, resp)
+}
+
+// snippetSchema builds a DuplicateSnippetSchema from the enrichment map.
+func snippetSchema(snippetID string, enrichmentByID map[string]enrichment.Enrichment) dto.DuplicateSnippetSchema {
+	s := dto.DuplicateSnippetSchema{ID: snippetID}
+	if e, ok := enrichmentByID[snippetID]; ok {
+		s.Content = e.Content()
+		s.Language = e.Language()
+	}
+	return s
 }
 
 func buildSearchRequest(body dto.SearchRequest) (search.MultiRequest, error) {

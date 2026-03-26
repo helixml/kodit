@@ -63,6 +63,7 @@ func TestScopedMCPServer_RepositoryListFiltered(t *testing.T) {
 		scopedFL,
 		&scopedFakeFileFinder{},
 		scopedG,
+		nil,
 		"test",
 		zerolog.Nop(),
 	)
@@ -127,6 +128,7 @@ func TestScopedMCPServer_ReadResourceBlocked(t *testing.T) {
 		scopedFL,
 		&scopedFakeFileFinder{},
 		scopedG,
+		nil,
 		"test",
 		zerolog.Nop(),
 	)
@@ -187,6 +189,7 @@ func TestScopedMCPServer_NilRepoIDsNoScoping(t *testing.T) {
 		&scopedFakeFileLister{},
 		&scopedFakeFileFinder{},
 		&scopedFakeGrepper{},
+		nil,
 		"test",
 		zerolog.Nop(),
 	)
@@ -298,6 +301,7 @@ func TestScopedMCPServer_ListRepositories_SanitizesCredentials(t *testing.T) {
 		scopedFL,
 		&scopedFakeFileFinder{},
 		scopedG,
+		nil,
 		"test",
 		zerolog.Nop(),
 	)

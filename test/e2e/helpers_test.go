@@ -383,6 +383,28 @@ func (ts *TestServer) CreateTag(repo repository.Repository, name, commitSHA stri
 	return saved
 }
 
+// SeedCodeEmbedding inserts a code embedding vector into the SQLite code embedding store.
+// snippetID should be the string form of an enrichment ID (e.g. "42").
+// vec must be non-nil and non-empty.
+func (ts *TestServer) SeedCodeEmbedding(snippetID string, vec []float64) {
+	ts.t.Helper()
+	gormDB := ts.db.GORM()
+
+	// The SQLite embedding store creates this table during client initialization.
+	data, err := json.Marshal(vec)
+	if err != nil {
+		ts.t.Fatalf("marshal embedding: %v", err)
+	}
+
+	err = gormDB.Exec(
+		`INSERT OR REPLACE INTO kodit_code_embeddings (snippet_id, embedding) VALUES (?, ?)`,
+		snippetID, string(data),
+	).Error
+	if err != nil {
+		ts.t.Fatalf("seed code embedding: %v", err)
+	}
+}
+
 // SeedBM25 inserts a document into the SQLite FTS5 BM25 index.
 func (ts *TestServer) SeedBM25(snippetID, passage string) {
 	ts.t.Helper()

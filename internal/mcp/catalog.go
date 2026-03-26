@@ -158,6 +158,15 @@ func tools() []ToolDefinition {
 				{name: "pattern", description: "Glob pattern to match files (e.g. **/*.go, src/*.py)", typ: "string", required: true},
 			},
 		},
+		{
+			name:        "kodit_find_duplicates",
+			description: "Find semantically duplicated code snippets in a repository using embedding similarity",
+			params: []ParamDefinition{
+				{name: "repo_url", description: "The remote URL of the repository", typ: "string", required: true},
+				{name: "threshold", description: "Minimum cosine similarity to consider a pair duplicate (0–1, default 0.90)", typ: "number"},
+				{name: "limit", description: "Maximum number of duplicate pairs to return (default 50)", typ: "number"},
+			},
+		},
 	}
 }
 

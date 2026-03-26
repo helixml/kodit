@@ -80,6 +80,10 @@ func (f *fakeEmbeddingStore) Exists(_ context.Context, _ ...repository.Option) (
 	return len(f.existing) > 0, nil
 }
 
+func (f *fakeEmbeddingStore) FindAll(_ context.Context, _ search.Filters) ([]search.Embedding, error) {
+	return nil, nil
+}
+
 func (f *fakeEmbeddingStore) DeleteBy(_ context.Context, _ ...repository.Option) error {
 	return nil
 }

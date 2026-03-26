@@ -79,6 +79,11 @@ type Grepper interface {
 	Search(ctx context.Context, repoID int64, pattern string, pathspec string, maxFiles int) ([]service.GrepResult, error)
 }
 
+// DuplicateFinder finds semantically duplicated code snippets.
+type DuplicateFinder interface {
+	FindDuplicates(ctx context.Context, repoIDs []int64, threshold float64, limit int) ([]service.DuplicatePair, bool, error)
+}
+
 // Server wraps the MCP server with kodit-specific tools.
 type Server struct {
 	mcpServer          *server.MCPServer
@@ -92,6 +97,7 @@ type Server struct {
 	fileLister         FileLister
 	files              FileFinder
 	grepper            Grepper
+	duplicateFinder    DuplicateFinder
 	version            string
 	logger             zerolog.Logger
 }
@@ -114,7 +120,8 @@ const instructions = "This server provides access to code knowledge through mult
 	"- kodit_keyword_search() - Find files matching keywords using BM25 search (returns resource URIs)\n" +
 	"- kodit_grep() - Search file contents using git grep with regex patterns (returns resource URIs)\n" +
 	"- kodit_ls() - List files matching a glob pattern in a repository\n" +
-	"- kodit_read_resource() - Read file content from a resource URI returned by search tools\n\n" +
+	"- kodit_read_resource() - Read file content from a resource URI returned by search tools\n" +
+	"- kodit_find_duplicates() - Find semantically duplicated code snippets in a repository\n\n" +
 	"**Reading file content:**\n" +
 	"Use kodit_read_resource() with the URI returned by search tools, or the file resource " +
 	"template: file://{id}/{blob_name}/{+path}\n" +
@@ -137,6 +144,7 @@ func NewServer(
 	fileLister FileLister,
 	files FileFinder,
 	grepper Grepper,
+	duplicateFinder DuplicateFinder,
 	version string,
 	logger zerolog.Logger,
 ) *Server {
@@ -152,6 +160,7 @@ func NewServer(
 		fileLister:         fileLister,
 		files:              files,
 		grepper:            grepper,
+		duplicateFinder:    duplicateFinder,
 		version:            version,
 		logger:             logger,
 	}
@@ -190,6 +199,7 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 		"kodit_grep":               s.handleGrep,
 		"kodit_read_resource":      s.handleReadResource,
 		"kodit_ls":                 s.handleLs,
+		"kodit_find_duplicates":    s.handleFindDuplicates,
 	}
 
 	for _, def := range tools() {
@@ -944,6 +954,74 @@ func (s *Server) handleReadResource(ctx context.Context, request mcp.CallToolReq
 	}
 
 	return mcp.NewToolResultText(text.Text), nil
+}
+
+// duplicateResult holds one duplicate pair for JSON output.
+type duplicateResult struct {
+	SnippetIDA string  `json:"snippet_id_a"`
+	SnippetIDB string  `json:"snippet_id_b"`
+	Similarity float64 `json:"similarity"`
+}
+
+// handleFindDuplicates handles the find_duplicates tool invocation.
+func (s *Server) handleFindDuplicates(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	repoURL, err := request.RequireString("repo_url")
+	if err != nil {
+		return mcp.NewToolResultError("repo_url is required"), nil
+	}
+
+	repos, err := s.resolveRepository(ctx, repoURL)
+	if err != nil {
+		s.logger.Error().Str("repo_url", repoURL).Interface("error", err).Msg("failed to find repository")
+		return mcp.NewToolResultError(fmt.Sprintf("failed to find repository: %v", err)), nil
+	}
+	if len(repos) == 0 {
+		return mcp.NewToolResultError(fmt.Sprintf("repository not found: %s", repoURL)), nil
+	}
+
+	threshold := request.GetFloat("threshold", 0.90)
+	if threshold <= 0 || threshold > 1 {
+		return mcp.NewToolResultError("threshold must be in the range (0, 1]"), nil
+	}
+
+	limit := int(request.GetFloat("limit", 50))
+	if limit < 1 {
+		return mcp.NewToolResultError("limit must be at least 1"), nil
+	}
+
+	if s.duplicateFinder == nil {
+		return mcp.NewToolResultText("[]"), nil
+	}
+
+	pairs, truncated, err := s.duplicateFinder.FindDuplicates(ctx, []int64{repos[0].ID()}, threshold, limit)
+	if err != nil {
+		s.logger.Error().Interface("error", err).Msg("find duplicates failed")
+		return mcp.NewToolResultError(fmt.Sprintf("find duplicates failed: %v", err)), nil
+	}
+
+	if len(pairs) == 0 {
+		return mcp.NewToolResultText("[]"), nil
+	}
+
+	results := make([]duplicateResult, len(pairs))
+	for i, p := range pairs {
+		results[i] = duplicateResult{
+			SnippetIDA: p.SnippetIDA,
+			SnippetIDB: p.SnippetIDB,
+			Similarity: p.Similarity,
+		}
+	}
+
+	jsonBytes, err := json.Marshal(results)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("marshal results: %v", err)), nil
+	}
+
+	if truncated {
+		s.logger.Warn().Msg("duplicate search truncated: too many embeddings")
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
 // registerResources registers MCP resource templates with the server.

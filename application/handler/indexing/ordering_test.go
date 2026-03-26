@@ -67,6 +67,10 @@ func (e *emptyEmbeddingStore) Exists(_ context.Context, _ ...repository.Option) 
 	return false, nil
 }
 
+func (e *emptyEmbeddingStore) FindAll(_ context.Context, _ search.Filters) ([]search.Embedding, error) {
+	return nil, nil
+}
+
 func (e *emptyEmbeddingStore) DeleteBy(_ context.Context, _ ...repository.Option) error {
 	return nil
 }

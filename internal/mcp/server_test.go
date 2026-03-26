@@ -272,6 +272,7 @@ func testServer() *Server {
 		&fakeFileLister{},
 		&fakeFileFinder{},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -421,6 +422,7 @@ func TestServer_ListRepositories_DisplaysUpstreamURL(t *testing.T) {
 		&fakeFileLister{},
 		&fakeFileFinder{},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -473,6 +475,7 @@ func TestServer_ListRepositories_FallsBackToSanitizedURL(t *testing.T) {
 		&fakeFileLister{},
 		&fakeFileFinder{},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -697,6 +700,7 @@ func semanticSearchServer() *Server {
 		&fakeFileLister{},
 		&fakeFileFinder{files: []repository.File{testFile}},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -817,6 +821,7 @@ func TestServer_SemanticSearch_AbsolutePathNormalized(t *testing.T) {
 		&fakeFileLister{},
 		&fakeFileFinder{files: []repository.File{testFile}},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -896,6 +901,7 @@ func TestServer_SemanticSearch_LanguageFilterDotPrefix(t *testing.T) {
 		&fakeFileLister{},
 		&fakeFileFinder{files: []repository.File{testFile}},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -1050,6 +1056,7 @@ func TestServer_SemanticSearch_LimitCapsResults(t *testing.T) {
 		&fakeFileLister{},
 		&fakeFileFinder{files: []repository.File{f1, f2, f3}},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -1150,6 +1157,7 @@ func TestServer_SemanticSearchThenReadFile(t *testing.T) {
 				time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
 		}},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -1235,6 +1243,7 @@ func TestServer_SemanticSearchThenReadFile_AbsolutePath(t *testing.T) {
 				"", "", ".py", ".py", 256, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
 		}},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -1314,6 +1323,7 @@ func TestServer_SemanticSearchThenReadFile_WithLineRange(t *testing.T) {
 				time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
 		}},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -1373,6 +1383,7 @@ func TestServer_SemanticSearchNoResults(t *testing.T) {
 		&fakeFileLister{},
 		&fakeFileFinder{},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -1431,6 +1442,7 @@ func keywordSearchServer() *Server {
 		&fakeFileLister{},
 		&fakeFileFinder{files: []repository.File{testFile}},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -1648,6 +1660,7 @@ func TestServer_KeywordSearch_NoResults(t *testing.T) {
 		&fakeFileLister{},
 		&fakeFileFinder{},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -1762,6 +1775,7 @@ func TestServer_KeywordSearchThenReadFile(t *testing.T) {
 		&fakeFileLister{},
 		&fakeFileFinder{files: []repository.File{testFile}},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -1880,6 +1894,7 @@ func wikiServer() *Server {
 		&fakeFileLister{},
 		&fakeFileFinder{},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -1958,6 +1973,7 @@ func TestServer_GetWiki_NoWiki(t *testing.T) {
 		&fakeFileLister{},
 		&fakeFileFinder{},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -2076,6 +2092,7 @@ func lsServer(files []service.FileEntry) *Server {
 		&fakeFileLister{files: files},
 		&fakeFileFinder{},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -2256,6 +2273,7 @@ func TestServer_Ls_RepoNotFound(t *testing.T) {
 		&fakeFileLister{},
 		&fakeFileFinder{},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -2317,6 +2335,7 @@ func credentialServer() *Server {
 		&fakeFileLister{},
 		&fakeFileFinder{},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -2392,6 +2411,7 @@ func TestServer_GetWiki_SanitizesCredentials(t *testing.T) {
 		&fakeFileLister{},
 		&fakeFileFinder{},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -2437,6 +2457,7 @@ func TestServer_GetWikiPage_SanitizesCredentials(t *testing.T) {
 		&fakeFileLister{},
 		&fakeFileFinder{},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -2495,6 +2516,7 @@ func TestServer_Grep_SanitizesCredentials(t *testing.T) {
 				},
 			},
 		},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -2541,6 +2563,7 @@ func TestServer_Ls_SanitizesCredentials(t *testing.T) {
 		&fakeFileLister{files: []service.FileEntry{{Path: "README.md", Size: 100}}},
 		&fakeFileFinder{},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -2713,6 +2736,7 @@ func grepServer() *Server {
 				},
 			},
 		},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)
@@ -2836,6 +2860,7 @@ func TestServer_Grep_NoResults(t *testing.T) {
 		&fakeFileLister{},
 		&fakeFileFinder{},
 		&fakeGrepper{},
+		nil,
 		"1.0.0-test",
 		zerolog.Nop(),
 	)

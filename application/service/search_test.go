@@ -53,6 +53,9 @@ func (f fakeEmbeddingStore) Search(_ context.Context, _ ...repository.Option) ([
 func (f fakeEmbeddingStore) Exists(_ context.Context, _ ...repository.Option) (bool, error) {
 	return false, nil
 }
+func (f fakeEmbeddingStore) FindAll(_ context.Context, _ search.Filters) ([]search.Embedding, error) {
+	return nil, nil
+}
 func (f fakeEmbeddingStore) DeleteBy(_ context.Context, _ ...repository.Option) error { return nil }
 
 // fakeBM25Store implements search.BM25Store for testing.

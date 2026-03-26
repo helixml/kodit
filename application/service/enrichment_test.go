@@ -46,6 +46,9 @@ func (r *recordingEmbeddingStore) Search(_ context.Context, _ ...repository.Opti
 func (r *recordingEmbeddingStore) Exists(_ context.Context, _ ...repository.Option) (bool, error) {
 	return false, nil
 }
+func (r *recordingEmbeddingStore) FindAll(_ context.Context, _ search.Filters) ([]search.Embedding, error) {
+	return nil, nil
+}
 func (r *recordingEmbeddingStore) DeleteBy(_ context.Context, opts ...repository.Option) error {
 	r.deleteCalled = true
 	r.deleteOpts = opts
