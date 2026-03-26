@@ -1797,6 +1797,7 @@ func (r *RepositoriesRouter) GetBlob(w http.ResponseWriter, req *http.Request) {
 //	@Failure		400		{object}	middleware.JSONAPIErrorResponse
 //	@Failure		404		{object}	middleware.JSONAPIErrorResponse
 //	@Failure		500		{object}	middleware.JSONAPIErrorResponse
+//	@Security		APIKeyAuth
 //	@Deprecated
 //	@Router			/repositories/{id}/grep [get]
 func (r *RepositoriesRouter) Grep(w http.ResponseWriter, req *http.Request) {

@@ -1681,6 +1681,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
       summary: Grep repository (deprecated)
       tags:
       - repositories

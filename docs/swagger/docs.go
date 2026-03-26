@@ -1449,6 +1449,11 @@ const docTemplate = `{
         },
         "/repositories/{id}/grep": {
             "get": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
                 "description": "Deprecated: use GET /api/v1/search/grep instead. Searches file contents in a repository using git grep.",
                 "produces": [
                     "application/json"

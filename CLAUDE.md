@@ -115,8 +115,6 @@ Every handler function registered in a chi router **must** have a complete swag 
 - `@Deprecated` — required on deprecated endpoints (paired with a `@Description` note pointing to the replacement)
 - `@Router` — path relative to the API version prefix + HTTP method
 
-Deprecated endpoints omit `@Security` and must include `@Deprecated`.
-
 ## Software Engineering
 
 Object-oriented design principles:
