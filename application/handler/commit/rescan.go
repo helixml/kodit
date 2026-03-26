@@ -14,10 +14,12 @@ import (
 )
 
 // Rescan handles the RESCAN_COMMIT task operation.
-// It clears existing indexed data for a commit to prepare for re-indexing.
+// It clears all existing data for a commit to prepare for a full re-scan and re-index.
 type Rescan struct {
 	enrichments      *service.Enrichment
 	associationStore enrichment.AssociationStore
+	commitStore      repository.CommitStore
+	fileStore        repository.FileStore
 	statusStore      task.StatusStore
 	trackerFactory   handler.TrackerFactory
 	logger           zerolog.Logger
@@ -27,6 +29,8 @@ type Rescan struct {
 func NewRescan(
 	enrichments *service.Enrichment,
 	associationStore enrichment.AssociationStore,
+	commitStore repository.CommitStore,
+	fileStore repository.FileStore,
 	statusStore task.StatusStore,
 	trackerFactory handler.TrackerFactory,
 	logger zerolog.Logger,
@@ -34,6 +38,8 @@ func NewRescan(
 	return &Rescan{
 		enrichments:      enrichments,
 		associationStore: associationStore,
+		commitStore:      commitStore,
+		fileStore:        fileStore,
 		statusStore:      statusStore,
 		trackerFactory:   trackerFactory,
 		logger:           logger,
@@ -57,11 +63,11 @@ func (h *Rescan) Execute(ctx context.Context, payload map[string]any) error {
 		payload,
 	)
 
-	tracker.SetTotal(ctx, 2)
+	tracker.SetTotal(ctx, 3)
 	tracker.SetCurrent(ctx, 0, "Deleting enrichments for commit")
 
-	// Clear enrichments and associations for this commit to prepare for re-indexing.
-	// The commit record itself is preserved — only derived data is removed.
+	// Clear all data associated with this commit so the scan and index pipeline
+	// can re-create everything from scratch.
 	associations, err := h.associationStore.Find(ctx, enrichment.WithEntityType(enrichment.EntityTypeCommit), enrichment.WithEntityID(cp.CommitSHA()))
 	if err != nil {
 		return fmt.Errorf("find associations for commit: %w", err)
@@ -81,6 +87,21 @@ func (h *Rescan) Execute(ctx context.Context, payload map[string]any) error {
 
 	if err := h.associationStore.DeleteBy(ctx, enrichment.WithEntityID(cp.CommitSHA())); err != nil {
 		return fmt.Errorf("delete enrichment associations: %w", err)
+	}
+
+	tracker.SetCurrent(ctx, 2, "Deleting commit and files")
+
+	if err := h.fileStore.DeleteBy(ctx, repository.WithCommitSHA(cp.CommitSHA())); err != nil {
+		return fmt.Errorf("delete commit files: %w", err)
+	}
+
+	commit, err := h.commitStore.FindOne(ctx, repository.WithRepoID(cp.RepoID()), repository.WithSHA(cp.CommitSHA()))
+	if err != nil {
+		return fmt.Errorf("find commit: %w", err)
+	}
+
+	if err := h.commitStore.Delete(ctx, commit); err != nil {
+		return fmt.Errorf("delete commit: %w", err)
 	}
 
 	h.logger.Info().Int64("repo_id", cp.RepoID()).Str("commit", handler.ShortSHA(cp.CommitSHA())).Msg("commit data cleared for rescan")
