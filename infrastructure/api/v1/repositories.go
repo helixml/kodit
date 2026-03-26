@@ -1572,6 +1572,18 @@ func (r *RepositoriesRouter) UpdateTrackingConfig(w http.ResponseWriter, req *ht
 }
 
 // GetChunkingConfig handles GET /api/v1/repositories/{id}/config/chunking.
+//
+//	@Summary		Get chunking config
+//	@Description	Get current chunking configuration for a repository
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"Repository ID"
+//	@Success		200	{object}	dto.ChunkingConfigResponse
+//	@Failure		404	{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500	{object}	middleware.JSONAPIErrorResponse
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/config/chunking [get]
 func (r *RepositoriesRouter) GetChunkingConfig(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -1592,6 +1604,20 @@ func (r *RepositoriesRouter) GetChunkingConfig(w http.ResponseWriter, req *http.
 }
 
 // UpdateChunkingConfig handles PUT /api/v1/repositories/{id}/config/chunking.
+//
+//	@Summary		Update chunking config
+//	@Description	Update chunking configuration for a repository
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int								true	"Repository ID"
+//	@Param			body	body		dto.ChunkingConfigUpdateRequest	true	"Chunking config"
+//	@Success		200		{object}	dto.ChunkingConfigResponse
+//	@Failure		400		{object}	middleware.JSONAPIErrorResponse
+//	@Failure		404		{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500		{object}	middleware.JSONAPIErrorResponse
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/config/chunking [put]
 func (r *RepositoriesRouter) UpdateChunkingConfig(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -1887,6 +1913,22 @@ func (r *RepositoriesRouter) GetBlob(w http.ResponseWriter, req *http.Request) {
 
 // Grep searches file contents in a repository using git grep.
 // Deprecated: Use GET /api/v1/search/grep instead.
+//
+//	@Summary		Grep repository (deprecated)
+//	@Description	Deprecated: use GET /api/v1/search/grep instead. Searches file contents in a repository using git grep.
+//	@Tags			repositories
+//	@Produce		json
+//	@Param			id		path		int		true	"Repository ID"
+//	@Param			pattern	query		string	true	"Search pattern"
+//	@Param			glob	query		string	false	"Glob pattern to filter files"
+//	@Param			limit	query		int		false	"Maximum results (default 50, max 200)"
+//	@Success		200		{object}	dto.GrepResponse
+//	@Failure		400		{object}	middleware.JSONAPIErrorResponse
+//	@Failure		404		{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500		{object}	middleware.JSONAPIErrorResponse
+//	@Security		APIKeyAuth
+//	@Deprecated
+//	@Router			/repositories/{id}/grep [get]
 func (r *RepositoriesRouter) Grep(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Deprecated", "true")
 	repoID, err := r.repositoryID(req)

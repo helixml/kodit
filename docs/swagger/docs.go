@@ -224,258 +224,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/pipelines": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "List all pipelines with pagination",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "pipelines"
-                ],
-                "summary": "List pipelines",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Page number (default: 1)",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Results per page (default: 20, max: 100)",
-                        "name": "page_size",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.PipelineListResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Create a new pipeline with steps",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "pipelines"
-                ],
-                "summary": "Create pipeline",
-                "parameters": [
-                    {
-                        "description": "Pipeline to create",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.PipelineCreateRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/dto.PipelineDetailResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/pipelines/{id}": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Get a pipeline with its steps and dependencies",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "pipelines"
-                ],
-                "summary": "Get pipeline",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Pipeline ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.PipelineDetailResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Replace pipeline name and steps",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "pipelines"
-                ],
-                "summary": "Update pipeline",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Pipeline ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Pipeline update",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.PipelineUpdateRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.PipelineDetailResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Delete a pipeline and all its steps",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "pipelines"
-                ],
-                "summary": "Delete pipeline",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Pipeline ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/queue": {
             "get": {
                 "security": [
@@ -1515,14 +1263,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/repositories/{id}/config/pipeline": {
+        "/repositories/{id}/config/chunking": {
             "get": {
                 "security": [
                     {
                         "APIKeyAuth": []
                     }
                 ],
-                "description": "Get the pipeline assigned to a repository. Use ?include=pipeline to include the full pipeline resource.",
+                "description": "Get current chunking configuration for a repository",
                 "consumes": [
                     "application/json"
                 ],
@@ -1532,7 +1280,7 @@ const docTemplate = `{
                 "tags": [
                     "repositories"
                 ],
-                "summary": "Get pipeline config",
+                "summary": "Get chunking config",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1540,19 +1288,13 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Comma-separated related resources to include (e.g. pipeline)",
-                        "name": "include",
-                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/dto.PipelineConfigResponse"
+                            "$ref": "#/definitions/dto.ChunkingConfigResponse"
                         }
                     },
                     "404": {
@@ -1575,7 +1317,7 @@ const docTemplate = `{
                         "APIKeyAuth": []
                     }
                 ],
-                "description": "Assign a pipeline to a repository",
+                "description": "Update chunking configuration for a repository",
                 "consumes": [
                     "application/json"
                 ],
@@ -1585,7 +1327,7 @@ const docTemplate = `{
                 "tags": [
                     "repositories"
                 ],
-                "summary": "Update pipeline config",
+                "summary": "Update chunking config",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1595,12 +1337,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Pipeline configuration",
+                        "description": "Chunking config",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.PipelineConfigUpdateRequest"
+                            "$ref": "#/definitions/dto.ChunkingConfigUpdateRequest"
                         }
                     }
                 ],
@@ -1608,7 +1350,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/dto.PipelineConfigResponse"
+                            "$ref": "#/definitions/dto.ChunkingConfigResponse"
                         }
                     },
                     "400": {
@@ -1688,6 +1430,78 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/dto.EnrichmentJSONAPIListResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/repositories/{id}/grep": {
+            "get": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Deprecated: use GET /api/v1/search/grep instead. Searches file contents in a repository using git grep.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "repositories"
+                ],
+                "summary": "Grep repository (deprecated)",
+                "deprecated": true,
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Repository ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search pattern",
+                        "name": "pattern",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Glob pattern to filter files",
+                        "name": "glob",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum results (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GrepResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
                         }
                     },
                     "404": {
@@ -2517,106 +2331,61 @@ const docTemplate = `{
                     }
                 }
             }
-        },
-        "/steps": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "List all steps with pagination",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "steps"
-                ],
-                "summary": "List steps",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Page number (default: 1)",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Results per page (default: 20, max: 100)",
-                        "name": "page_size",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.StepListResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/steps/{id}": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Get a step by ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "steps"
-                ],
-                "summary": "Get step",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Step ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.StepResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
-                        }
-                    }
-                }
-            }
         }
     },
     "definitions": {
+        "dto.ChunkingConfigAttributes": {
+            "type": "object",
+            "properties": {
+                "chunk_overlap": {
+                    "type": "integer"
+                },
+                "chunk_size": {
+                    "type": "integer"
+                },
+                "min_chunk_size": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.ChunkingConfigData": {
+            "type": "object",
+            "properties": {
+                "attributes": {
+                    "$ref": "#/definitions/dto.ChunkingConfigAttributes"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ChunkingConfigResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/dto.ChunkingConfigData"
+                }
+            }
+        },
+        "dto.ChunkingConfigUpdateData": {
+            "type": "object",
+            "properties": {
+                "attributes": {
+                    "$ref": "#/definitions/dto.ChunkingConfigAttributes"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ChunkingConfigUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/dto.ChunkingConfigUpdateData"
+                }
+            }
+        },
         "dto.CommitAttributes": {
             "type": "object",
             "properties": {
@@ -2941,205 +2710,6 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.PipelineAttributes": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.PipelineConfigAttributes": {
-            "type": "object",
-            "properties": {
-                "pipeline_id": {
-                    "type": "integer"
-                }
-            }
-        },
-        "dto.PipelineConfigData": {
-            "type": "object",
-            "properties": {
-                "attributes": {
-                    "$ref": "#/definitions/dto.PipelineConfigAttributes"
-                },
-                "links": {
-                    "$ref": "#/definitions/dto.PipelineConfigLinks"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.PipelineConfigLinks": {
-            "type": "object",
-            "properties": {
-                "pipeline": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.PipelineConfigResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/dto.PipelineConfigData"
-                },
-                "included": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.PipelineData"
-                    }
-                }
-            }
-        },
-        "dto.PipelineConfigUpdateData": {
-            "type": "object",
-            "properties": {
-                "attributes": {
-                    "$ref": "#/definitions/dto.PipelineConfigAttributes"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.PipelineConfigUpdateRequest": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/dto.PipelineConfigUpdateData"
-                }
-            }
-        },
-        "dto.PipelineCreateAttributes": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "steps": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.StepInput"
-                    }
-                }
-            }
-        },
-        "dto.PipelineCreateData": {
-            "type": "object",
-            "properties": {
-                "attributes": {
-                    "$ref": "#/definitions/dto.PipelineCreateAttributes"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.PipelineCreateRequest": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/dto.PipelineCreateData"
-                }
-            }
-        },
-        "dto.PipelineData": {
-            "type": "object",
-            "properties": {
-                "attributes": {
-                    "$ref": "#/definitions/dto.PipelineAttributes"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "links": {
-                    "$ref": "#/definitions/dto.PipelineLinks"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.PipelineDetailResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/dto.PipelineData"
-                },
-                "included": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.StepData"
-                    }
-                }
-            }
-        },
-        "dto.PipelineLinks": {
-            "type": "object",
-            "properties": {
-                "self": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.PipelineListResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.PipelineData"
-                    }
-                },
-                "links": {
-                    "$ref": "#/definitions/jsonapi.Links"
-                },
-                "meta": {
-                    "$ref": "#/definitions/jsonapi.Meta"
-                }
-            }
-        },
-        "dto.PipelineUpdateAttributes": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "steps": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.StepInput"
-                    }
-                }
-            }
-        },
-        "dto.PipelineUpdateData": {
-            "type": "object",
-            "properties": {
-                "attributes": {
-                    "$ref": "#/definitions/dto.PipelineUpdateAttributes"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.PipelineUpdateRequest": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/dto.PipelineUpdateData"
-                }
-            }
-        },
         "dto.RepositoryAttributes": {
             "type": "object",
             "properties": {
@@ -3159,9 +2729,6 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "num_tags": {
-                    "type": "integer"
-                },
-                "pipeline_id": {
                     "type": "integer"
                 },
                 "remote_uri": {
@@ -3250,9 +2817,6 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
-                "links": {
-                    "$ref": "#/definitions/dto.RepositoryLinks"
-                },
                 "type": {
                     "type": "string"
                 }
@@ -3275,14 +2839,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/dto.RepositoryCommitData"
                     }
-                }
-            }
-        },
-        "dto.RepositoryLinks": {
-            "type": "object",
-            "properties": {
-                "pipeline": {
-                    "type": "string"
                 }
             }
         },
@@ -3541,96 +3097,6 @@ const docTemplate = `{
                 },
                 "meta": {
                     "$ref": "#/definitions/jsonapi.Meta"
-                }
-            }
-        },
-        "dto.StepAttributes": {
-            "type": "object",
-            "properties": {
-                "depends_on": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "join_type": {
-                    "type": "string"
-                },
-                "kind": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.StepData": {
-            "type": "object",
-            "properties": {
-                "attributes": {
-                    "$ref": "#/definitions/dto.StepAttributes"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "links": {
-                    "$ref": "#/definitions/dto.StepLinks"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.StepInput": {
-            "type": "object",
-            "properties": {
-                "depends_on": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "join_type": {
-                    "type": "string"
-                },
-                "kind": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.StepLinks": {
-            "type": "object",
-            "properties": {
-                "self": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.StepListResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.StepData"
-                    }
-                },
-                "links": {
-                    "$ref": "#/definitions/jsonapi.Links"
-                },
-                "meta": {
-                    "$ref": "#/definitions/jsonapi.Meta"
-                }
-            }
-        },
-        "dto.StepResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/dto.StepData"
                 }
             }
         },
