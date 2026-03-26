@@ -1,29 +1,10 @@
 package search
 
-import (
-	"context"
+import "github.com/helixml/kodit/domain/repository"
 
-	"github.com/helixml/kodit/domain/repository"
-)
-
-// maxSnippetIDsPerFind is the maximum number of snippet IDs per Find call,
+// MaxSnippetIDsPerFind is the maximum number of snippet IDs per Find call,
 // keeping IN-clause bind parameters within the PostgreSQL 65535 limit.
-const maxSnippetIDsPerFind = 1000
-
-// FindBySnippetIDs retrieves embeddings for the given IDs, chunking requests
-// to stay within the database bind-parameter limit.
-func FindBySnippetIDs(ctx context.Context, store EmbeddingStore, ids []string) ([]Embedding, error) {
-	var all []Embedding
-	for start := 0; start < len(ids); start += maxSnippetIDsPerFind {
-		end := min(start+maxSnippetIDsPerFind, len(ids))
-		batch, err := store.Find(ctx, WithSnippetIDs(ids[start:end]))
-		if err != nil {
-			return nil, err
-		}
-		all = append(all, batch...)
-	}
-	return all, nil
-}
+const MaxSnippetIDsPerFind = 1000
 
 // WithSnippetID filters by a single snippet ID.
 func WithSnippetID(id string) repository.Option {

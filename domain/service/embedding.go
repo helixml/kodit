@@ -80,7 +80,7 @@ func (s *EmbeddingService) Index(ctx context.Context, request search.IndexReques
 		ids[i] = doc.SnippetID()
 	}
 
-	found, err := search.FindBySnippetIDs(ctx, s.store, ids)
+	found, err := s.store.Find(ctx, search.WithSnippetIDs(ids), repository.WithLimit(search.MaxSnippetIDsPerFind))
 	if err != nil {
 		return fmt.Errorf("check existing: %w", err)
 	}

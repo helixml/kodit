@@ -126,7 +126,7 @@ func (h *CreateCodeEmbeddings) filterNew(ctx context.Context, enrichments []enri
 		ids[i] = strconv.FormatInt(e.ID(), 10)
 	}
 
-	found, err := search.FindBySnippetIDs(ctx, h.codeIndex.Store, ids)
+	found, err := h.codeIndex.Store.Find(ctx, search.WithSnippetIDs(ids), repository.WithLimit(search.MaxSnippetIDsPerFind))
 	if err != nil {
 		return nil, err
 	}

@@ -152,7 +152,7 @@ func (h *CreateSummaryEmbeddings) filterNewEnrichments(ctx context.Context, enri
 		return nil, nil
 	}
 
-	found, err := search.FindBySnippetIDs(ctx, h.textIndex.Store, snippetSHAs)
+	found, err := h.textIndex.Store.Find(ctx, search.WithSnippetIDs(snippetSHAs), repository.WithLimit(search.MaxSnippetIDsPerFind))
 	if err != nil {
 		return nil, err
 	}
