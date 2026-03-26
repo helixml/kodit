@@ -9,7 +9,16 @@
 | `BranchStore` | `SaveAll` | 6 | ~10,922 | `Create` (unbatched) |
 | `TagStore` | `SaveAll` | 9 | ~7,281 | `Create` (unbatched) |
 
-The embedding stores (`SQLiteEmbeddingStore`, `VectorChordEmbeddingStore`) and BM25 store already batch correctly and are not affected.
+The embedding `SaveAll` methods (`SQLiteEmbeddingStore`, `VectorChordEmbeddingStore`) and `VectorChordBM25Store.batchInsert` already batch correctly at 100 records each.
+
+However, there are two additional unbounded queries related to snippets/chunks that can also exceed the limit:
+
+| Store | Method | Issue |
+|---|---|---|
+| `VectorChordBM25Store` | `existingIDs` | `SELECT ... WHERE snippet_id IN ?` with unbounded list |
+| `VectorChordEmbeddingStore` | `Find` (via `filterNew`) | `SELECT ... WHERE snippet_id IN ?` with unbounded list |
+
+These are called per-commit during indexing; a large commit with many snippets/chunks could pass 65535+ IDs.
 
 ## Fix
 
@@ -23,6 +32,11 @@ Use GORM's `CreateInBatches(models, batchSize)` for all four stores. A safe batc
 
 Add a shared constant `gitBatchSize = 1000` in a suitable file (e.g. `persistence/batch.go` or alongside the existing `saveAllBatchSize` in `embedding_store.go`).
 
+**For `VectorChordBM25Store.existingIDs` and `VectorChordEmbeddingStore.Find` with `WithSnippetIDs`:**
+- Both issue `WHERE snippet_id IN ?` with an unbounded slice
+- Fix by chunking the ID list and executing multiple queries, then merging results
+- A chunk size of 1000 IDs per query is safe (1 parameter per ID)
+
 ## Tests (TDD Red First)
 
 Write integration tests in `infrastructure/persistence/` gated on a `POSTGRES_TEST_URL` environment variable (same pattern as `bm25_store_vectorchord_test.go`). Each test:
@@ -34,7 +48,9 @@ Write integration tests in `infrastructure/persistence/` gated on a `POSTGRES_TE
 
 These tests **currently fail** with `extended protocol limited to 65535 parameters` on `FileStore` and may fail on `CommitStore`/`BranchStore`/`TagStore` depending on repo size. After applying the fix they must pass.
 
-One test file covers all four stores: `infrastructure/persistence/bulk_save_postgres_test.go`.
+One test file covers all stores: `infrastructure/persistence/bulk_save_postgres_test.go`.
+
+For the BM25 and embedding store tests, 10,000 documents/embeddings should be inserted and the deduplication check (`existingIDs`) should also be called with 10,000 IDs to exercise the `IN ?` path.
 
 ## Codebase Patterns
 

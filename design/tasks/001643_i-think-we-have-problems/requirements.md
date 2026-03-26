@@ -10,9 +10,11 @@ error="extended protocol limited to 65535 parameters"
 
 The same unbatched pattern exists in `CommitStore.SaveAll`, `BranchStore.SaveAll`, and `TagStore.SaveAll`.
 
+Additionally, `VectorChordBM25Store.existingIDs` and the embedding store's `Find` with `WithSnippetIDs` pass unbounded lists of snippet IDs in `IN ?` clauses, which can also exceed the limit when a commit produces many snippets/chunks.
+
 ## User Stories
 
-- As a user indexing a large repository, I want `kodit` to complete indexing without errors regardless of how many files/commits/branches/tags are in each batch.
+- As a user indexing a large repository, I want `kodit` to complete indexing without errors regardless of how many files/commits/branches/tags/snippets are in each batch.
 
 ## Acceptance Criteria
 
@@ -20,5 +22,7 @@ The same unbatched pattern exists in `CommitStore.SaveAll`, `BranchStore.SaveAll
 - [ ] Inserting 10,000 commits succeeds against PostgreSQL
 - [ ] Inserting 10,000 branches succeeds against PostgreSQL
 - [ ] Inserting 10,000 tags succeeds against PostgreSQL
+- [ ] Indexing 10,000 BM25 snippet documents succeeds against PostgreSQL (including the `existingIDs` deduplication check)
+- [ ] Saving 10,000 embeddings (snippet/chunk vectors) succeeds against PostgreSQL
 - [ ] Each bulk save method processes records in chunks ≤ a safe batch size
 - [ ] All existing tests continue to pass
