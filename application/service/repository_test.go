@@ -140,6 +140,55 @@ func TestRepository_Add_WithTrackingConfig(t *testing.T) {
 	assert.Equal(t, "develop", source.TrackingConfig().Branch())
 }
 
+func TestRepository_Add_Pipeline(t *testing.T) {
+	t.Run("empty uses default", func(t *testing.T) {
+		deps := newRepositoryTestDeps(t)
+		ctx := context.Background()
+
+		defaultPID, err := deps.pipeline.DefaultID(ctx)
+		require.NoError(t, err)
+
+		source, created, err := deps.service.Add(ctx, &RepositoryAddParams{
+			URL: "https://github.com/test/repo",
+		})
+
+		require.NoError(t, err)
+		assert.True(t, created)
+		assert.Equal(t, defaultPID, source.Repository().PipelineID())
+	})
+
+	t.Run("named pipeline", func(t *testing.T) {
+		deps := newRepositoryTestDeps(t)
+		ctx := context.Background()
+
+		pipeline := repository.NewPipeline("custom")
+		saved, err := deps.stores.pipelines.Save(ctx, pipeline)
+		require.NoError(t, err)
+
+		source, created, err := deps.service.Add(ctx, &RepositoryAddParams{
+			URL:      "https://github.com/test/repo",
+			Pipeline: "custom",
+		})
+
+		require.NoError(t, err)
+		assert.True(t, created)
+		assert.Equal(t, saved.ID(), source.Repository().PipelineID())
+	})
+
+	t.Run("unknown name errors", func(t *testing.T) {
+		deps := newRepositoryTestDeps(t)
+		ctx := context.Background()
+
+		_, _, err := deps.service.Add(ctx, &RepositoryAddParams{
+			URL:      "https://github.com/test/repo",
+			Pipeline: "nonexistent",
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "nonexistent")
+	})
+}
+
 func TestRepository_Delete_EnqueuesTask(t *testing.T) {
 	deps := newRepositoryTestDeps(t)
 	ctx := context.Background()

@@ -73,6 +73,7 @@ type RepositoryDetailsResponse struct {
 type RepositoryCreateAttributes struct {
 	RemoteURI   string `json:"remote_uri"`
 	UpstreamURL string `json:"upstream_url,omitempty"` // Optional canonical upstream URL; used for deduplication when multiple clone URLs point to the same repo
+	Pipeline    string `json:"pipeline,omitempty"`     // Optional pipeline name; looked up by name and assigned to the repository (defaults to the system default pipeline)
 }
 
 // RepositoryCreateData represents repository creation data.

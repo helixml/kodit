@@ -4,6 +4,7 @@ package v1
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -254,9 +255,21 @@ func (r *RepositoriesRouter) Add(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	if name := body.Data.Attributes.Pipeline; name != "" {
+		if _, err := r.client.Pipelines.Get(ctx, repository.WithName(name)); err != nil {
+			if errors.Is(err, database.ErrNotFound) {
+				middleware.WriteError(w, req, fmt.Errorf("pipeline %q not found: %w", name, middleware.ErrValidation), r.logger)
+				return
+			}
+			middleware.WriteError(w, req, err, r.logger)
+			return
+		}
+	}
+
 	source, created, err := r.client.Repositories.Add(ctx, &service.RepositoryAddParams{
 		URL:         body.Data.Attributes.RemoteURI,
 		UpstreamURL: body.Data.Attributes.UpstreamURL,
+		Pipeline:    body.Data.Attributes.Pipeline,
 	})
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
