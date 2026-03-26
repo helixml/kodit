@@ -335,6 +335,8 @@ type DtoRepositoryCommitData struct {
 
 // DtoRepositoryCreateAttributes defines model for dto.RepositoryCreateAttributes.
 type DtoRepositoryCreateAttributes struct {
+	// Pipeline Optional pipeline name; looked up by name and assigned to the repository (defaults to the system default pipeline)
+	Pipeline  *string `json:"pipeline,omitempty"`
 	RemoteUri *string `json:"remote_uri,omitempty"`
 
 	// UpstreamUrl Optional canonical upstream URL; used for deduplication when multiple clone URLs point to the same repo

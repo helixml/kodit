@@ -3448,6 +3448,10 @@ const docTemplate = `{
         "dto.RepositoryCreateAttributes": {
             "type": "object",
             "properties": {
+                "pipeline": {
+                    "description": "Optional pipeline name; looked up by name and assigned to the repository (defaults to the system default pipeline)",
+                    "type": "string"
+                },
                 "remote_uri": {
                     "type": "string"
                 },
