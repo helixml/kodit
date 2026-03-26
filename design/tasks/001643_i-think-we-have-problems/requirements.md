@@ -18,11 +18,11 @@ Additionally, `VectorChordBM25Store.existingIDs` and the embedding store's `Find
 
 ## Acceptance Criteria
 
-- [ ] Inserting 10,000 git commit files succeeds against PostgreSQL
-- [ ] Inserting 10,000 commits succeeds against PostgreSQL
-- [ ] Inserting 10,000 branches succeeds against PostgreSQL
-- [ ] Inserting 10,000 tags succeeds against PostgreSQL
-- [ ] Indexing 10,000 BM25 snippet documents succeeds against PostgreSQL (including the `existingIDs` deduplication check)
-- [ ] Saving 10,000 embeddings (snippet/chunk vectors) succeeds against PostgreSQL
+- [ ] `FileStore.SaveAll` with 10,000 files never issues a single SQL statement with more than 65,535 bind parameters
+- [ ] `CommitStore.SaveAll` with 10,000 commits never exceeds the parameter limit per statement
+- [ ] `BranchStore.SaveAll` with 10,000 branches never exceeds the parameter limit per statement
+- [ ] `TagStore.SaveAll` with 10,000 tags never exceeds the parameter limit per statement
+- [ ] BM25 deduplication check with 10,000 snippet IDs never issues a single `IN ?` with more than 65,535 parameters
+- [ ] Embedding `SaveAll` with 10,000 vectors never exceeds the parameter limit per statement
 - [ ] Each bulk save method processes records in chunks ≤ a safe batch size
 - [ ] All existing tests continue to pass

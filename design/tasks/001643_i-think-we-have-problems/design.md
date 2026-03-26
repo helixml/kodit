@@ -39,21 +39,26 @@ Add a shared constant `gitBatchSize = 1000` in a suitable file (e.g. `persistenc
 
 ## Tests (TDD Red First)
 
-Write integration tests in `infrastructure/persistence/` gated on a `POSTGRES_TEST_URL` environment variable (same pattern as `bm25_store_vectorchord_test.go`). Each test:
+Tests run against SQLite only, using `testdb.New(t)`. SQLite has no 65535 parameter limit, so we cannot trigger the error directly. Instead, use a **GORM callback** to enforce the limit artificially.
 
-1. Opens a real PostgreSQL connection
-2. Runs `AutoMigrate`
-3. Inserts 10,000 records via the store's `SaveAll`
-4. Asserts no error returned
+### Parameter-limit callback
 
-These tests **currently fail** with `extended protocol limited to 65535 parameters` on `FileStore` and may fail on `CommitStore`/`BranchStore`/`TagStore` depending on repo size. After applying the fix they must pass.
+Register a GORM `BeforeCreate`/`BeforeUpdate` callback that counts bind parameters in the current statement's `SQL` and fails the test if any single statement exceeds a threshold (e.g., 65535). This is already a supported pattern in the codebase — `internal/database/repository_test.go` line 222 registers a `Callback().Query().After(...)` callback for SQL capture.
 
-One test file covers all stores: `infrastructure/persistence/bulk_save_postgres_test.go`.
+With the callback in place:
+- **Before fix**: `FileStore.SaveAll(10000 files)` issues one INSERT with 80,000 params → callback fires → test fails ✓ red
+- **After fix**: same call issues 10 batches of 1000 × 8 = 8,000 params each → callback stays silent → test passes ✓ green
 
-For the BM25 and embedding store tests, 10,000 documents/embeddings should be inserted and the deduplication check (`existingIDs`) should also be called with 10,000 IDs to exercise the `IN ?` path.
+Each test:
+1. Opens SQLite via `testdb.New(t)`
+2. Registers the parameter-limit callback on the GORM session
+3. Calls the store's `SaveAll` (or `Index`/`existingIDs`) with 10,000 records/IDs
+4. Asserts no error
+
+One test file: `infrastructure/persistence/bulk_save_test.go`.
 
 ## Codebase Patterns
 
 - Existing batch constant: `saveAllBatchSize = 100` in `embedding_store.go` — keep separate since git stores can tolerate larger batches
-- PostgreSQL test pattern: `POSTGRES_TEST_URL` env var, skip if absent, `AutoMigrate` before use — see `bm25_store_vectorchord_test.go`
-- Existing `testdb.New(t)` helper creates in-memory SQLite — suitable only for non-PostgreSQL tests
+- Existing `testdb.New(t)` helper creates in-memory SQLite with all migrations applied — use this for all tests
+- GORM callback pattern already used in tests: `db.Callback().Query().After("gorm:query").Register("test:capture", func(db *gorm.DB) {...})` — see `internal/database/repository_test.go:222`
