@@ -289,9 +289,9 @@ func TestPipeline_Operations(t *testing.T) {
 	detail, err := svc.Create(ctx, &CreatePipelineParams{
 		Name: "ordered-pipeline",
 		Steps: []StepParams{
-			{Name: "scan", Kind: string(task.OperationScanCommit)},
-			{Name: "extract", Kind: string(task.OperationExtractSnippetsForCommit), DependsOn: []string{"scan"}},
-			{Name: "index", Kind: string(task.OperationCreateBM25IndexForCommit), DependsOn: []string{"extract"}},
+			{Name: string(task.OperationScanCommit), Kind: "internal"},
+			{Name: string(task.OperationExtractSnippetsForCommit), Kind: "internal", DependsOn: []string{string(task.OperationScanCommit)}},
+			{Name: string(task.OperationCreateBM25IndexForCommit), Kind: "internal", DependsOn: []string{string(task.OperationExtractSnippetsForCommit)}},
 		},
 	})
 	if err != nil {
@@ -325,8 +325,8 @@ func TestPipeline_Operations_NoDependencies(t *testing.T) {
 	detail, err := svc.Create(ctx, &CreatePipelineParams{
 		Name: "parallel-pipeline",
 		Steps: []StepParams{
-			{Name: "step-a", Kind: string(task.OperationScanCommit)},
-			{Name: "step-b", Kind: string(task.OperationExtractSnippetsForCommit)},
+			{Name: string(task.OperationScanCommit), Kind: "internal"},
+			{Name: string(task.OperationExtractSnippetsForCommit), Kind: "internal"},
 		},
 	})
 	if err != nil {

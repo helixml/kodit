@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
@@ -91,20 +90,22 @@ func (s *Pipeline) Initialise(ctx context.Context) error {
 		return nil
 	}
 
-	// "default" pipeline — the full operation set from prescribedOps.
+	repoSteps := repositoryStepParams()
+
+	// "default" pipeline — repo operations + the full commit operation set.
 	defaultOps := s.prescribedOps.ScanAndIndexCommit()
 	if _, err := s.Create(ctx, &CreatePipelineParams{
 		Name:  "default",
-		Steps: operationsToStepParams(defaultOps),
+		Steps: append(repoSteps, operationsToStepParams(defaultOps)...),
 	}); err != nil {
 		return fmt.Errorf("seed default pipeline: %w", err)
 	}
 
-	// "rag" pipeline — RAG-only subset (no enrichments).
+	// "rag" pipeline — repo operations + RAG-only commit subset (no enrichments).
 	ragOps := task.RAGOnlyPrescribedOperations().ScanAndIndexCommit()
 	if _, err := s.Create(ctx, &CreatePipelineParams{
 		Name:  "rag",
-		Steps: operationsToStepParams(ragOps),
+		Steps: append(repoSteps, operationsToStepParams(ragOps)...),
 	}); err != nil {
 		return fmt.Errorf("seed rag pipeline: %w", err)
 	}
@@ -112,22 +113,31 @@ func (s *Pipeline) Initialise(ctx context.Context) error {
 	return nil
 }
 
+// repositoryStepParams returns step params for the four repository-level
+// operations. Create, clone, and sync form a dependency chain; delete is
+// independent.
+func repositoryStepParams() []StepParams {
+	return []StepParams{
+		{Name: string(task.OperationCreateRepository), Kind: "internal"},
+		{Name: string(task.OperationCloneRepository), Kind: "internal", DependsOn: []string{string(task.OperationCreateRepository)}},
+		{Name: string(task.OperationSyncRepository), Kind: "internal", DependsOn: []string{string(task.OperationCloneRepository)}},
+		{Name: string(task.OperationDeleteRepository), Kind: "internal"},
+	}
+}
+
 // operationsToStepParams converts an ordered slice of operations into step
-// params with a linear dependency chain.
+// params with a linear dependency chain. Each step is named by the full
+// operation string and given kind "internal".
 func operationsToStepParams(ops []task.Operation) []StepParams {
 	steps := make([]StepParams, len(ops))
 	for i, op := range ops {
-		name := string(op)
-		if idx := strings.LastIndex(name, "."); idx >= 0 {
-			name = name[idx+1:]
-		}
 		var dependsOn []string
 		if i > 0 {
-			dependsOn = []string{steps[i-1].Name}
+			dependsOn = []string{string(ops[i-1])}
 		}
 		steps[i] = StepParams{
-			Name:      name,
-			Kind:      string(op),
+			Name:      string(op),
+			Kind:      "internal",
 			DependsOn: dependsOn,
 		}
 	}
@@ -292,7 +302,17 @@ func (s *Pipeline) Operations(ctx context.Context, pipelineID *int64) ([]task.Op
 		return nil, err
 	}
 
-	return topologicalSort(detail.Steps(), detail.Dependencies()), nil
+	sorted := topologicalSort(detail.Steps(), detail.Dependencies())
+
+	// Filter to commit operations only — repo-level operations are resolved
+	// separately by the repository handler.
+	commitOps := make([]task.Operation, 0, len(sorted))
+	for _, op := range sorted {
+		if op.IsCommitOperation() {
+			commitOps = append(commitOps, op)
+		}
+	}
+	return commitOps, nil
 }
 
 // topologicalSort returns step kinds in dependency order (Kahn's algorithm).
@@ -322,7 +342,7 @@ func topologicalSort(steps []repository.Step, deps []repository.StepDependency) 
 	for len(queue) > 0 {
 		current := queue[0]
 		queue = queue[1:]
-		operations = append(operations, task.Operation(idToStep[current].Kind()))
+		operations = append(operations, task.Operation(idToStep[current].Name()))
 		for _, depID := range dependents[current] {
 			inDegree[depID]--
 			if inDegree[depID] == 0 {
@@ -370,9 +390,9 @@ func (s *Pipeline) createSteps(ctx context.Context, pipelineID int64, params []S
 	return steps, deps, nil
 }
 
-// findOrCreateStep returns an existing step with the given kind, or creates one.
+// findOrCreateStep returns an existing step with the given name, or creates one.
 func (s *Pipeline) findOrCreateStep(ctx context.Context, name, kind string) (repository.Step, error) {
-	existing, err := s.stepStore.FindOne(ctx, repository.WithKind(kind))
+	existing, err := s.stepStore.FindOne(ctx, repository.WithName(name))
 	if err == nil {
 		return existing, nil
 	}

@@ -9,7 +9,7 @@ type Pipeline struct {
 // Step represents a single step in a pipeline.
 type Step struct {
 	Base
-	Name string `gorm:"size:255;not null"`
+	Name string `gorm:"uniqueIndex;size:255;not null"`
 	Kind string `gorm:"size:100;not null"`
 }
 
