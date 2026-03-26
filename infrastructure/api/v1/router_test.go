@@ -505,6 +505,117 @@ func TestRepositoriesRouter_Get_SanitizesCredentials(t *testing.T) {
 	}
 }
 
+func newTestClientWithSeededRepositoryAndPipeline(t *testing.T) (*kodit.Client, int64, int64) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	db := openTestDB(t, dbPath)
+	ctx := httptest.NewRequest(http.MethodGet, "/", nil).Context()
+
+	repoStore := persistence.NewRepositoryStore(db)
+	repo, err := repository.NewRepository("https://github.com/test/repo")
+	if err != nil {
+		t.Fatalf("new repository: %v", err)
+	}
+
+	pipelineStore := persistence.NewPipelineStore(db)
+	pipeline := repository.NewPipeline("test-pipeline")
+	savedPipeline, err := pipelineStore.Save(ctx, pipeline)
+	if err != nil {
+		t.Fatalf("save pipeline: %v", err)
+	}
+
+	repo = repo.WithPipelineID(savedPipeline.ID())
+	savedRepo, err := repoStore.Save(ctx, repo)
+	if err != nil {
+		t.Fatalf("save repository: %v", err)
+	}
+	_ = db.Close()
+
+	client, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithDataDir(tmpDir),
+		kodit.WithSkipProviderValidation(),
+	)
+	if err != nil {
+		t.Fatalf("create client: %v", err)
+	}
+	t.Cleanup(func() { _ = client.Close() })
+	return client, savedRepo.ID(), savedPipeline.ID()
+}
+
+func TestRepositoriesRouter_GetPipelineConfig(t *testing.T) {
+	client, repoID, pipelineID := newTestClientWithSeededRepositoryAndPipeline(t)
+
+	router := v1.NewRepositoriesRouter(client)
+	routes := router.Routes()
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/%d/config/pipeline", repoID), nil)
+	w := httptest.NewRecorder()
+	routes.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status code = %v, want %v; body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var response dto.PipelineConfigResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.Data.Type != "pipeline-config" {
+		t.Errorf("type = %v, want pipeline-config", response.Data.Type)
+	}
+	if response.Data.Attributes.PipelineID != pipelineID {
+		t.Errorf("pipeline_id = %v, want %v", response.Data.Attributes.PipelineID, pipelineID)
+	}
+	expectedLink := fmt.Sprintf("/api/v1/pipelines/%d", pipelineID)
+	if response.Data.Links.Pipeline != expectedLink {
+		t.Errorf("links.pipeline = %v, want %v", response.Data.Links.Pipeline, expectedLink)
+	}
+	if len(response.Included) != 0 {
+		t.Errorf("expected no included resources by default, got %d", len(response.Included))
+	}
+}
+
+func TestRepositoriesRouter_GetPipelineConfig_WithInclude(t *testing.T) {
+	client, repoID, pipelineID := newTestClientWithSeededRepositoryAndPipeline(t)
+
+	router := v1.NewRepositoriesRouter(client)
+	routes := router.Routes()
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/%d/config/pipeline?include=pipeline", repoID), nil)
+	w := httptest.NewRecorder()
+	routes.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status code = %v, want %v; body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var response dto.PipelineConfigResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.Data.Attributes.PipelineID != pipelineID {
+		t.Errorf("pipeline_id = %v, want %v", response.Data.Attributes.PipelineID, pipelineID)
+	}
+	if len(response.Included) != 1 {
+		t.Fatalf("expected 1 included resource, got %d", len(response.Included))
+	}
+	included := response.Included[0]
+	if included.Type != "pipeline" {
+		t.Errorf("included type = %v, want pipeline", included.Type)
+	}
+	if included.ID != pipelineID {
+		t.Errorf("included id = %v, want %v", included.ID, pipelineID)
+	}
+	if included.Attributes.Name != "test-pipeline" {
+		t.Errorf("included name = %v, want test-pipeline", included.Attributes.Name)
+	}
+}
+
 func TestEnrichmentsRouter_List_WithLineRange(t *testing.T) {
 	client, _ := newTestClientWithSeededLineRange(t)
 

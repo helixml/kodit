@@ -910,6 +910,133 @@ func TestSmoke(t *testing.T) {
 		}
 	})
 
+	// Switch the repository to the "rag" pipeline, rescan, and verify the
+	// status only contains the smaller RAG-only operation set.
+	t.Run("switch_pipeline_and_rescan", func(t *testing.T) {
+		// List pipelines to find "default" and "rag" IDs.
+		pipelinesResp, err := client.GetPipelinesWithResponse(ctx, nil)
+		if err != nil {
+			t.Fatalf("list pipelines failed: %v", err)
+		}
+		if pipelinesResp.StatusCode() != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", pipelinesResp.StatusCode(), string(pipelinesResp.Body))
+		}
+		if pipelinesResp.JSON200 == nil || pipelinesResp.JSON200.Data == nil {
+			t.Fatal("expected pipeline data")
+		}
+		var defaultPipelineID, ragPipelineID int
+		for _, p := range *pipelinesResp.JSON200.Data {
+			if p.Attributes == nil || p.Attributes.Name == nil || p.Id == nil {
+				continue
+			}
+			switch *p.Attributes.Name {
+			case "default":
+				defaultPipelineID = *p.Id
+			case "rag":
+				ragPipelineID = *p.Id
+			}
+		}
+		if defaultPipelineID == 0 || ragPipelineID == 0 {
+			t.Fatalf("expected both default and rag pipelines, got default=%d rag=%d", defaultPipelineID, ragPipelineID)
+		}
+		t.Logf("pipelines: default=%d rag=%d", defaultPipelineID, ragPipelineID)
+
+		// Verify the repo is currently on the default pipeline.
+		configResp, err := client.GetRepositoriesIdConfigPipelineWithResponse(ctx, repoID, nil)
+		if err != nil {
+			t.Fatalf("get pipeline config failed: %v", err)
+		}
+		if configResp.StatusCode() != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", configResp.StatusCode(), string(configResp.Body))
+		}
+		if configResp.JSON200 == nil || configResp.JSON200.Data == nil ||
+			configResp.JSON200.Data.Attributes == nil || configResp.JSON200.Data.Attributes.PipelineId == nil {
+			t.Fatal("expected pipeline config attributes")
+		}
+		if *configResp.JSON200.Data.Attributes.PipelineId != defaultPipelineID {
+			t.Fatalf("expected pipeline_id=%d, got %d", defaultPipelineID, *configResp.JSON200.Data.Attributes.PipelineId)
+		}
+
+		// Switch to the "rag" pipeline.
+		configType := "pipeline-config"
+		putResp, err := client.PutRepositoriesIdConfigPipelineWithResponse(ctx, repoID, kodit.DtoPipelineConfigUpdateRequest{
+			Data: &kodit.DtoPipelineConfigUpdateData{
+				Type: &configType,
+				Attributes: &kodit.DtoPipelineConfigAttributes{
+					PipelineId: &ragPipelineID,
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("update pipeline config failed: %v", err)
+		}
+		if putResp.StatusCode() != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", putResp.StatusCode(), string(putResp.Body))
+		}
+
+		// Rescan the commit under the RAG pipeline.
+		rescanResp, err := client.PostRepositoriesIdCommitsCommitShaRescanWithResponse(ctx, repoID, commitSHA)
+		if err != nil {
+			t.Fatalf("rescan request failed: %v", err)
+		}
+		if rescanResp.StatusCode() != http.StatusAccepted {
+			t.Fatalf("expected 202, got %d: %s", rescanResp.StatusCode(), string(rescanResp.Body))
+		}
+
+		waitForTerminalState(t, client, ctx, repoID)
+
+		// Verify the status only contains RAG-only operations (no enrichment steps).
+		statusResp, err := client.GetRepositoriesIdStatusWithResponse(ctx, repoID)
+		if err != nil {
+			t.Fatalf("get status failed: %v", err)
+		}
+		if statusResp.StatusCode() != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", statusResp.StatusCode(), string(statusResp.Body))
+		}
+		if statusResp.JSON200 == nil || statusResp.JSON200.Data == nil {
+			t.Fatal("expected status data")
+		}
+
+		// RAG-only pipeline must NOT contain enrichment operations.
+		enrichmentOps := map[string]bool{
+			"kodit.commit.create_summary_enrichment":         true,
+			"kodit.commit.create_summary_embeddings":         true,
+			"kodit.commit.create_public_api_docs":            true,
+			"kodit.commit.create_architecture_enrichment":    true,
+			"kodit.commit.create_commit_description":         true,
+			"kodit.commit.create_database_schema":            true,
+			"kodit.commit.create_cookbook":                   true,
+			"kodit.commit.generate_wiki":                     true,
+			"kodit.commit.create_example_summary":            true,
+			"kodit.commit.create_example_summary_embeddings": true,
+		}
+		for _, task := range *statusResp.JSON200.Data {
+			if task.Attributes == nil || task.Attributes.Step == nil {
+				continue
+			}
+			step := *task.Attributes.Step
+			if enrichmentOps[step] {
+				t.Errorf("RAG pipeline should not contain enrichment step %q", step)
+			}
+		}
+
+		// Restore the default pipeline for subsequent tests.
+		putResp, err = client.PutRepositoriesIdConfigPipelineWithResponse(ctx, repoID, kodit.DtoPipelineConfigUpdateRequest{
+			Data: &kodit.DtoPipelineConfigUpdateData{
+				Type: &configType,
+				Attributes: &kodit.DtoPipelineConfigAttributes{
+					PipelineId: &defaultPipelineID,
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("restore pipeline config failed: %v", err)
+		}
+		if putResp.StatusCode() != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", putResp.StatusCode(), string(putResp.Body))
+		}
+	})
+
 	t.Run("rescan", func(t *testing.T) {
 		resp, err := client.PostRepositoriesIdCommitsCommitShaRescanWithResponse(ctx, repoID, commitSHA)
 		if err != nil {

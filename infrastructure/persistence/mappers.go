@@ -45,9 +45,14 @@ func (m RepositoryMapper) ToDomain(e RepositoryModel) repository.Repository {
 		cc = repository.ReconstructChunkingConfig(e.ChunkSize, e.ChunkOverlap, e.MinChunkSize)
 	}
 
+	var pid int64
+	if e.PipelineID != nil {
+		pid = *e.PipelineID
+	}
+
 	return repository.ReconstructRepository(
 		e.ID,
-		e.PipelineID,
+		pid,
 		e.RemoteURI,
 		e.SanitizedRemoteURI,
 		upstreamURL,
@@ -84,9 +89,11 @@ func (m RepositoryMapper) ToModel(r repository.Repository) RepositoryModel {
 		upstreamURL = &upstream
 	}
 
+	pid := r.PipelineID()
+
 	return RepositoryModel{
 		ID:                 r.ID(),
-		PipelineID:         r.PipelineID(),
+		PipelineID:         &pid,
 		SanitizedRemoteURI: sanitizeURI(r.RemoteURL()),
 		RemoteURI:          r.RemoteURL(),
 		UpstreamURL:        upstreamURL,

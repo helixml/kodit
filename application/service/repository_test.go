@@ -16,8 +16,9 @@ import (
 )
 
 type repositoryTestDeps struct {
-	service *Repository
-	stores  testStores
+	service  *Repository
+	stores   testStores
+	pipeline *Pipeline
 }
 
 func newRepositoryTestDeps(t *testing.T) repositoryTestDeps {
@@ -38,7 +39,21 @@ func newRepositoryTestDeps(t *testing.T) repositoryTestDeps {
 	}
 
 	svc := NewRepository(stores.repos, stores.pipelines, stores.commits, stores.branches, stores.tags, queue, pipelineSvc, zerolog.Nop())
-	return repositoryTestDeps{service: svc, stores: stores}
+	return repositoryTestDeps{service: svc, stores: stores, pipeline: pipelineSvc}
+}
+
+// saveRepoWithDefaults creates and saves a repository with the default pipeline assigned.
+func saveRepoWithDefaults(t *testing.T, deps repositoryTestDeps, url string) repository.Repository {
+	t.Helper()
+	ctx := context.Background()
+	repo, err := repository.NewRepository(url)
+	require.NoError(t, err)
+	defaultPID, err := deps.pipeline.DefaultID(ctx)
+	require.NoError(t, err)
+	repo = repo.WithPipelineID(defaultPID)
+	saved, err := deps.stores.repos.Save(ctx, repo)
+	require.NoError(t, err)
+	return saved
 }
 
 func savedTasks(t *testing.T, deps repositoryTestDeps) []task.Task {
@@ -186,12 +201,9 @@ func TestRepository_Rescan_EnqueuesOperations(t *testing.T) {
 	deps := newRepositoryTestDeps(t)
 	ctx := context.Background()
 
-	repo, err := repository.NewRepository("https://github.com/test/repo")
-	require.NoError(t, err)
-	saved, err := deps.stores.repos.Save(ctx, repo)
-	require.NoError(t, err)
+	saved := saveRepoWithDefaults(t, deps, "https://github.com/test/repo")
 
-	err = deps.service.Rescan(ctx, &RescanParams{
+	err := deps.service.Rescan(ctx, &RescanParams{
 		RepositoryID: saved.ID(),
 		CommitSHA:    "abc123",
 	})
@@ -222,17 +234,10 @@ func TestRepository_RescanAll(t *testing.T) {
 	deps := newRepositoryTestDeps(t)
 	ctx := context.Background()
 
-	repo1, err := repository.NewRepository("https://github.com/test/repo1")
-	require.NoError(t, err)
-	_, err = deps.stores.repos.Save(ctx, repo1)
-	require.NoError(t, err)
+	saveRepoWithDefaults(t, deps, "https://github.com/test/repo1")
+	saveRepoWithDefaults(t, deps, "https://github.com/test/repo2")
 
-	repo2, err := repository.NewRepository("https://github.com/test/repo2")
-	require.NoError(t, err)
-	_, err = deps.stores.repos.Save(ctx, repo2)
-	require.NoError(t, err)
-
-	err = deps.service.RescanAll(ctx)
+	err := deps.service.RescanAll(ctx)
 	require.NoError(t, err)
 
 	tasks := savedTasks(t, deps)
@@ -429,9 +434,7 @@ func TestRepository_AssignPipeline(t *testing.T) {
 	source, err := deps.service.AssignPipeline(ctx, saved.ID(), savedPipeline.ID())
 	require.NoError(t, err)
 
-	pipelineID := source.Repository().PipelineID()
-	require.NotNil(t, pipelineID)
-	assert.Equal(t, savedPipeline.ID(), *pipelineID)
+	assert.Equal(t, savedPipeline.ID(), source.Repository().PipelineID())
 }
 
 func TestRepository_AssignPipeline_PipelineNotFound(t *testing.T) {

@@ -13,17 +13,6 @@ const (
 	Tag    DtoTrackingMode = "tag"
 )
 
-// DtoAssignPipelineData defines model for dto.AssignPipelineData.
-type DtoAssignPipelineData struct {
-	Id   *int    `json:"id,omitempty"`
-	Type *string `json:"type,omitempty"`
-}
-
-// DtoAssignPipelineRequest defines model for dto.AssignPipelineRequest.
-type DtoAssignPipelineRequest struct {
-	Data *DtoAssignPipelineData `json:"data,omitempty"`
-}
-
 // DtoCommitAttributes defines model for dto.CommitAttributes.
 type DtoCommitAttributes struct {
 	Author          *string `json:"author,omitempty"`
@@ -187,6 +176,40 @@ type DtoPipelineAttributes struct {
 	CreatedAt *string `json:"created_at,omitempty"`
 	Name      *string `json:"name,omitempty"`
 	UpdatedAt *string `json:"updated_at,omitempty"`
+}
+
+// DtoPipelineConfigAttributes defines model for dto.PipelineConfigAttributes.
+type DtoPipelineConfigAttributes struct {
+	PipelineId *int `json:"pipeline_id,omitempty"`
+}
+
+// DtoPipelineConfigData defines model for dto.PipelineConfigData.
+type DtoPipelineConfigData struct {
+	Attributes *DtoPipelineConfigAttributes `json:"attributes,omitempty"`
+	Links      *DtoPipelineConfigLinks      `json:"links,omitempty"`
+	Type       *string                      `json:"type,omitempty"`
+}
+
+// DtoPipelineConfigLinks defines model for dto.PipelineConfigLinks.
+type DtoPipelineConfigLinks struct {
+	Pipeline *string `json:"pipeline,omitempty"`
+}
+
+// DtoPipelineConfigResponse defines model for dto.PipelineConfigResponse.
+type DtoPipelineConfigResponse struct {
+	Data     *DtoPipelineConfigData `json:"data,omitempty"`
+	Included *[]DtoPipelineData     `json:"included,omitempty"`
+}
+
+// DtoPipelineConfigUpdateData defines model for dto.PipelineConfigUpdateData.
+type DtoPipelineConfigUpdateData struct {
+	Attributes *DtoPipelineConfigAttributes `json:"attributes,omitempty"`
+	Type       *string                      `json:"type,omitempty"`
+}
+
+// DtoPipelineConfigUpdateRequest defines model for dto.PipelineConfigUpdateRequest.
+type DtoPipelineConfigUpdateRequest struct {
+	Data *DtoPipelineConfigUpdateData `json:"data,omitempty"`
 }
 
 // DtoPipelineCreateAttributes defines model for dto.PipelineCreateAttributes.
@@ -721,6 +744,12 @@ type GetRepositoriesIdCommitsCommitShaSnippetsParams struct {
 	PageSize *int `form:"page_size,omitempty" json:"page_size,omitempty"`
 }
 
+// GetRepositoriesIdConfigPipelineParams defines parameters for GetRepositoriesIdConfigPipeline.
+type GetRepositoriesIdConfigPipelineParams struct {
+	// Include Comma-separated related resources to include (e.g. pipeline)
+	Include *string `form:"include,omitempty" json:"include,omitempty"`
+}
+
 // GetRepositoriesIdEnrichmentsParams defines parameters for GetRepositoriesIdEnrichments.
 type GetRepositoriesIdEnrichmentsParams struct {
 	// EnrichmentType Filter by enrichment type
@@ -826,8 +855,8 @@ type PutPipelinesIdJSONRequestBody = DtoPipelineUpdateRequest
 // PostRepositoriesJSONRequestBody defines body for PostRepositories for application/json ContentType.
 type PostRepositoriesJSONRequestBody = DtoRepositoryCreateRequest
 
-// PutRepositoriesIdPipelineJSONRequestBody defines body for PutRepositoriesIdPipeline for application/json ContentType.
-type PutRepositoriesIdPipelineJSONRequestBody = DtoAssignPipelineRequest
+// PutRepositoriesIdConfigPipelineJSONRequestBody defines body for PutRepositoriesIdConfigPipeline for application/json ContentType.
+type PutRepositoriesIdConfigPipelineJSONRequestBody = DtoPipelineConfigUpdateRequest
 
 // PutRepositoriesIdTrackingConfigJSONRequestBody defines body for PutRepositoriesIdTrackingConfig for application/json ContentType.
 type PutRepositoriesIdTrackingConfigJSONRequestBody = DtoTrackingConfigUpdateRequest

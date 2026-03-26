@@ -119,13 +119,13 @@ type PipelineUpdateRequest struct {
 	Data PipelineUpdateData `json:"data"`
 }
 
-// AssignPipelineData holds the data for assigning a pipeline to a repository.
-type AssignPipelineData struct {
-	Type string `json:"type"`
-	ID   int64  `json:"id"`
+// PipelineConfigUpdateData holds the data for updating pipeline configuration.
+type PipelineConfigUpdateData struct {
+	Type       string                   `json:"type"`
+	Attributes PipelineConfigAttributes `json:"attributes"`
 }
 
-// AssignPipelineRequest represents a JSON:API request to assign a pipeline.
-type AssignPipelineRequest struct {
-	Data AssignPipelineData `json:"data"`
+// PipelineConfigUpdateRequest represents a JSON:API request to update pipeline configuration.
+type PipelineConfigUpdateRequest struct {
+	Data PipelineConfigUpdateData `json:"data"`
 }

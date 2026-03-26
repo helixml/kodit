@@ -288,25 +288,22 @@ func (s *Pipeline) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// Operations loads the pipeline, topologically sorts its steps, and returns
-// their Kind values as task.Operation. When pipelineID is nil, the first
-// pipeline by ID is used as a default.
-func (s *Pipeline) Operations(ctx context.Context, pipelineID *int64) ([]task.Operation, error) {
-	var id int64
-	if pipelineID != nil {
-		id = *pipelineID
-	} else {
-		pipelines, err := s.pipelineStore.Find(ctx, repository.WithLimit(1), repository.WithOrderAsc("id"))
-		if err != nil {
-			return nil, fmt.Errorf("find default pipeline: %w", err)
-		}
-		if len(pipelines) == 0 {
-			return nil, fmt.Errorf("no pipelines exist")
-		}
-		id = pipelines[0].ID()
+// DefaultID returns the ID of the first pipeline ordered by ID.
+func (s *Pipeline) DefaultID(ctx context.Context) (int64, error) {
+	pipelines, err := s.pipelineStore.Find(ctx, repository.WithLimit(1), repository.WithOrderAsc("id"))
+	if err != nil {
+		return 0, fmt.Errorf("find default pipeline: %w", err)
 	}
+	if len(pipelines) == 0 {
+		return 0, fmt.Errorf("no pipelines exist")
+	}
+	return pipelines[0].ID(), nil
+}
 
-	detail, err := s.Detail(ctx, id)
+// Operations loads the pipeline, topologically sorts its steps, and returns
+// their Kind values as task.Operation.
+func (s *Pipeline) Operations(ctx context.Context, pipelineID int64) ([]task.Operation, error) {
+	detail, err := s.Detail(ctx, pipelineID)
 	if err != nil {
 		return nil, err
 	}

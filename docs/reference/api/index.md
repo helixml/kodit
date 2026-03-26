@@ -754,6 +754,68 @@ List code snippets for a commit (backed by enrichments)
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+### GET /repositories/{id}/config/pipeline
+
+Get the pipeline assigned to a repository. Use ?include=pipeline to include the full pipeline resource.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Repository ID |
+| include | string |  | Comma-separated related resources to include (e.g. pipeline) |
+
+
+#### Responses
+
+- 200: OK
+
+[dto.PipelineConfigResponse](#dto.pipelineconfigresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### PUT /repositories/{id}/config/pipeline
+
+Assign a pipeline to a repository
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Repository ID |
+
+
+#### Request Body
+
+[dto.PipelineConfigUpdateRequest](#dto.pipelineconfigupdaterequest)
+
+
+#### Responses
+
+- 200: OK
+
+[dto.PipelineConfigResponse](#dto.pipelineconfigresponse)
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 ### GET /repositories/{id}/enrichments
 
 List recent enrichments across commits for a repository
@@ -775,41 +837,6 @@ List recent enrichments across commits for a repository
 - 200: OK
 
 [dto.EnrichmentJSONAPIListResponse](#dto.enrichmentjsonapilistresponse)
-
-- 404: Not Found
-
-[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
-
-- 500: Internal Server Error
-
-[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
-
-### PUT /repositories/{id}/pipeline
-
-Link a pipeline to a repository
-
-
-#### Parameters
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| id | integer | True | Repository ID |
-
-
-#### Request Body
-
-[dto.AssignPipelineRequest](#dto.assignpipelinerequest)
-
-
-#### Responses
-
-- 200: OK
-
-[dto.RepositoryResponse](#dto.repositoryresponse)
-
-- 400: Bad Request
-
-[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 404: Not Found
 
@@ -1285,25 +1312,6 @@ Get a step by ID
 
 
 
-### dto.AssignPipelineData
-
-
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | integer |  |
-| type | string |  |
-
-
-### dto.AssignPipelineRequest
-
-
-
-| Field | Type | Description |
-|-------|------|-------------|
-| data |  |  |
-
-
 ### dto.CommitAttributes
 
 
@@ -1567,6 +1575,64 @@ Get a step by ID
 | created_at | string |  |
 | name | string |  |
 | updated_at | string |  |
+
+
+### dto.PipelineConfigAttributes
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| pipeline_id | integer |  |
+
+
+### dto.PipelineConfigData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| links |  |  |
+| type | string |  |
+
+
+### dto.PipelineConfigLinks
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| pipeline | string |  |
+
+
+### dto.PipelineConfigResponse
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+| included | array |  |
+
+
+### dto.PipelineConfigUpdateData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| type | string |  |
+
+
+### dto.PipelineConfigUpdateRequest
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
 
 
 ### dto.PipelineCreateAttributes

@@ -41,7 +41,8 @@ type ChunkingConfigParams struct {
 
 // CommitOperationResolver resolves the operation sequence for a pipeline.
 type CommitOperationResolver interface {
-	Operations(ctx context.Context, pipelineID *int64) ([]task.Operation, error)
+	DefaultID(ctx context.Context) (int64, error)
+	Operations(ctx context.Context, pipelineID int64) ([]task.Operation, error)
 }
 
 // Repository provides repository management and query operations.
@@ -124,6 +125,12 @@ func (s *Repository) Add(ctx context.Context, params *RepositoryAddParams) (repo
 			repository.NewTrackingConfig(params.Branch, params.Tag, params.Commit),
 		)
 	}
+
+	defaultPID, err := s.resolver.DefaultID(ctx)
+	if err != nil {
+		return repository.Source{}, false, fmt.Errorf("resolve default pipeline: %w", err)
+	}
+	repo = repo.WithPipelineID(defaultPID)
 
 	savedRepo, err := s.repoStore.Save(ctx, repo)
 	if err != nil {
@@ -316,6 +323,32 @@ func (s *Repository) BranchesForRepository(ctx context.Context, repoID int64) ([
 		return nil, fmt.Errorf("find branches: %w", err)
 	}
 	return branches, nil
+}
+
+// BackfillDefaultPipeline assigns the default pipeline to any repositories
+// that have no pipeline assigned (pipelineID == 0).
+func (s *Repository) BackfillDefaultPipeline(ctx context.Context) error {
+	defaultID, err := s.resolver.DefaultID(ctx)
+	if err != nil {
+		return fmt.Errorf("resolve default pipeline: %w", err)
+	}
+
+	repos, err := s.repoStore.Find(ctx)
+	if err != nil {
+		return fmt.Errorf("find repositories: %w", err)
+	}
+
+	for _, repo := range repos {
+		if repo.PipelineID() != 0 {
+			continue
+		}
+		updated := repo.WithPipelineID(defaultID)
+		if _, err := s.repoStore.Save(ctx, updated); err != nil {
+			return fmt.Errorf("save repository %d: %w", repo.ID(), err)
+		}
+	}
+
+	return nil
 }
 
 // --- internal write operations ---

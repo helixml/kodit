@@ -1,17 +1,5 @@
 basePath: /api/v1
 definitions:
-  dto.AssignPipelineData:
-    properties:
-      id:
-        type: integer
-      type:
-        type: string
-    type: object
-  dto.AssignPipelineRequest:
-    properties:
-      data:
-        $ref: '#/definitions/dto.AssignPipelineData'
-    type: object
   dto.CommitAttributes:
     properties:
       author:
@@ -228,6 +216,46 @@ definitions:
         type: string
       updated_at:
         type: string
+    type: object
+  dto.PipelineConfigAttributes:
+    properties:
+      pipeline_id:
+        type: integer
+    type: object
+  dto.PipelineConfigData:
+    properties:
+      attributes:
+        $ref: '#/definitions/dto.PipelineConfigAttributes'
+      links:
+        $ref: '#/definitions/dto.PipelineConfigLinks'
+      type:
+        type: string
+    type: object
+  dto.PipelineConfigLinks:
+    properties:
+      pipeline:
+        type: string
+    type: object
+  dto.PipelineConfigResponse:
+    properties:
+      data:
+        $ref: '#/definitions/dto.PipelineConfigData'
+      included:
+        items:
+          $ref: '#/definitions/dto.PipelineData'
+        type: array
+    type: object
+  dto.PipelineConfigUpdateData:
+    properties:
+      attributes:
+        $ref: '#/definitions/dto.PipelineConfigAttributes'
+      type:
+        type: string
+    type: object
+  dto.PipelineConfigUpdateRequest:
+    properties:
+      data:
+        $ref: '#/definitions/dto.PipelineConfigUpdateData'
     type: object
   dto.PipelineCreateAttributes:
     properties:
@@ -1813,6 +1841,82 @@ paths:
       summary: List commit snippets
       tags:
       - repositories
+  /repositories/{id}/config/pipeline:
+    get:
+      consumes:
+      - application/json
+      description: Get the pipeline assigned to a repository. Use ?include=pipeline
+        to include the full pipeline resource.
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Comma-separated related resources to include (e.g. pipeline)
+        in: query
+        name: include
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PipelineConfigResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: Get pipeline config
+      tags:
+      - repositories
+    put:
+      consumes:
+      - application/json
+      description: Assign a pipeline to a repository
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Pipeline configuration
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.PipelineConfigUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PipelineConfigResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: Update pipeline config
+      tags:
+      - repositories
   /repositories/{id}/enrichments:
     get:
       consumes:
@@ -1858,47 +1962,6 @@ paths:
       security:
       - APIKeyAuth: []
       summary: List repository enrichments
-      tags:
-      - repositories
-  /repositories/{id}/pipeline:
-    put:
-      consumes:
-      - application/json
-      description: Link a pipeline to a repository
-      parameters:
-      - description: Repository ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Pipeline assignment
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/dto.AssignPipelineRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/dto.RepositoryResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
-      security:
-      - APIKeyAuth: []
-      summary: Assign pipeline to repository
       tags:
       - repositories
   /repositories/{id}/status:

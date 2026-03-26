@@ -31,7 +31,8 @@ type TrackerFactory interface {
 
 // CommitOperationResolver resolves the operation sequence for a pipeline.
 type CommitOperationResolver interface {
-	Operations(ctx context.Context, pipelineID *int64) ([]task.Operation, error)
+	DefaultID(ctx context.Context) (int64, error)
+	Operations(ctx context.Context, pipelineID int64) ([]task.Operation, error)
 }
 
 // Handler defines the interface for task operation handlers.

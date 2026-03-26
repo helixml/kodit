@@ -299,7 +299,7 @@ func TestPipeline_Operations(t *testing.T) {
 	}
 
 	pipelineID := detail.Pipeline().ID()
-	ops, err := svc.Operations(ctx, &pipelineID)
+	ops, err := svc.Operations(ctx, pipelineID)
 	if err != nil {
 		t.Fatalf("Operations: %v", err)
 	}
@@ -334,7 +334,7 @@ func TestPipeline_Operations_NoDependencies(t *testing.T) {
 	}
 
 	pipelineID := detail.Pipeline().ID()
-	ops, err := svc.Operations(ctx, &pipelineID)
+	ops, err := svc.Operations(ctx, pipelineID)
 	if err != nil {
 		t.Fatalf("Operations: %v", err)
 	}
@@ -353,6 +353,23 @@ func TestPipeline_Operations_NoDependencies(t *testing.T) {
 	}
 }
 
+func TestPipeline_DefaultID(t *testing.T) {
+	svc := newPipelineService(t)
+	ctx := context.Background()
+
+	if err := svc.Initialise(ctx); err != nil {
+		t.Fatalf("Initialise: %v", err)
+	}
+
+	id, err := svc.DefaultID(ctx)
+	if err != nil {
+		t.Fatalf("DefaultID: %v", err)
+	}
+	if id == 0 {
+		t.Fatal("expected non-zero default pipeline ID")
+	}
+}
+
 func TestPipeline_Operations_DefaultPipeline(t *testing.T) {
 	svc := newPipelineService(t)
 	ctx := context.Background()
@@ -361,9 +378,14 @@ func TestPipeline_Operations_DefaultPipeline(t *testing.T) {
 		t.Fatalf("Initialise: %v", err)
 	}
 
-	ops, err := svc.Operations(ctx, nil)
+	defaultID, err := svc.DefaultID(ctx)
 	if err != nil {
-		t.Fatalf("Operations with nil: %v", err)
+		t.Fatalf("DefaultID: %v", err)
+	}
+
+	ops, err := svc.Operations(ctx, defaultID)
+	if err != nil {
+		t.Fatalf("Operations: %v", err)
 	}
 
 	if len(ops) == 0 {

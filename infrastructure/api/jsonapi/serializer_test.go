@@ -12,7 +12,7 @@ import (
 func TestRepositoryResource_SanitizesCredentials(t *testing.T) {
 	repo := repository.ReconstructRepository(
 		1,
-		nil,
+		0,
 		"http://user:secret-token@api:8080/git/my-repo",
 		"http://api:8080/git/my-repo",
 		"",

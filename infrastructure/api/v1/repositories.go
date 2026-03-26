@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog"
 
@@ -72,10 +73,11 @@ func (r *RepositoriesRouter) Routes() chi.Router {
 	router.Route("/{id}/config", func(cr chi.Router) {
 		cr.Get("/chunking", r.GetChunkingConfig)
 		cr.Put("/chunking", r.UpdateChunkingConfig)
+		cr.Get("/pipeline", r.GetPipelineConfig)
+		cr.Put("/pipeline", r.UpdatePipelineConfig)
 	})
 	router.Get("/{id}/blob/{blob_name}/*", r.GetBlob)
 	router.Get("/{id}/grep", r.Grep)
-	router.Put("/{id}/pipeline", r.AssignPipeline)
 
 	return router
 }
@@ -1656,22 +1658,67 @@ func trackingConfigToResponse(tc repository.TrackingConfig) dto.TrackingConfigRe
 	}
 }
 
-// AssignPipeline handles PUT /api/v1/repositories/{id}/pipeline.
+// GetPipelineConfig handles GET /api/v1/repositories/{id}/config/pipeline.
 //
-//	@Summary		Assign pipeline to repository
-//	@Description	Link a pipeline to a repository
+//	@Summary		Get pipeline config
+//	@Description	Get the pipeline assigned to a repository. Use ?include=pipeline to include the full pipeline resource.
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int		true	"Repository ID"
+//	@Param			include	query		string	false	"Comma-separated related resources to include (e.g. pipeline)"
+//	@Success		200		{object}	dto.PipelineConfigResponse
+//	@Failure		404		{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500		{object}	middleware.JSONAPIErrorResponse
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/config/pipeline [get]
+func (r *RepositoriesRouter) GetPipelineConfig(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	idStr := chi.URLParam(req, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	repo, err := r.client.Repositories.Get(ctx, repository.WithID(id))
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	resp := pipelineConfigToResponse(repo.PipelineID())
+
+	if wantsInclude(req, "pipeline") {
+		detail, err := r.client.Pipelines.Detail(ctx, repo.PipelineID())
+		if err != nil {
+			middleware.WriteError(w, req, err, r.logger)
+			return
+		}
+		p := detail.Pipeline()
+		resp.Included = []dto.PipelineData{pipelineToInclude(p.ID(), p.Name(), p.CreatedAt(), p.UpdatedAt())}
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, resp)
+}
+
+// UpdatePipelineConfig handles PUT /api/v1/repositories/{id}/config/pipeline.
+//
+//	@Summary		Update pipeline config
+//	@Description	Assign a pipeline to a repository
 //	@Tags			repositories
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		int							true	"Repository ID"
-//	@Param			body	body		dto.AssignPipelineRequest	true	"Pipeline assignment"
-//	@Success		200		{object}	dto.RepositoryResponse
+//	@Param			body	body		dto.PipelineConfigUpdateRequest	true	"Pipeline configuration"
+//	@Success		200		{object}	dto.PipelineConfigResponse
 //	@Failure		400		{object}	middleware.JSONAPIErrorResponse
 //	@Failure		404		{object}	middleware.JSONAPIErrorResponse
 //	@Failure		500		{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
-//	@Router			/repositories/{id}/pipeline [put]
-func (r *RepositoriesRouter) AssignPipeline(w http.ResponseWriter, req *http.Request) {
+//	@Router			/repositories/{id}/config/pipeline [put]
+func (r *RepositoriesRouter) UpdatePipelineConfig(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
 	repoID, err := r.repositoryID(req)
@@ -1680,26 +1727,57 @@ func (r *RepositoriesRouter) AssignPipeline(w http.ResponseWriter, req *http.Req
 		return
 	}
 
-	var body dto.AssignPipelineRequest
+	var body dto.PipelineConfigUpdateRequest
 	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
-	source, err := r.client.Repositories.AssignPipeline(ctx, repoID, body.Data.ID)
+	source, err := r.client.Repositories.AssignPipeline(ctx, repoID, body.Data.Attributes.PipelineID)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
-	repo := source.Repository()
-	numCommits, _ := r.client.Commits.Count(ctx, repository.WithRepoID(repo.ID()))
-	branches, _ := r.client.Repositories.BranchesForRepository(ctx, repo.ID())
-	numTags, _ := r.client.Tags.Count(ctx, repository.WithRepoID(repo.ID()))
+	middleware.WriteJSON(w, http.StatusOK, pipelineConfigToResponse(source.Repository().PipelineID()))
+}
 
-	middleware.WriteJSON(w, http.StatusOK, dto.RepositoryResponse{
-		Data: repoToDTO(repo, numCommits, int64(len(branches)), numTags),
-	})
+func pipelineConfigToResponse(id int64) dto.PipelineConfigResponse {
+	return dto.PipelineConfigResponse{
+		Data: dto.PipelineConfigData{
+			Type: "pipeline-config",
+			Attributes: dto.PipelineConfigAttributes{
+				PipelineID: id,
+			},
+			Links: dto.PipelineConfigLinks{
+				Pipeline: fmt.Sprintf("/api/v1/pipelines/%d", id),
+			},
+		},
+	}
+}
+
+func pipelineToInclude(id int64, name string, createdAt, updatedAt time.Time) dto.PipelineData {
+	return dto.PipelineData{
+		Type: "pipeline",
+		ID:   id,
+		Attributes: dto.PipelineAttributes{
+			Name:      name,
+			CreatedAt: createdAt,
+			UpdatedAt: updatedAt,
+		},
+		Links: dto.PipelineLinks{
+			Self: fmt.Sprintf("/api/v1/pipelines/%d", id),
+		},
+	}
+}
+
+func wantsInclude(req *http.Request, resource string) bool {
+	for _, v := range strings.Split(req.URL.Query().Get("include"), ",") {
+		if strings.TrimSpace(v) == resource {
+			return true
+		}
+	}
+	return false
 }
 
 func repoToDTO(repo repository.Repository, numCommits, numBranches, numTags int64) dto.RepositoryData {
@@ -1724,18 +1802,14 @@ func repoToDTO(repo repository.Repository, numCommits, numBranches, numTags int6
 		attrs.TrackingBranch = &branch
 	}
 
-	data := dto.RepositoryData{
+	link := fmt.Sprintf("/api/v1/pipelines/%d", repo.PipelineID())
+
+	return dto.RepositoryData{
 		Type:       "repository",
 		ID:         fmt.Sprintf("%d", repo.ID()),
 		Attributes: attrs,
+		Links:      &dto.RepositoryLinks{Pipeline: &link},
 	}
-
-	if pid := repo.PipelineID(); pid != nil {
-		link := fmt.Sprintf("/api/v1/pipelines/%d", *pid)
-		data.Links = &dto.RepositoryLinks{Pipeline: &link}
-	}
-
-	return data
 }
 
 // GetBlob handles GET /api/v1/repositories/{id}/blob/{blob_name}/*.

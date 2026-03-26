@@ -14,7 +14,7 @@ var ErrNotCloned = errors.New("repository has not been cloned")
 // Repository represents a tracked Git repository (aggregate root).
 type Repository struct {
 	id             int64
-	pipelineID     *int64
+	pipelineID     int64
 	remoteURL      string
 	sanitizedURL   string
 	upstreamURL    string
@@ -43,7 +43,7 @@ func NewRepository(remoteURL string) (Repository, error) {
 // ReconstructRepository reconstructs a Repository from persistence.
 func ReconstructRepository(
 	id int64,
-	pipelineID *int64,
+	pipelineID int64,
 	remoteURL string,
 	sanitizedURL string,
 	upstreamURL string,
@@ -71,12 +71,12 @@ func ReconstructRepository(
 // ID returns the repository ID.
 func (r Repository) ID() int64 { return r.id }
 
-// PipelineID returns the optional pipeline identifier.
-func (r Repository) PipelineID() *int64 { return r.pipelineID }
+// PipelineID returns the pipeline identifier.
+func (r Repository) PipelineID() int64 { return r.pipelineID }
 
 // WithPipelineID returns a copy with the given pipeline assigned.
 func (r Repository) WithPipelineID(id int64) Repository {
-	r.pipelineID = &id
+	r.pipelineID = id
 	r.updatedAt = time.Now()
 	return r
 }

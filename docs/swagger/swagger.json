@@ -1509,6 +1509,123 @@
                 }
             }
         },
+        "/repositories/{id}/config/pipeline": {
+            "get": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Get the pipeline assigned to a repository. Use ?include=pipeline to include the full pipeline resource.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "repositories"
+                ],
+                "summary": "Get pipeline config",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Repository ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated related resources to include (e.g. pipeline)",
+                        "name": "include",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PipelineConfigResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Assign a pipeline to a repository",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "repositories"
+                ],
+                "summary": "Update pipeline config",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Repository ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Pipeline configuration",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.PipelineConfigUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PipelineConfigResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/repositories/{id}/enrichments": {
             "get": {
                 "security": [
@@ -1565,70 +1682,6 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/dto.EnrichmentJSONAPIListResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/repositories/{id}/pipeline": {
-            "put": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "Link a pipeline to a repository",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "Assign pipeline to repository",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Pipeline assignment",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.AssignPipelineRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.RepositoryResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
                         }
                     },
                     "404": {
@@ -2558,25 +2611,6 @@
         }
     },
     "definitions": {
-        "dto.AssignPipelineData": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "integer"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.AssignPipelineRequest": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/dto.AssignPipelineData"
-                }
-            }
-        },
         "dto.CommitAttributes": {
             "type": "object",
             "properties": {
@@ -2912,6 +2946,69 @@
                 },
                 "updated_at": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.PipelineConfigAttributes": {
+            "type": "object",
+            "properties": {
+                "pipeline_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.PipelineConfigData": {
+            "type": "object",
+            "properties": {
+                "attributes": {
+                    "$ref": "#/definitions/dto.PipelineConfigAttributes"
+                },
+                "links": {
+                    "$ref": "#/definitions/dto.PipelineConfigLinks"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.PipelineConfigLinks": {
+            "type": "object",
+            "properties": {
+                "pipeline": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.PipelineConfigResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/dto.PipelineConfigData"
+                },
+                "included": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.PipelineData"
+                    }
+                }
+            }
+        },
+        "dto.PipelineConfigUpdateData": {
+            "type": "object",
+            "properties": {
+                "attributes": {
+                    "$ref": "#/definitions/dto.PipelineConfigAttributes"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.PipelineConfigUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/dto.PipelineConfigUpdateData"
                 }
             }
         },

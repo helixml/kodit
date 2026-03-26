@@ -437,6 +437,10 @@ func New(opts ...Option) (*Client, error) {
 
 	// Initialize remaining service fields
 	client.Repositories = service.NewRepository(repoStore, pipelineStore, commitStore, branchStore, tagStore, queue, client.Pipelines, logger)
+	if err := client.Repositories.BackfillDefaultPipeline(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("backfill default pipeline: %w", err)
+	}
 	client.Commits = service.NewCommit(commitStore)
 	client.Tags = service.NewTag(tagStore)
 	client.Files = service.NewFile(fileStore)

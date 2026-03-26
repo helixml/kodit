@@ -21,13 +21,13 @@ import (
 // with scoped decorators only returns repositories in the allowed set.
 func TestScopedMCPServer_RepositoryListFiltered(t *testing.T) {
 	repo1 := repository.ReconstructRepository(
-		1, nil, "https://github.com/org/allowed", "https://github.com/org/allowed", "",
+		1, 0, "https://github.com/org/allowed", "https://github.com/org/allowed", "",
 		repository.WorkingCopy{}, repository.NewTrackingConfigForBranch("main"),
 		repository.DefaultChunkingConfig(),
 		time.Now(), time.Now(), time.Time{},
 	)
 	repo2 := repository.ReconstructRepository(
-		2, nil, "https://github.com/org/forbidden", "https://github.com/org/forbidden", "",
+		2, 0, "https://github.com/org/forbidden", "https://github.com/org/forbidden", "",
 		repository.WorkingCopy{}, repository.NewTrackingConfigForBranch("main"),
 		repository.DefaultChunkingConfig(),
 		time.Now(), time.Now(), time.Time{},
@@ -99,7 +99,7 @@ func TestScopedMCPServer_RepositoryListFiltered(t *testing.T) {
 // for an out-of-scope repository returns an error.
 func TestScopedMCPServer_ReadResourceBlocked(t *testing.T) {
 	repo1 := repository.ReconstructRepository(
-		1, nil, "https://github.com/org/allowed", "https://github.com/org/allowed", "",
+		1, 0, "https://github.com/org/allowed", "https://github.com/org/allowed", "",
 		repository.WorkingCopy{}, repository.NewTrackingConfigForBranch("main"),
 		repository.DefaultChunkingConfig(),
 		time.Now(), time.Now(), time.Time{},
@@ -156,13 +156,13 @@ func TestScopedMCPServer_ReadResourceBlocked(t *testing.T) {
 // set results in unscoped behavior.
 func TestScopedMCPServer_NilRepoIDsNoScoping(t *testing.T) {
 	repo1 := repository.ReconstructRepository(
-		1, nil, "https://github.com/org/repo1", "https://github.com/org/repo1", "",
+		1, 0, "https://github.com/org/repo1", "https://github.com/org/repo1", "",
 		repository.WorkingCopy{}, repository.NewTrackingConfigForBranch("main"),
 		repository.DefaultChunkingConfig(),
 		time.Now(), time.Now(), time.Time{},
 	)
 	repo2 := repository.ReconstructRepository(
-		2, nil, "https://github.com/org/repo2", "https://github.com/org/repo2", "",
+		2, 0, "https://github.com/org/repo2", "https://github.com/org/repo2", "",
 		repository.WorkingCopy{}, repository.NewTrackingConfigForBranch("main"),
 		repository.DefaultChunkingConfig(),
 		time.Now(), time.Now(), time.Time{},
@@ -265,7 +265,7 @@ func contains(s, sub string) bool {
 func TestScopedMCPServer_ListRepositories_SanitizesCredentials(t *testing.T) {
 	repo := repository.ReconstructRepository(
 		1,
-		nil,
+		0,
 		"http://user:secret-token@api:8080/git/my-repo",
 		"http://api:8080/git/my-repo",
 		"",
