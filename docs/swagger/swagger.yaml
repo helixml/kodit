@@ -1,5 +1,38 @@
 basePath: /api/v1
 definitions:
+  dto.ChunkingConfigAttributes:
+    properties:
+      chunk_overlap:
+        type: integer
+      chunk_size:
+        type: integer
+      min_chunk_size:
+        type: integer
+    type: object
+  dto.ChunkingConfigData:
+    properties:
+      attributes:
+        $ref: '#/definitions/dto.ChunkingConfigAttributes'
+      type:
+        type: string
+    type: object
+  dto.ChunkingConfigResponse:
+    properties:
+      data:
+        $ref: '#/definitions/dto.ChunkingConfigData'
+    type: object
+  dto.ChunkingConfigUpdateData:
+    properties:
+      attributes:
+        $ref: '#/definitions/dto.ChunkingConfigAttributes'
+      type:
+        type: string
+    type: object
+  dto.ChunkingConfigUpdateRequest:
+    properties:
+      data:
+        $ref: '#/definitions/dto.ChunkingConfigUpdateData'
+    type: object
   dto.CommitAttributes:
     properties:
       author:
@@ -1487,6 +1520,77 @@ paths:
       summary: List commit snippets
       tags:
       - repositories
+  /repositories/{id}/config/chunking:
+    get:
+      consumes:
+      - application/json
+      description: Get current chunking configuration for a repository
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ChunkingConfigResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: Get chunking config
+      tags:
+      - repositories
+    put:
+      consumes:
+      - application/json
+      description: Update chunking configuration for a repository
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Chunking config
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ChunkingConfigUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ChunkingConfigResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: Update chunking config
+      tags:
+      - repositories
   /repositories/{id}/enrichments:
     get:
       consumes:
@@ -1532,6 +1636,52 @@ paths:
       security:
       - APIKeyAuth: []
       summary: List repository enrichments
+      tags:
+      - repositories
+  /repositories/{id}/grep:
+    get:
+      deprecated: true
+      description: 'Deprecated: use GET /api/v1/search/grep instead. Searches file
+        contents in a repository using git grep.'
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Search pattern
+        in: query
+        name: pattern
+        required: true
+        type: string
+      - description: Glob pattern to filter files
+        in: query
+        name: glob
+        type: string
+      - description: Maximum results (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.GrepResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      summary: Grep repository (deprecated)
       tags:
       - repositories
   /repositories/{id}/status:
