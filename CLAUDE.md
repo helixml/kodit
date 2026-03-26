@@ -100,6 +100,21 @@ PostgreSQL runs in the `kodit-vectorchord` container (database: `kodit`, user: `
 docker exec kodit-vectorchord psql -U postgres -d kodit -c "SELECT * FROM repositories LIMIT 5;"
 ```
 
+## API Handlers
+
+Every handler function registered in a chi router **must** have a complete swag annotation block before merging. Required fields:
+
+- `@Summary` — short one-line description
+- `@Description` — longer description (include deprecation notice and replacement endpoint if applicable)
+- `@Tags` — logical grouping (e.g. `repositories`, `search`, `enrichments`)
+- `@Accept` / `@Produce` — content types (`json`, `text/markdown`, etc.)
+- `@Param` — one entry per path, query, and body parameter
+- `@Success` — at minimum the happy-path status + response type
+- `@Failure` — at minimum 404 and 500; include 400 when the handler validates input
+- `@Security APIKeyAuth` — required on all non-deprecated endpoints
+- `@Deprecated` — required on deprecated endpoints (paired with a `@Description` note pointing to the replacement)
+- `@Router` — path relative to the API version prefix + HTTP method
+
 ## Software Engineering
 
 Object-oriented design principles:
