@@ -577,6 +577,8 @@ definitions:
         items:
           type: integer
         type: array
+      join_type:
+        type: string
       kind:
         type: string
       name:
@@ -599,6 +601,8 @@ definitions:
         items:
           type: string
         type: array
+      join_type:
+        type: string
       kind:
         type: string
       name:

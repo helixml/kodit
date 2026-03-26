@@ -77,7 +77,7 @@ func (r *StepsRouter) List(w http.ResponseWriter, req *http.Request) {
 			middleware.WriteError(w, req, err, r.logger)
 			return
 		}
-		data[i] = stepToDTO(s, detail.Dependencies())
+		data[i] = stepToDTO(s, detail.Dependencies(), nil)
 	}
 
 	middleware.WriteJSON(w, http.StatusOK, dto.StepListResponse{
@@ -116,6 +116,6 @@ func (r *StepsRouter) Get(w http.ResponseWriter, req *http.Request) {
 	}
 
 	middleware.WriteJSON(w, http.StatusOK, dto.StepResponse{
-		Data: stepToDTO(detail.Step(), detail.Dependencies()),
+		Data: stepToDTO(detail.Step(), detail.Dependencies(), nil),
 	})
 }

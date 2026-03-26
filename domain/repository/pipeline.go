@@ -93,27 +93,33 @@ type PipelineStep struct {
 	id         int64
 	pipelineID int64
 	stepID     int64
+	joinType   string
 	createdAt  time.Time
 	updatedAt  time.Time
 }
 
 // NewPipelineStep creates a new association between a pipeline and a step.
-func NewPipelineStep(pipelineID, stepID int64) PipelineStep {
+func NewPipelineStep(pipelineID, stepID int64, joinType string) PipelineStep {
+	if joinType == "" {
+		joinType = "all"
+	}
 	now := time.Now()
 	return PipelineStep{
 		pipelineID: pipelineID,
 		stepID:     stepID,
+		joinType:   joinType,
 		createdAt:  now,
 		updatedAt:  now,
 	}
 }
 
 // ReconstructPipelineStep rebuilds a PipelineStep from persisted data.
-func ReconstructPipelineStep(id, pipelineID, stepID int64, createdAt, updatedAt time.Time) PipelineStep {
+func ReconstructPipelineStep(id, pipelineID, stepID int64, joinType string, createdAt, updatedAt time.Time) PipelineStep {
 	return PipelineStep{
 		id:         id,
 		pipelineID: pipelineID,
 		stepID:     stepID,
+		joinType:   joinType,
 		createdAt:  createdAt,
 		updatedAt:  updatedAt,
 	}
@@ -127,6 +133,9 @@ func (ps PipelineStep) PipelineID() int64 { return ps.pipelineID }
 
 // StepID returns the step identifier.
 func (ps PipelineStep) StepID() int64 { return ps.stepID }
+
+// JoinType returns how upstream dependencies are combined ("all" or "any").
+func (ps PipelineStep) JoinType() string { return ps.joinType }
 
 // CreatedAt returns the creation timestamp.
 func (ps PipelineStep) CreatedAt() time.Time { return ps.createdAt }

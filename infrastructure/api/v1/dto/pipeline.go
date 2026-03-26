@@ -49,6 +49,7 @@ type StepAttributes struct {
 	Name      string  `json:"name"`
 	Kind      string  `json:"kind"`
 	DependsOn []int64 `json:"depends_on"`
+	JoinType  string  `json:"join_type"`
 }
 
 // StepLinks holds links for a step resource.
@@ -81,6 +82,7 @@ type StepInput struct {
 	Name      string   `json:"name"`
 	Kind      string   `json:"kind"`
 	DependsOn []string `json:"depends_on,omitempty"`
+	JoinType  string   `json:"join_type,omitempty"`
 }
 
 // PipelineCreateAttributes holds the attributes for creating a pipeline.

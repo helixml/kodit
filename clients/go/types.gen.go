@@ -431,6 +431,7 @@ type DtoSnippetListResponse struct {
 // DtoStepAttributes defines model for dto.StepAttributes.
 type DtoStepAttributes struct {
 	DependsOn *[]int  `json:"depends_on,omitempty"`
+	JoinType  *string `json:"join_type,omitempty"`
 	Kind      *string `json:"kind,omitempty"`
 	Name      *string `json:"name,omitempty"`
 }
@@ -446,6 +447,7 @@ type DtoStepData struct {
 // DtoStepInput defines model for dto.StepInput.
 type DtoStepInput struct {
 	DependsOn *[]string `json:"depends_on,omitempty"`
+	JoinType  *string   `json:"join_type,omitempty"`
 	Kind      *string   `json:"kind,omitempty"`
 	Name      *string   `json:"name,omitempty"`
 }

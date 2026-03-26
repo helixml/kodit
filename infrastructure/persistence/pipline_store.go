@@ -80,7 +80,7 @@ type PipelineStepMapper struct{}
 
 // ToDomain converts a models.PipelineStep to a domain PipelineStep.
 func (m PipelineStepMapper) ToDomain(e models.PipelineStep) repository.PipelineStep {
-	return repository.ReconstructPipelineStep(e.ID, e.PipelineID, e.StepID, e.CreatedAt, e.UpdatedAt)
+	return repository.ReconstructPipelineStep(e.ID, e.PipelineID, e.StepID, e.JoinType, e.CreatedAt, e.UpdatedAt)
 }
 
 // ToModel converts a domain PipelineStep to a models.PipelineStep.
@@ -88,6 +88,7 @@ func (m PipelineStepMapper) ToModel(ps repository.PipelineStep) models.PipelineS
 	assoc := models.PipelineStep{
 		PipelineID: ps.PipelineID(),
 		StepID:     ps.StepID(),
+		JoinType:   ps.JoinType(),
 	}
 	if ps.ID() != 0 {
 		assoc.ID = ps.ID()

@@ -117,6 +117,7 @@ func (r *PipelinesRouter) Create(w http.ResponseWriter, req *http.Request) {
 			Name:      s.Name,
 			Kind:      s.Kind,
 			DependsOn: s.DependsOn,
+			JoinType:  s.JoinType,
 		}
 	}
 
@@ -199,6 +200,7 @@ func (r *PipelinesRouter) Update(w http.ResponseWriter, req *http.Request) {
 			Name:      s.Name,
 			Kind:      s.Kind,
 			DependsOn: s.DependsOn,
+			JoinType:  s.JoinType,
 		}
 	}
 
@@ -262,10 +264,11 @@ func pipelineToDTO(p repository.Pipeline) dto.PipelineData {
 func pipelineDetailToDTO(d service.PipelineDetail) dto.PipelineDetailResponse {
 	steps := d.Steps()
 	deps := d.Dependencies()
+	assocs := d.Associations()
 
 	included := make([]dto.StepData, len(steps))
 	for i, s := range steps {
-		included[i] = stepToDTO(s, deps)
+		included[i] = stepToDTO(s, deps, assocs)
 	}
 
 	return dto.PipelineDetailResponse{
@@ -274,7 +277,7 @@ func pipelineDetailToDTO(d service.PipelineDetail) dto.PipelineDetailResponse {
 	}
 }
 
-func stepToDTO(s repository.Step, deps []repository.StepDependency) dto.StepData {
+func stepToDTO(s repository.Step, deps []repository.StepDependency, assocs []repository.PipelineStep) dto.StepData {
 	var dependsOn []int64
 	for _, dep := range deps {
 		if dep.StepID() == s.ID() {
@@ -285,6 +288,14 @@ func stepToDTO(s repository.Step, deps []repository.StepDependency) dto.StepData
 		dependsOn = []int64{}
 	}
 
+	joinType := "all"
+	for _, a := range assocs {
+		if a.StepID() == s.ID() {
+			joinType = a.JoinType()
+			break
+		}
+	}
+
 	return dto.StepData{
 		Type: "step",
 		ID:   s.ID(),
@@ -292,6 +303,7 @@ func stepToDTO(s repository.Step, deps []repository.StepDependency) dto.StepData
 			Name:      s.Name(),
 			Kind:      s.Kind(),
 			DependsOn: dependsOn,
+			JoinType:  joinType,
 		},
 		Links: dto.StepLinks{
 			Self: fmt.Sprintf("/api/v1/steps/%d", s.ID()),

@@ -19,6 +19,7 @@ type StepParams struct {
 	Name      string
 	Kind      string
 	DependsOn []string
+	JoinType  string
 }
 
 // UpdatePipelineParams holds the parameters for updating an existing pipeline.
@@ -33,6 +34,7 @@ type PipelineDetail struct {
 	pipeline     repository.Pipeline
 	steps        []repository.Step
 	dependencies []repository.StepDependency
+	associations []repository.PipelineStep
 }
 
 // Pipeline returns the pipeline entity.
@@ -49,6 +51,13 @@ func (d PipelineDetail) Steps() []repository.Step {
 func (d PipelineDetail) Dependencies() []repository.StepDependency {
 	result := make([]repository.StepDependency, len(d.dependencies))
 	copy(result, d.dependencies)
+	return result
+}
+
+// Associations returns the pipeline-step associations (including join type).
+func (d PipelineDetail) Associations() []repository.PipelineStep {
+	result := make([]repository.PipelineStep, len(d.associations))
+	copy(result, d.associations)
 	return result
 }
 
@@ -209,12 +218,12 @@ func (s *Pipeline) Create(ctx context.Context, params *CreatePipelineParams) (Pi
 		return PipelineDetail{}, fmt.Errorf("save pipeline: %w", err)
 	}
 
-	steps, deps, err := s.createSteps(ctx, saved.ID(), params.Steps)
+	steps, deps, assocs, err := s.createSteps(ctx, saved.ID(), params.Steps)
 	if err != nil {
 		return PipelineDetail{}, err
 	}
 
-	return PipelineDetail{pipeline: saved, steps: steps, dependencies: deps}, nil
+	return PipelineDetail{pipeline: saved, steps: steps, dependencies: deps, associations: assocs}, nil
 }
 
 // Detail returns a pipeline with all its steps and dependencies.
@@ -224,12 +233,12 @@ func (s *Pipeline) Detail(ctx context.Context, id int64) (PipelineDetail, error)
 		return PipelineDetail{}, fmt.Errorf("find pipeline: %w", err)
 	}
 
-	steps, deps, err := s.loadStepsAndDependencies(ctx, pipeline.ID())
+	steps, deps, assocs, err := s.loadStepsAndDependencies(ctx, pipeline.ID())
 	if err != nil {
 		return PipelineDetail{}, err
 	}
 
-	return PipelineDetail{pipeline: pipeline, steps: steps, dependencies: deps}, nil
+	return PipelineDetail{pipeline: pipeline, steps: steps, dependencies: deps, associations: assocs}, nil
 }
 
 // Update replaces all steps and dependencies for an existing pipeline.
@@ -253,12 +262,12 @@ func (s *Pipeline) Update(ctx context.Context, id int64, params *UpdatePipelineP
 		return PipelineDetail{}, fmt.Errorf("save pipeline: %w", err)
 	}
 
-	steps, deps, err := s.createSteps(ctx, saved.ID(), params.Steps)
+	steps, deps, assocs, err := s.createSteps(ctx, saved.ID(), params.Steps)
 	if err != nil {
 		return PipelineDetail{}, err
 	}
 
-	return PipelineDetail{pipeline: saved, steps: steps, dependencies: deps}, nil
+	return PipelineDetail{pipeline: saved, steps: steps, dependencies: deps, associations: assocs}, nil
 }
 
 // Delete removes a pipeline and all associated steps and dependencies.
@@ -356,22 +365,24 @@ func topologicalSort(steps []repository.Step, deps []repository.StepDependency) 
 
 // createSteps finds or creates steps by kind, then saves pipeline-step
 // associations and dependencies. Steps are shared across pipelines.
-func (s *Pipeline) createSteps(ctx context.Context, pipelineID int64, params []StepParams) ([]repository.Step, []repository.StepDependency, error) {
+func (s *Pipeline) createSteps(ctx context.Context, pipelineID int64, params []StepParams) ([]repository.Step, []repository.StepDependency, []repository.PipelineStep, error) {
 	nameToID := make(map[string]int64, len(params))
 	steps := make([]repository.Step, 0, len(params))
+	assocs := make([]repository.PipelineStep, 0, len(params))
 
 	for _, sp := range params {
 		step, err := s.findOrCreateStep(ctx, sp.Name, sp.Kind)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		nameToID[sp.Name] = step.ID()
 		steps = append(steps, step)
 
-		_, err = s.pipelineStepStore.Save(ctx, repository.NewPipelineStep(pipelineID, step.ID()))
+		assoc, err := s.pipelineStepStore.Save(ctx, repository.NewPipelineStep(pipelineID, step.ID(), sp.JoinType))
 		if err != nil {
-			return nil, nil, fmt.Errorf("save pipeline step for %q: %w", sp.Name, err)
+			return nil, nil, nil, fmt.Errorf("save pipeline step for %q: %w", sp.Name, err)
 		}
+		assocs = append(assocs, assoc)
 	}
 
 	var deps []repository.StepDependency
@@ -381,13 +392,13 @@ func (s *Pipeline) createSteps(ctx context.Context, pipelineID int64, params []S
 			depID := nameToID[depName]
 			dep, err := s.findOrCreateDependency(ctx, stepID, depID)
 			if err != nil {
-				return nil, nil, fmt.Errorf("dependency %q -> %q: %w", sp.Name, depName, err)
+				return nil, nil, nil, fmt.Errorf("dependency %q -> %q: %w", sp.Name, depName, err)
 			}
 			deps = append(deps, dep)
 		}
 	}
 
-	return steps, deps, nil
+	return steps, deps, assocs, nil
 }
 
 // findOrCreateStep returns an existing step with the given name, or creates one.
@@ -419,14 +430,14 @@ func (s *Pipeline) findOrCreateDependency(ctx context.Context, stepID, dependsOn
 }
 
 // loadStepsAndDependencies fetches steps and their dependencies for a pipeline.
-func (s *Pipeline) loadStepsAndDependencies(ctx context.Context, pipelineID int64) ([]repository.Step, []repository.StepDependency, error) {
+func (s *Pipeline) loadStepsAndDependencies(ctx context.Context, pipelineID int64) ([]repository.Step, []repository.StepDependency, []repository.PipelineStep, error) {
 	associations, err := s.pipelineStepStore.Find(ctx, repository.WithPipelineID(pipelineID))
 	if err != nil {
-		return nil, nil, fmt.Errorf("find pipeline steps: %w", err)
+		return nil, nil, nil, fmt.Errorf("find pipeline steps: %w", err)
 	}
 
 	if len(associations) == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
 	stepIDs := make([]int64, len(associations))
@@ -436,15 +447,15 @@ func (s *Pipeline) loadStepsAndDependencies(ctx context.Context, pipelineID int6
 
 	steps, err := s.stepStore.Find(ctx, repository.WithIDIn(stepIDs))
 	if err != nil {
-		return nil, nil, fmt.Errorf("find steps: %w", err)
+		return nil, nil, nil, fmt.Errorf("find steps: %w", err)
 	}
 
 	deps, err := s.dependencyStore.Find(ctx, repository.WithStepIDIn(stepIDs))
 	if err != nil {
-		return nil, nil, fmt.Errorf("find dependencies: %w", err)
+		return nil, nil, nil, fmt.Errorf("find dependencies: %w", err)
 	}
 
-	return steps, deps, nil
+	return steps, deps, associations, nil
 }
 
 // deleteStepsForPipeline removes pipeline-step associations for a pipeline,
@@ -513,6 +524,9 @@ func validatePipelineParams(name string, steps []StepParams) error {
 			if !names[dep] {
 				return fmt.Errorf("step %q depends on unknown step %q", sp.Name, dep)
 			}
+		}
+		if sp.JoinType != "" && sp.JoinType != "all" && sp.JoinType != "any" {
+			return fmt.Errorf("step %q has invalid join_type %q (must be \"all\" or \"any\")", sp.Name, sp.JoinType)
 		}
 	}
 

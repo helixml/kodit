@@ -424,6 +424,115 @@ func TestPipeline_Initialise(t *testing.T) {
 	}
 }
 
+func TestPipeline_JoinType_RoundTrip(t *testing.T) {
+	svc := newPipelineService(t)
+	ctx := context.Background()
+
+	detail, err := svc.Create(ctx, &CreatePipelineParams{
+		Name: "join-pipeline",
+		Steps: []StepParams{
+			{Name: "scan", Kind: "internal"},
+			{Name: "extract", Kind: "internal", DependsOn: []string{"scan"}},
+			{Name: "index", Kind: "internal", DependsOn: []string{"scan", "extract"}, JoinType: "any"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// Verify associations from Create.
+	assocs := detail.Associations()
+	if len(assocs) != 3 {
+		t.Fatalf("expected 3 associations, got %d", len(assocs))
+	}
+
+	joinByStep := make(map[int64]string, len(assocs))
+	for _, a := range assocs {
+		joinByStep[a.StepID()] = a.JoinType()
+	}
+
+	for _, s := range detail.Steps() {
+		jt := joinByStep[s.ID()]
+		switch s.Name() {
+		case "scan", "extract":
+			if jt != "all" {
+				t.Errorf("step %q: expected join_type \"all\", got %q", s.Name(), jt)
+			}
+		case "index":
+			if jt != "any" {
+				t.Errorf("step %q: expected join_type \"any\", got %q", s.Name(), jt)
+			}
+		}
+	}
+
+	// Verify round-trip through Detail.
+	loaded, err := svc.Detail(ctx, detail.Pipeline().ID())
+	if err != nil {
+		t.Fatalf("Detail: %v", err)
+	}
+
+	loadedAssocs := loaded.Associations()
+	if len(loadedAssocs) != 3 {
+		t.Fatalf("expected 3 associations from Detail, got %d", len(loadedAssocs))
+	}
+
+	joinByStep = make(map[int64]string, len(loadedAssocs))
+	for _, a := range loadedAssocs {
+		joinByStep[a.StepID()] = a.JoinType()
+	}
+
+	for _, s := range loaded.Steps() {
+		jt := joinByStep[s.ID()]
+		switch s.Name() {
+		case "scan", "extract":
+			if jt != "all" {
+				t.Errorf("Detail step %q: expected join_type \"all\", got %q", s.Name(), jt)
+			}
+		case "index":
+			if jt != "any" {
+				t.Errorf("Detail step %q: expected join_type \"any\", got %q", s.Name(), jt)
+			}
+		}
+	}
+}
+
+func TestPipeline_JoinType_DefaultIsAll(t *testing.T) {
+	svc := newPipelineService(t)
+	ctx := context.Background()
+
+	detail, err := svc.Create(ctx, &CreatePipelineParams{
+		Name: "default-join",
+		Steps: []StepParams{
+			{Name: "step-a", Kind: "shell"},
+			{Name: "step-b", Kind: "shell", DependsOn: []string{"step-a"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	for _, a := range detail.Associations() {
+		if a.JoinType() != "all" {
+			t.Errorf("expected default join_type \"all\", got %q for step %d", a.JoinType(), a.StepID())
+		}
+	}
+}
+
+func TestPipeline_JoinType_ValidationRejectsInvalid(t *testing.T) {
+	svc := newPipelineService(t)
+	ctx := context.Background()
+
+	_, err := svc.Create(ctx, &CreatePipelineParams{
+		Name: "bad-join",
+		Steps: []StepParams{
+			{Name: "step-a", Kind: "shell", JoinType: "maybe"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected validation error for invalid join_type")
+	}
+}
+
 func TestPipeline_RequiredOperations(t *testing.T) {
 	svc := newPipelineService(t)
 	ops := svc.RequiredOperations()

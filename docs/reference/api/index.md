@@ -1947,6 +1947,7 @@ Get a step by ID
 | Field | Type | Description |
 |-------|------|-------------|
 | depends_on | array |  |
+| join_type | string |  |
 | kind | string |  |
 | name | string |  |
 
@@ -1970,6 +1971,7 @@ Get a step by ID
 | Field | Type | Description |
 |-------|------|-------------|
 | depends_on | array |  |
+| join_type | string |  |
 | kind | string |  |
 | name | string |  |
 

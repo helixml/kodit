@@ -20,6 +20,7 @@ type PipelineStep struct {
 	Pipeline   Pipeline `gorm:"constraint:OnDelete:CASCADE"`
 	StepID     int64    `gorm:"uniqueIndex:idx_pipeline_step;not null"`
 	Step       Step     `gorm:"constraint:OnDelete:CASCADE"`
+	JoinType   string   `gorm:"size:10;not null;default:all"`
 }
 
 // StepDependency links a step to another step it depends on.

@@ -3456,6 +3456,9 @@ const docTemplate = `{
                         "type": "integer"
                     }
                 },
+                "join_type": {
+                    "type": "string"
+                },
                 "kind": {
                     "type": "string"
                 },
@@ -3489,6 +3492,9 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "join_type": {
+                    "type": "string"
                 },
                 "kind": {
                     "type": "string"
