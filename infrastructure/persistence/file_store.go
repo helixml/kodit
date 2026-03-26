@@ -50,7 +50,7 @@ func (s FileStore) SaveAll(ctx context.Context, files []repository.File) ([]repo
 	result := s.DB(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "commit_sha"}, {Name: "path"}},
 		DoUpdates: clause.AssignmentColumns([]string{"blob_sha", "mime_type", "extension", "size"}),
-	}).Create(&models)
+	}).CreateInBatches(models, gitBatchSize)
 
 	if result.Error != nil {
 		return nil, fmt.Errorf("save files: %w", result.Error)

@@ -102,6 +102,49 @@ CREATE TABLE IF NOT EXISTS %s (
 	return s, rebuilt, nil
 }
 
+// Find retrieves embeddings matching the given options. When WithSnippetIDs is
+// used, the ID list is chunked to avoid exceeding the database bind-parameter
+// limit (PostgreSQL: 65 535).
+func (s *VectorChordEmbeddingStore) Find(ctx context.Context, options ...repository.Option) ([]search.Embedding, error) {
+	q := repository.Build(options...)
+	ids := search.SnippetIDsFrom(q)
+
+	if len(ids) <= gitBatchSize {
+		return s.Repository.Find(ctx, options...)
+	}
+
+	var all []search.Embedding
+	for start := 0; start < len(ids); start += gitBatchSize {
+		end := min(start+gitBatchSize, len(ids))
+		chunk := append([]repository.Option{search.WithSnippetIDs(ids[start:end])}, filterWithoutSnippetIDs(options)...)
+		batch, err := s.Repository.Find(ctx, chunk...)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, batch...)
+	}
+	return all, nil
+}
+
+// filterWithoutSnippetIDs returns options with the WithSnippetIDs condition removed.
+func filterWithoutSnippetIDs(options []repository.Option) []repository.Option {
+	filtered := make([]repository.Option, 0, len(options))
+	for _, opt := range options {
+		q := repository.Build(opt)
+		hasSnippetIDsIn := false
+		for _, cond := range q.Conditions() {
+			if cond.Field() == "snippet_id" && cond.In() {
+				hasSnippetIDsIn = true
+				break
+			}
+		}
+		if !hasSnippetIDsIn {
+			filtered = append(filtered, opt)
+		}
+	}
+	return filtered
+}
+
 // SaveAll persists pre-computed embeddings using batched upsert, then ensures
 // the vchordrq index exists (it requires data for K-means clustering).
 func (s *VectorChordEmbeddingStore) SaveAll(ctx context.Context, embeddings []search.Embedding) error {

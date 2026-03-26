@@ -54,7 +54,7 @@ func (s BranchStore) SaveAll(ctx context.Context, branches []repository.Branch) 
 	result := s.DB(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "repo_id"}, {Name: "name"}},
 		DoUpdates: clause.AssignmentColumns([]string{"head_commit_sha", "is_default", "updated_at"}),
-	}).Create(&models)
+	}).CreateInBatches(models, gitBatchSize)
 
 	if result.Error != nil {
 		return nil, fmt.Errorf("save branches: %w", result.Error)
