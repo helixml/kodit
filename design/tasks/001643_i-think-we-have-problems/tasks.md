@@ -6,7 +6,7 @@
 - [x] Fix `BranchStore.SaveAll`: replace `Create(&models)` with `CreateInBatches(models, gitBatchSize)` (keep `OnConflict` clause)
 - [x] Fix `TagStore.SaveAll`: replace `Create(&models)` with `CreateInBatches(models, gitBatchSize)` (keep `OnConflict` clause)
 - [x] Fix `CommitStore.SaveAll`: replace unbatched `Save(&models)` with batched loop or `Create`+`OnConflict`+`CreateInBatches`
-- [~] Fix `VectorChordBM25Store.existingIDs`: chunk the ID list at 1000 IDs per `SELECT ... IN ?` query and merge results
-- [~] Fix `VectorChordEmbeddingStore.Find` with `WithSnippetIDs`: same chunked IN query approach
-- [ ] Verify all tests now pass (`make test PKG=./infrastructure/persistence/...`)
-- [ ] Run `make test` to confirm no existing tests broken
+- [x] Fix `VectorChordBM25Store.existingIDs`: chunk the ID list at 1000 IDs per `SELECT ... IN ?` query and merge results
+- [x] Fix `VectorChordEmbeddingStore.Find` with `WithSnippetIDs`: same chunked IN query approach
+- [x] Verify all tests now pass (`make test PKG=./infrastructure/persistence/...`)
+- [x] Run `make test` to confirm no existing tests broken (pre-existing linker failures in `infrastructure/api/v1` etc. due to missing `-lstdc++` for tokenizers lib — unrelated to this change)
