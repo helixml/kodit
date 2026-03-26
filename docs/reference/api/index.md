@@ -754,6 +754,67 @@ List code snippets for a commit (backed by enrichments)
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+### GET /repositories/{id}/config/chunking
+
+Get current chunking configuration for a repository
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Repository ID |
+
+
+#### Responses
+
+- 200: OK
+
+[dto.ChunkingConfigResponse](#dto.chunkingconfigresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### PUT /repositories/{id}/config/chunking
+
+Update chunking configuration for a repository
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Repository ID |
+
+
+#### Request Body
+
+[dto.ChunkingConfigUpdateRequest](#dto.chunkingconfigupdaterequest)
+
+
+#### Responses
+
+- 200: OK
+
+[dto.ChunkingConfigResponse](#dto.chunkingconfigresponse)
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 ### GET /repositories/{id}/config/pipeline
 
 Get the pipeline assigned to a repository. Use ?include=pipeline to include the full pipeline resource.
@@ -837,6 +898,39 @@ List recent enrichments across commits for a repository
 - 200: OK
 
 [dto.EnrichmentJSONAPIListResponse](#dto.enrichmentjsonapilistresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### GET /repositories/{id}/grep
+
+Deprecated: use GET /api/v1/search/grep instead. Searches file contents in a repository using git grep.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Repository ID |
+| pattern | string | True | Search pattern |
+| glob | string |  | Glob pattern to filter files |
+| limit | integer |  | Maximum results (default 50, max 200) |
+
+
+#### Responses
+
+- 200: OK
+
+[dto.GrepResponse](#dto.grepresponse)
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 404: Not Found
 
@@ -1310,6 +1404,55 @@ Get a step by ID
 
 ## Components
 
+
+
+### dto.ChunkingConfigAttributes
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| chunk_overlap | integer |  |
+| chunk_size | integer |  |
+| min_chunk_size | integer |  |
+
+
+### dto.ChunkingConfigData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| type | string |  |
+
+
+### dto.ChunkingConfigResponse
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+
+
+### dto.ChunkingConfigUpdateData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| type | string |  |
+
+
+### dto.ChunkingConfigUpdateRequest
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
 
 
 ### dto.CommitAttributes

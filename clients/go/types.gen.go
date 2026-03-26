@@ -13,6 +13,35 @@ const (
 	Tag    DtoTrackingMode = "tag"
 )
 
+// DtoChunkingConfigAttributes defines model for dto.ChunkingConfigAttributes.
+type DtoChunkingConfigAttributes struct {
+	ChunkOverlap *int `json:"chunk_overlap,omitempty"`
+	ChunkSize    *int `json:"chunk_size,omitempty"`
+	MinChunkSize *int `json:"min_chunk_size,omitempty"`
+}
+
+// DtoChunkingConfigData defines model for dto.ChunkingConfigData.
+type DtoChunkingConfigData struct {
+	Attributes *DtoChunkingConfigAttributes `json:"attributes,omitempty"`
+	Type       *string                      `json:"type,omitempty"`
+}
+
+// DtoChunkingConfigResponse defines model for dto.ChunkingConfigResponse.
+type DtoChunkingConfigResponse struct {
+	Data *DtoChunkingConfigData `json:"data,omitempty"`
+}
+
+// DtoChunkingConfigUpdateData defines model for dto.ChunkingConfigUpdateData.
+type DtoChunkingConfigUpdateData struct {
+	Attributes *DtoChunkingConfigAttributes `json:"attributes,omitempty"`
+	Type       *string                      `json:"type,omitempty"`
+}
+
+// DtoChunkingConfigUpdateRequest defines model for dto.ChunkingConfigUpdateRequest.
+type DtoChunkingConfigUpdateRequest struct {
+	Data *DtoChunkingConfigUpdateData `json:"data,omitempty"`
+}
+
 // DtoCommitAttributes defines model for dto.CommitAttributes.
 type DtoCommitAttributes struct {
 	Author          *string `json:"author,omitempty"`
@@ -765,6 +794,18 @@ type GetRepositoriesIdEnrichmentsParams struct {
 	PageSize *int `form:"page_size,omitempty" json:"page_size,omitempty"`
 }
 
+// GetRepositoriesIdGrepParams defines parameters for GetRepositoriesIdGrep.
+type GetRepositoriesIdGrepParams struct {
+	// Pattern Search pattern
+	Pattern string `form:"pattern" json:"pattern"`
+
+	// Glob Glob pattern to filter files
+	Glob *string `form:"glob,omitempty" json:"glob,omitempty"`
+
+	// Limit Maximum results (default 50, max 200)
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // GetRepositoriesIdTagsParams defines parameters for GetRepositoriesIdTags.
 type GetRepositoriesIdTagsParams struct {
 	// Page Page number (default: 1)
@@ -854,6 +895,9 @@ type PutPipelinesIdJSONRequestBody = DtoPipelineUpdateRequest
 
 // PostRepositoriesJSONRequestBody defines body for PostRepositories for application/json ContentType.
 type PostRepositoriesJSONRequestBody = DtoRepositoryCreateRequest
+
+// PutRepositoriesIdConfigChunkingJSONRequestBody defines body for PutRepositoriesIdConfigChunking for application/json ContentType.
+type PutRepositoriesIdConfigChunkingJSONRequestBody = DtoChunkingConfigUpdateRequest
 
 // PutRepositoriesIdConfigPipelineJSONRequestBody defines body for PutRepositoriesIdConfigPipeline for application/json ContentType.
 type PutRepositoriesIdConfigPipelineJSONRequestBody = DtoPipelineConfigUpdateRequest

@@ -178,6 +178,14 @@ type ClientInterface interface {
 	// GetRepositoriesIdCommitsCommitShaSnippets request
 	GetRepositoriesIdCommitsCommitShaSnippets(ctx context.Context, id int, commitSha string, params *GetRepositoriesIdCommitsCommitShaSnippetsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetRepositoriesIdConfigChunking request
+	GetRepositoriesIdConfigChunking(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutRepositoriesIdConfigChunkingWithBody request with any body
+	PutRepositoriesIdConfigChunkingWithBody(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PutRepositoriesIdConfigChunking(ctx context.Context, id int, body PutRepositoriesIdConfigChunkingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetRepositoriesIdConfigPipeline request
 	GetRepositoriesIdConfigPipeline(ctx context.Context, id int, params *GetRepositoriesIdConfigPipelineParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -188,6 +196,9 @@ type ClientInterface interface {
 
 	// GetRepositoriesIdEnrichments request
 	GetRepositoriesIdEnrichments(ctx context.Context, id int, params *GetRepositoriesIdEnrichmentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetRepositoriesIdGrep request
+	GetRepositoriesIdGrep(ctx context.Context, id int, params *GetRepositoriesIdGrepParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetRepositoriesIdStatus request
 	GetRepositoriesIdStatus(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -617,6 +628,42 @@ func (c *Client) GetRepositoriesIdCommitsCommitShaSnippets(ctx context.Context, 
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetRepositoriesIdConfigChunking(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdConfigChunkingRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutRepositoriesIdConfigChunkingWithBody(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutRepositoriesIdConfigChunkingRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutRepositoriesIdConfigChunking(ctx context.Context, id int, body PutRepositoriesIdConfigChunkingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutRepositoriesIdConfigChunkingRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetRepositoriesIdConfigPipeline(ctx context.Context, id int, params *GetRepositoriesIdConfigPipelineParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetRepositoriesIdConfigPipelineRequest(c.Server, id, params)
 	if err != nil {
@@ -655,6 +702,18 @@ func (c *Client) PutRepositoriesIdConfigPipeline(ctx context.Context, id int, bo
 
 func (c *Client) GetRepositoriesIdEnrichments(ctx context.Context, id int, params *GetRepositoriesIdEnrichmentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetRepositoriesIdEnrichmentsRequest(c.Server, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetRepositoriesIdGrep(ctx context.Context, id int, params *GetRepositoriesIdGrepParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdGrepRequest(c.Server, id, params)
 	if err != nil {
 		return nil, err
 	}
@@ -2348,6 +2407,87 @@ func NewGetRepositoriesIdCommitsCommitShaSnippetsRequest(server string, id int, 
 	return req, nil
 }
 
+// NewGetRepositoriesIdConfigChunkingRequest generates requests for GetRepositoriesIdConfigChunking
+func NewGetRepositoriesIdConfigChunkingRequest(server string, id int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/repositories/%s/config/chunking", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPutRepositoriesIdConfigChunkingRequest calls the generic PutRepositoriesIdConfigChunking builder with application/json body
+func NewPutRepositoriesIdConfigChunkingRequest(server string, id int, body PutRepositoriesIdConfigChunkingJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPutRepositoriesIdConfigChunkingRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPutRepositoriesIdConfigChunkingRequestWithBody generates requests for PutRepositoriesIdConfigChunking with any type of body
+func NewPutRepositoriesIdConfigChunkingRequestWithBody(server string, id int, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/repositories/%s/config/chunking", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetRepositoriesIdConfigPipelineRequest generates requests for GetRepositoriesIdConfigPipeline
 func NewGetRepositoriesIdConfigPipelineRequest(server string, id int, params *GetRepositoriesIdConfigPipelineParams) (*http.Request, error) {
 	var err error
@@ -2531,6 +2671,90 @@ func NewGetRepositoriesIdEnrichmentsRequest(server string, id int, params *GetRe
 		if params.PageSize != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_size", runtime.ParamLocationQuery, *params.PageSize); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetRepositoriesIdGrepRequest generates requests for GetRepositoriesIdGrep
+func NewGetRepositoriesIdGrepRequest(server string, id int, params *GetRepositoriesIdGrepParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/repositories/%s/grep", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "pattern", runtime.ParamLocationQuery, params.Pattern); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.Glob != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "glob", runtime.ParamLocationQuery, *params.Glob); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -3595,6 +3819,14 @@ type ClientWithResponsesInterface interface {
 	// GetRepositoriesIdCommitsCommitShaSnippetsWithResponse request
 	GetRepositoriesIdCommitsCommitShaSnippetsWithResponse(ctx context.Context, id int, commitSha string, params *GetRepositoriesIdCommitsCommitShaSnippetsParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdCommitsCommitShaSnippetsResponse, error)
 
+	// GetRepositoriesIdConfigChunkingWithResponse request
+	GetRepositoriesIdConfigChunkingWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdConfigChunkingResponse, error)
+
+	// PutRepositoriesIdConfigChunkingWithBodyWithResponse request with any body
+	PutRepositoriesIdConfigChunkingWithBodyWithResponse(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutRepositoriesIdConfigChunkingResponse, error)
+
+	PutRepositoriesIdConfigChunkingWithResponse(ctx context.Context, id int, body PutRepositoriesIdConfigChunkingJSONRequestBody, reqEditors ...RequestEditorFn) (*PutRepositoriesIdConfigChunkingResponse, error)
+
 	// GetRepositoriesIdConfigPipelineWithResponse request
 	GetRepositoriesIdConfigPipelineWithResponse(ctx context.Context, id int, params *GetRepositoriesIdConfigPipelineParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdConfigPipelineResponse, error)
 
@@ -3605,6 +3837,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetRepositoriesIdEnrichmentsWithResponse request
 	GetRepositoriesIdEnrichmentsWithResponse(ctx context.Context, id int, params *GetRepositoriesIdEnrichmentsParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdEnrichmentsResponse, error)
+
+	// GetRepositoriesIdGrepWithResponse request
+	GetRepositoriesIdGrepWithResponse(ctx context.Context, id int, params *GetRepositoriesIdGrepParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdGrepResponse, error)
 
 	// GetRepositoriesIdStatusWithResponse request
 	GetRepositoriesIdStatusWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdStatusResponse, error)
@@ -4298,6 +4533,55 @@ func (r GetRepositoriesIdCommitsCommitShaSnippetsResponse) StatusCode() int {
 	return 0
 }
 
+type GetRepositoriesIdConfigChunkingResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DtoChunkingConfigResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetRepositoriesIdConfigChunkingResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetRepositoriesIdConfigChunkingResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PutRepositoriesIdConfigChunkingResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DtoChunkingConfigResponse
+	JSON400      *MiddlewareJSONAPIErrorResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r PutRepositoriesIdConfigChunkingResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutRepositoriesIdConfigChunkingResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetRepositoriesIdConfigPipelineResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4365,6 +4649,31 @@ func (r GetRepositoriesIdEnrichmentsResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetRepositoriesIdEnrichmentsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetRepositoriesIdGrepResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DtoGrepResponse
+	JSON400      *MiddlewareJSONAPIErrorResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetRepositoriesIdGrepResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetRepositoriesIdGrepResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -5050,6 +5359,32 @@ func (c *ClientWithResponses) GetRepositoriesIdCommitsCommitShaSnippetsWithRespo
 	return ParseGetRepositoriesIdCommitsCommitShaSnippetsResponse(rsp)
 }
 
+// GetRepositoriesIdConfigChunkingWithResponse request returning *GetRepositoriesIdConfigChunkingResponse
+func (c *ClientWithResponses) GetRepositoriesIdConfigChunkingWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdConfigChunkingResponse, error) {
+	rsp, err := c.GetRepositoriesIdConfigChunking(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetRepositoriesIdConfigChunkingResponse(rsp)
+}
+
+// PutRepositoriesIdConfigChunkingWithBodyWithResponse request with arbitrary body returning *PutRepositoriesIdConfigChunkingResponse
+func (c *ClientWithResponses) PutRepositoriesIdConfigChunkingWithBodyWithResponse(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutRepositoriesIdConfigChunkingResponse, error) {
+	rsp, err := c.PutRepositoriesIdConfigChunkingWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutRepositoriesIdConfigChunkingResponse(rsp)
+}
+
+func (c *ClientWithResponses) PutRepositoriesIdConfigChunkingWithResponse(ctx context.Context, id int, body PutRepositoriesIdConfigChunkingJSONRequestBody, reqEditors ...RequestEditorFn) (*PutRepositoriesIdConfigChunkingResponse, error) {
+	rsp, err := c.PutRepositoriesIdConfigChunking(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutRepositoriesIdConfigChunkingResponse(rsp)
+}
+
 // GetRepositoriesIdConfigPipelineWithResponse request returning *GetRepositoriesIdConfigPipelineResponse
 func (c *ClientWithResponses) GetRepositoriesIdConfigPipelineWithResponse(ctx context.Context, id int, params *GetRepositoriesIdConfigPipelineParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdConfigPipelineResponse, error) {
 	rsp, err := c.GetRepositoriesIdConfigPipeline(ctx, id, params, reqEditors...)
@@ -5083,6 +5418,15 @@ func (c *ClientWithResponses) GetRepositoriesIdEnrichmentsWithResponse(ctx conte
 		return nil, err
 	}
 	return ParseGetRepositoriesIdEnrichmentsResponse(rsp)
+}
+
+// GetRepositoriesIdGrepWithResponse request returning *GetRepositoriesIdGrepResponse
+func (c *ClientWithResponses) GetRepositoriesIdGrepWithResponse(ctx context.Context, id int, params *GetRepositoriesIdGrepParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdGrepResponse, error) {
+	rsp, err := c.GetRepositoriesIdGrep(ctx, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetRepositoriesIdGrepResponse(rsp)
 }
 
 // GetRepositoriesIdStatusWithResponse request returning *GetRepositoriesIdStatusResponse
@@ -6247,6 +6591,93 @@ func ParseGetRepositoriesIdCommitsCommitShaSnippetsResponse(rsp *http.Response) 
 	return response, nil
 }
 
+// ParseGetRepositoriesIdConfigChunkingResponse parses an HTTP response from a GetRepositoriesIdConfigChunkingWithResponse call
+func ParseGetRepositoriesIdConfigChunkingResponse(rsp *http.Response) (*GetRepositoriesIdConfigChunkingResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetRepositoriesIdConfigChunkingResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DtoChunkingConfigResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePutRepositoriesIdConfigChunkingResponse parses an HTTP response from a PutRepositoriesIdConfigChunkingWithResponse call
+func ParsePutRepositoriesIdConfigChunkingResponse(rsp *http.Response) (*PutRepositoriesIdConfigChunkingResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutRepositoriesIdConfigChunkingResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DtoChunkingConfigResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetRepositoriesIdConfigPipelineResponse parses an HTTP response from a GetRepositoriesIdConfigPipelineWithResponse call
 func ParseGetRepositoriesIdConfigPipelineResponse(rsp *http.Response) (*GetRepositoriesIdConfigPipelineResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -6354,6 +6785,53 @@ func ParseGetRepositoriesIdEnrichmentsResponse(rsp *http.Response) (*GetReposito
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetRepositoriesIdGrepResponse parses an HTTP response from a GetRepositoriesIdGrepWithResponse call
+func ParseGetRepositoriesIdGrepResponse(rsp *http.Response) (*GetRepositoriesIdGrepResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetRepositoriesIdGrepResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DtoGrepResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest MiddlewareJSONAPIErrorResponse

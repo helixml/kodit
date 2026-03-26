@@ -1,6 +1,58 @@
 {
     "components": {
         "schemas": {
+            "dto.ChunkingConfigAttributes": {
+                "properties": {
+                    "chunk_overlap": {
+                        "type": "integer"
+                    },
+                    "chunk_size": {
+                        "type": "integer"
+                    },
+                    "min_chunk_size": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.ChunkingConfigData": {
+                "properties": {
+                    "attributes": {
+                        "$ref": "#/components/schemas/dto.ChunkingConfigAttributes"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.ChunkingConfigResponse": {
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/dto.ChunkingConfigData"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.ChunkingConfigUpdateData": {
+                "properties": {
+                    "attributes": {
+                        "$ref": "#/components/schemas/dto.ChunkingConfigAttributes"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "dto.ChunkingConfigUpdateRequest": {
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/dto.ChunkingConfigUpdateData"
+                    }
+                },
+                "type": "object"
+            },
             "dto.CommitAttributes": {
                 "properties": {
                     "author": {
@@ -3130,6 +3182,140 @@
                 ]
             }
         },
+        "/repositories/{id}/config/chunking": {
+            "get": {
+                "description": "Get current chunking configuration for a repository",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.ChunkingConfigResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Get chunking config",
+                "tags": [
+                    "repositories"
+                ]
+            },
+            "put": {
+                "description": "Update chunking configuration for a repository",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/dto.ChunkingConfigUpdateRequest"
+                            }
+                        }
+                    },
+                    "description": "Chunking config",
+                    "required": true,
+                    "x-originalParamName": "body"
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.ChunkingConfigResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Update chunking config",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
         "/repositories/{id}/config/pipeline": {
             "get": {
                 "description": "Get the pipeline assigned to a repository. Use ?include=pipeline to include the full pipeline resource.",
@@ -3356,6 +3542,99 @@
                     }
                 ],
                 "summary": "List repository enrichments",
+                "tags": [
+                    "repositories"
+                ]
+            }
+        },
+        "/repositories/{id}/grep": {
+            "get": {
+                "deprecated": true,
+                "description": "Deprecated: use GET /api/v1/search/grep instead. Searches file contents in a repository using git grep.",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Search pattern",
+                        "in": "query",
+                        "name": "pattern",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Glob pattern to filter files",
+                        "in": "query",
+                        "name": "glob",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum results (default 50, max 200)",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.GrepResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "summary": "Grep repository (deprecated)",
                 "tags": [
                     "repositories"
                 ]
