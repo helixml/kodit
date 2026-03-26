@@ -7,6 +7,7 @@ import (
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/database"
+	"gorm.io/gorm/clause"
 )
 
 // CommitStore implements repository.CommitStore using GORM.
@@ -46,7 +47,10 @@ func (s CommitStore) SaveAll(ctx context.Context, commits []repository.Commit) (
 		models[i].UpdatedAt = now
 	}
 
-	result := s.DB(ctx).Save(&models)
+	result := s.DB(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "commit_sha"}},
+		DoUpdates: clause.AssignmentColumns([]string{"repo_id", "date", "message", "parent_commit_sha", "author", "updated_at"}),
+	}).CreateInBatches(models, gitBatchSize)
 	if result.Error != nil {
 		return nil, fmt.Errorf("save commits: %w", result.Error)
 	}

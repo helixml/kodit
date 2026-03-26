@@ -54,7 +54,7 @@ func (s TagStore) SaveAll(ctx context.Context, tags []repository.Tag) ([]reposit
 	result := s.DB(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "repo_id"}, {Name: "name"}},
 		DoUpdates: clause.AssignmentColumns([]string{"target_commit_sha", "message", "tagger_name", "tagger_email", "tagged_at", "updated_at"}),
-	}).Create(&models)
+	}).CreateInBatches(models, gitBatchSize)
 
 	if result.Error != nil {
 		return nil, fmt.Errorf("save tags: %w", result.Error)

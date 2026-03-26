@@ -13,8 +13,14 @@ import (
 	"gorm.io/gorm"
 )
 
-// saveAllBatchSize controls how many rows are inserted per multi-row INSERT.
+// saveAllBatchSize controls how many rows are inserted per multi-row INSERT
+// for embedding stores.
 const saveAllBatchSize = 100
+
+// gitBatchSize controls how many git objects (commits, files, branches, tags)
+// are inserted per batch. 1000 rows × 9 columns (worst case: TagModel) = 9 000
+// bind parameters, well under PostgreSQL's 65 535-parameter limit.
+const gitBatchSize = 1000
 
 // TaskName represents the type of embeddings (code or text).
 type TaskName string

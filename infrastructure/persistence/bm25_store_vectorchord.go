@@ -146,15 +146,16 @@ func (s *VectorChordBM25Store) existingIDs(ctx context.Context, ids []string) (m
 		return map[string]struct{}{}, nil
 	}
 
-	var found []string
-	err := s.db.WithContext(ctx).Raw(bm25CheckExistingIDsQuery, ids).Scan(&found).Error
-	if err != nil {
-		return nil, err
-	}
-
-	result := make(map[string]struct{}, len(found))
-	for _, id := range found {
-		result[id] = struct{}{}
+	result := make(map[string]struct{}, len(ids))
+	for start := 0; start < len(ids); start += gitBatchSize {
+		end := min(start+gitBatchSize, len(ids))
+		var found []string
+		if err := s.db.WithContext(ctx).Raw(bm25CheckExistingIDsQuery, ids[start:end]).Scan(&found).Error; err != nil {
+			return nil, err
+		}
+		for _, id := range found {
+			result[id] = struct{}{}
+		}
 	}
 	return result, nil
 }

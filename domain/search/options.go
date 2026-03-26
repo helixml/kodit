@@ -2,6 +2,10 @@ package search
 
 import "github.com/helixml/kodit/domain/repository"
 
+// MaxSnippetIDsPerFind is the maximum number of snippet IDs per Find call,
+// keeping IN-clause bind parameters within the PostgreSQL 65535 limit.
+const MaxSnippetIDsPerFind = 1000
+
 // WithSnippetID filters by a single snippet ID.
 func WithSnippetID(id string) repository.Option {
 	return repository.WithCondition("snippet_id", id)
