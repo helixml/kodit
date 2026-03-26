@@ -104,7 +104,7 @@ func (s *Pipeline) Initialise(ctx context.Context) error {
 	// "default" pipeline — repo operations + the full commit operation set.
 	defaultOps := s.prescribedOps.ScanAndIndexCommit()
 	if _, err := s.Create(ctx, &CreatePipelineParams{
-		Name:  "default",
+		Name:  repository.PipelineNameDefault,
 		Steps: append(repoSteps, operationsToStepParams(defaultOps)...),
 	}); err != nil {
 		return fmt.Errorf("seed default pipeline: %w", err)
@@ -113,7 +113,7 @@ func (s *Pipeline) Initialise(ctx context.Context) error {
 	// "rag" pipeline — repo operations + RAG-only commit subset (no enrichments).
 	ragOps := task.RAGOnlyPrescribedOperations().ScanAndIndexCommit()
 	if _, err := s.Create(ctx, &CreatePipelineParams{
-		Name:  "rag",
+		Name:  repository.PipelineNameRAG,
 		Steps: append(repoSteps, operationsToStepParams(ragOps)...),
 	}); err != nil {
 		return fmt.Errorf("seed rag pipeline: %w", err)

@@ -2,6 +2,12 @@ package repository
 
 import "time"
 
+// Well-known pipeline names seeded at startup.
+const (
+	PipelineNameDefault = "default"
+	PipelineNameRAG     = "rag"
+)
+
 // Pipeline represents a processing pipeline.
 type Pipeline struct {
 	id        int64
