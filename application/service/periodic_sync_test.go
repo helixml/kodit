@@ -40,7 +40,7 @@ func TestPeriodicSync_Enabled(t *testing.T) {
 		WithIntervalSeconds(0.01).     // 10ms
 		WithCheckIntervalSeconds(0.01) // 10ms
 
-	ps := NewPeriodicSync(cfg, stores.repos, queue, task.FullPrescribedOperations(), logger)
+	ps := NewPeriodicSync(cfg, stores.repos, queue, logger)
 	ps.Start(ctx)
 
 	require.Eventually(t, func() bool {
@@ -74,7 +74,7 @@ func TestPeriodicSync_Disabled(t *testing.T) {
 	cfg := config.NewPeriodicSyncConfig().
 		WithEnabled(false)
 
-	ps := NewPeriodicSync(cfg, stores.repos, queue, task.FullPrescribedOperations(), logger)
+	ps := NewPeriodicSync(cfg, stores.repos, queue, logger)
 	ps.Start(ctx)
 
 	time.Sleep(50 * time.Millisecond)
@@ -98,7 +98,7 @@ func TestPeriodicSync_EmptyRepositories(t *testing.T) {
 		WithIntervalSeconds(0.01).
 		WithCheckIntervalSeconds(0.01)
 
-	ps := NewPeriodicSync(cfg, stores.repos, queue, task.FullPrescribedOperations(), logger)
+	ps := NewPeriodicSync(cfg, stores.repos, queue, logger)
 	ps.Start(ctx)
 
 	time.Sleep(50 * time.Millisecond)

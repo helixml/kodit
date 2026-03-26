@@ -11,6 +11,7 @@ import (
 type RepositoryAttributes struct {
 	RemoteURI      string     `json:"remote_uri"`
 	UpstreamURL    string     `json:"upstream_url"` // The canonical upstream URL (e.g. github.com/org/repo); falls back to remote_uri when not set
+	PipelineID     int64      `json:"pipeline_id"`
 	CreatedAt      *time.Time `json:"created_at,omitempty"`
 	UpdatedAt      *time.Time `json:"updated_at,omitempty"`
 	LastScannedAt  *time.Time `json:"last_scanned_at,omitempty"`
@@ -21,11 +22,17 @@ type RepositoryAttributes struct {
 	NumTags        int        `json:"num_tags"`
 }
 
+// RepositoryLinks holds links for a repository resource.
+type RepositoryLinks struct {
+	Pipeline *string `json:"pipeline,omitempty"`
+}
+
 // RepositoryData represents repository data in JSON:API format.
 type RepositoryData struct {
 	Type       string               `json:"type"`
 	ID         string               `json:"id"`
 	Attributes RepositoryAttributes `json:"attributes"`
+	Links      *RepositoryLinks     `json:"links,omitempty"`
 }
 
 // RepositoryResponse represents a single repository response in JSON:API format.
@@ -194,6 +201,29 @@ type ChunkingConfigUpdateData struct {
 // ChunkingConfigUpdateRequest represents a chunking config update request.
 type ChunkingConfigUpdateRequest struct {
 	Data ChunkingConfigUpdateData `json:"data"`
+}
+
+// PipelineConfigAttributes represents pipeline configuration attributes in JSON:API format.
+type PipelineConfigAttributes struct {
+	PipelineID int64 `json:"pipeline_id"`
+}
+
+// PipelineConfigLinks holds links for a pipeline config resource.
+type PipelineConfigLinks struct {
+	Pipeline string `json:"pipeline"`
+}
+
+// PipelineConfigData represents pipeline configuration data in JSON:API format.
+type PipelineConfigData struct {
+	Type       string                   `json:"type"`
+	Attributes PipelineConfigAttributes `json:"attributes"`
+	Links      PipelineConfigLinks      `json:"links"`
+}
+
+// PipelineConfigResponse represents a pipeline configuration response in JSON:API format.
+type PipelineConfigResponse struct {
+	Data     PipelineConfigData `json:"data"`
+	Included []PipelineData     `json:"included,omitempty"`
 }
 
 // Legacy types for backwards compatibility during migration

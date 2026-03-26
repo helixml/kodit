@@ -229,6 +229,7 @@ func testArchEnrichment() enrichment.Enrichment {
 func testRepo() repository.Repository {
 	return repository.ReconstructRepository(
 		1,
+		0,
 		"https://github.com/example/repo",
 		"https://github.com/example/repo",
 		"",
@@ -395,6 +396,7 @@ func TestServer_ListRepositories(t *testing.T) {
 func TestServer_ListRepositories_DisplaysUpstreamURL(t *testing.T) {
 	repo := repository.ReconstructRepository(
 		1,
+		0,
 		"http://app.helix.ml/v1/api/git/AAA",
 		"http://app.helix.ml/v1/api/git/AAA",
 		"https://github.com/huggingface/sentence-transformers",
@@ -447,6 +449,7 @@ func TestServer_ListRepositories_FallsBackToSanitizedURL(t *testing.T) {
 	// No explicit upstream URL set — UpstreamURL() should return the sanitized URL.
 	repo := repository.ReconstructRepository(
 		1,
+		0,
 		"https://github.com/example/repo",
 		"https://github.com/example/repo",
 		"",
@@ -2289,6 +2292,7 @@ func TestServer_Ls_RepoNotFound(t *testing.T) {
 func testRepoWithCredentials() repository.Repository {
 	return repository.ReconstructRepository(
 		1,
+		0,
 		"http://user:secret-token@api:8080/git/my-repo",
 		"http://api:8080/git/my-repo",
 		"",

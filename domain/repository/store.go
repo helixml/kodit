@@ -9,6 +9,7 @@ type Store[T any] interface {
 	Count(ctx context.Context, options ...Option) (int64, error)
 	Save(ctx context.Context, entity T) (T, error)
 	Delete(ctx context.Context, entity T) error
+	DeleteBy(ctx context.Context, options ...Option) error
 }
 
 // RepositoryStore defines the interface for Repository persistence.
@@ -41,4 +42,24 @@ type FileStore interface {
 	Store[File]
 	DeleteBy(ctx context.Context, options ...Option) error
 	SaveAll(ctx context.Context, files []File) ([]File, error)
+}
+
+// PipelineStore defines the interface for Pipeline persistence.
+type PipelineStore interface {
+	Store[Pipeline]
+}
+
+// StepStore defines the interface for Step persistence.
+type StepStore interface {
+	Store[Step]
+}
+
+// PipelineStepStore defines the interface for PipelineStep persistence.
+type PipelineStepStore interface {
+	Store[PipelineStep]
+}
+
+// StepDependencyStore defines the interface for StepDependency persistence.
+type StepDependencyStore interface {
+	Store[StepDependency]
 }

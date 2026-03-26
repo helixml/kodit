@@ -7,6 +7,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
+	"github.com/helixml/kodit/infrastructure/persistence/models"
 	"github.com/helixml/kodit/internal/database"
 	"gorm.io/gorm"
 )
@@ -125,6 +126,10 @@ func AutoMigrate(db database.Database) error {
 		&ChunkLineRangeModel{},
 		&TaskModel{},
 		&TaskStatusModel{},
+		&models.Pipeline{},
+		&models.Step{},
+		&models.PipelineStep{},
+		&models.StepDependency{},
 	); err != nil {
 		return err
 	}
@@ -216,6 +221,10 @@ func allModels() []interface{} {
 		&ChunkLineRangeModel{},
 		&TaskModel{},
 		&TaskStatusModel{},
+		&models.Pipeline{},
+		&models.Step{},
+		&models.PipelineStep{},
+		&models.StepDependency{},
 	}
 }
 

@@ -28,7 +28,8 @@ type APIServer struct {
 
 // NewAPIServer creates a new APIServer wired to the given kodit Client.
 // apiKeys configures write-protection: mutating endpoints (POST, PUT, PATCH,
-// DELETE) on /api/v1/repositories and /api/v1/enrichments require a valid key.
+// DELETE) on /api/v1/repositories, /api/v1/enrichments, /api/v1/pipelines,
+// and /api/v1/steps require a valid key.
 // Read-only endpoints, search, MCP, and docs remain open.
 func NewAPIServer(client *kodit.Client, apiKeys []string) *APIServer {
 	return &APIServer{
@@ -67,6 +68,8 @@ func (a *APIServer) mountRoutes(router chi.Router) {
 	reposRouter := v1.NewRepositoriesRouter(c)
 	queueRouter := v1.NewQueueRouter(c)
 	enrichmentsRouter := v1.NewEnrichmentsRouter(c)
+	pipelinesRouter := v1.NewPipelinesRouter(c)
+	stepsRouter := v1.NewStepsRouter(c)
 	searchRouter := v1.NewSearchRouter(c)
 
 	router.Route("/api/v1", func(r chi.Router) {
@@ -81,6 +84,8 @@ func (a *APIServer) mountRoutes(router chi.Router) {
 			r.Use(apimiddleware.WriteProtectAuth(a.apiKeys))
 			r.Mount("/repositories", reposRouter.Routes())
 			r.Mount("/enrichments", enrichmentsRouter.Routes())
+			r.Mount("/pipelines", pipelinesRouter.Routes())
+			r.Mount("/steps", stepsRouter.Routes())
 		})
 	})
 

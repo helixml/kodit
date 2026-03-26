@@ -26,7 +26,7 @@ func (c *Client) registerHandlers() error {
 		c.repoStores.Repositories, c.gitInfra.Cloner, c.queue, c.enrichCtx.Tracker, c.logger,
 	))
 	c.registry.Register(task.OperationSyncRepository, repohandler.NewSync(
-		c.repoStores.Repositories, c.repoStores.Branches, c.gitInfra.Cloner, c.gitInfra.Scanner, c.queue, c.prescribedOps, c.enrichCtx.Tracker, c.logger,
+		c.repoStores.Repositories, c.repoStores.Branches, c.gitInfra.Cloner, c.gitInfra.Scanner, c.queue, c.Pipelines, c.enrichCtx.Tracker, c.logger,
 	))
 	c.registry.Register(task.OperationDeleteRepository, repohandler.NewDelete(
 		c.repoStores, c.Enrichments, c.queue, c.enrichCtx.Tracker, c.logger,
@@ -140,9 +140,9 @@ func (c *Client) registerHandlers() error {
 
 // validateHandlers checks that every prescribed operation has a registered handler.
 // Returns an error listing missing operations and which provider to configure.
-func (c *Client) validateHandlers() error {
+func (c *Client) validateHandlers(requiredOps []task.Operation) error {
 	var missing []string
-	for _, op := range c.prescribedOps.All() {
+	for _, op := range requiredOps {
 		if !c.registry.HasHandler(op) {
 			missing = append(missing, op.String())
 		}

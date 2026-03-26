@@ -177,6 +177,25 @@ func (ts *TestServer) POSTRaw(path string, body string) *http.Response {
 	return resp
 }
 
+// PUT performs a PUT request with JSON body and returns the response.
+func (ts *TestServer) PUT(path string, body any) *http.Response {
+	ts.t.Helper()
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		ts.t.Fatalf("marshal body: %v", err)
+	}
+	req, err := http.NewRequest(http.MethodPut, ts.URL()+path, bytes.NewReader(jsonBody))
+	if err != nil {
+		ts.t.Fatalf("create PUT request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		ts.t.Fatalf("PUT %s: %v", path, err)
+	}
+	return resp
+}
+
 // DELETE performs a DELETE request and returns the response.
 func (ts *TestServer) DELETE(path string) *http.Response {
 	ts.t.Helper()
@@ -224,6 +243,11 @@ func (ts *TestServer) CreateRepository(remoteURL string) repository.Repository {
 	if err != nil {
 		ts.t.Fatalf("create repo: %v", err)
 	}
+	defaultPID, err := ts.client.Pipelines.DefaultID(ctx)
+	if err != nil {
+		ts.t.Fatalf("get default pipeline: %v", err)
+	}
+	repo = repo.WithPipelineID(defaultPID)
 	saved, err := ts.repoStore.Save(ctx, repo)
 	if err != nil {
 		ts.t.Fatalf("save repo: %v", err)
@@ -311,6 +335,12 @@ func (ts *TestServer) CreateRepositoryWithWorkingCopy(remoteURL string) reposito
 	if err != nil {
 		ts.t.Fatalf("create repo: %v", err)
 	}
+
+	defaultPID, err := ts.client.Pipelines.DefaultID(ctx)
+	if err != nil {
+		ts.t.Fatalf("get default pipeline: %v", err)
+	}
+	repo = repo.WithPipelineID(defaultPID)
 
 	// Add a working copy (fake path, just needs to be non-empty)
 	workingCopy := repository.NewWorkingCopy("/tmp/fake-repo", remoteURL)

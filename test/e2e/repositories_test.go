@@ -617,3 +617,113 @@ func TestRepositories_ListCommitSnippets(t *testing.T) {
 		t.Errorf("snippet ID = %q, want %q", snippetData.ID, fmt.Sprintf("%d", saved.ID()))
 	}
 }
+
+func TestRepositories_GetPipelineConfig(t *testing.T) {
+	ts := NewTestServer(t)
+
+	repo := ts.CreateRepository("https://github.com/test/pipeline-config-repo.git")
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/config/pipeline", repo.ID()))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusOK, ts.ReadBody(resp))
+	}
+
+	var result dto.PipelineConfigResponse
+	ts.DecodeJSON(resp, &result)
+
+	if result.Data.Type != "pipeline-config" {
+		t.Errorf("type = %q, want %q", result.Data.Type, "pipeline-config")
+	}
+	if result.Data.Attributes.PipelineID == 0 {
+		t.Error("pipeline_id should be non-zero (default pipeline)")
+	}
+	if len(result.Included) != 0 {
+		t.Errorf("expected no included resources by default, got %d", len(result.Included))
+	}
+}
+
+func TestRepositories_GetPipelineConfig_WithInclude(t *testing.T) {
+	ts := NewTestServer(t)
+
+	repo := ts.CreateRepository("https://github.com/test/pipeline-include-repo.git")
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/config/pipeline?include=pipeline", repo.ID()))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusOK, ts.ReadBody(resp))
+	}
+
+	var result dto.PipelineConfigResponse
+	ts.DecodeJSON(resp, &result)
+
+	if result.Data.Attributes.PipelineID == 0 {
+		t.Fatal("pipeline_id should be non-zero")
+	}
+	if len(result.Included) != 1 {
+		t.Fatalf("expected 1 included resource, got %d", len(result.Included))
+	}
+	if result.Included[0].Type != "pipeline" {
+		t.Errorf("included type = %q, want %q", result.Included[0].Type, "pipeline")
+	}
+	if result.Included[0].Attributes.Name == "" {
+		t.Error("included pipeline name should not be empty")
+	}
+}
+
+func TestRepositories_UpdatePipelineConfig(t *testing.T) {
+	ts := NewTestServer(t)
+
+	repo := ts.CreateRepository("https://github.com/test/pipeline-update-repo.git")
+
+	// Get the current pipeline config to find the default pipeline ID.
+	getResp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/config/pipeline", repo.ID()))
+	var current dto.PipelineConfigResponse
+	ts.DecodeJSON(getResp, &current)
+	defaultPipelineID := current.Data.Attributes.PipelineID
+
+	// The system seeds two pipelines ("default" and "rag"). Find the other one.
+	// Both pipelines exist; the rag pipeline has a different ID.
+	ragPipelineID := defaultPipelineID + 1
+
+	// Switch to the rag pipeline.
+	body := dto.PipelineConfigUpdateRequest{
+		Data: dto.PipelineConfigUpdateData{
+			Type: "pipeline-config",
+			Attributes: dto.PipelineConfigAttributes{
+				PipelineID: ragPipelineID,
+			},
+		},
+	}
+	putResp := ts.PUT(fmt.Sprintf("/api/v1/repositories/%d/config/pipeline", repo.ID()), body)
+	if putResp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", putResp.StatusCode, http.StatusOK, ts.ReadBody(putResp))
+	}
+
+	var updated dto.PipelineConfigResponse
+	ts.DecodeJSON(putResp, &updated)
+
+	if updated.Data.Attributes.PipelineID != ragPipelineID {
+		t.Errorf("pipeline_id = %d, want %d", updated.Data.Attributes.PipelineID, ragPipelineID)
+	}
+
+	// Verify a subsequent GET returns the new pipeline.
+	verifyResp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/config/pipeline", repo.ID()))
+	var verified dto.PipelineConfigResponse
+	ts.DecodeJSON(verifyResp, &verified)
+
+	if verified.Data.Attributes.PipelineID != ragPipelineID {
+		t.Errorf("after update: pipeline_id = %d, want %d", verified.Data.Attributes.PipelineID, ragPipelineID)
+	}
+}
+
+func TestRepositories_GetPipelineConfig_NotFound(t *testing.T) {
+	ts := NewTestServer(t)
+
+	resp := ts.GET("/api/v1/repositories/99999/config/pipeline")
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}

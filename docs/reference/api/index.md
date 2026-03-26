@@ -134,6 +134,138 @@ Update an enrichment's content
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+### GET /pipelines
+
+List all pipelines with pagination
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| page | integer |  | Page number (default: 1) |
+| page_size | integer |  | Results per page (default: 20, max: 100) |
+
+
+#### Responses
+
+- 200: OK
+
+[dto.PipelineListResponse](#dto.pipelinelistresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### POST /pipelines
+
+Create a new pipeline with steps
+
+
+#### Request Body
+
+[dto.PipelineCreateRequest](#dto.pipelinecreaterequest)
+
+
+#### Responses
+
+- 201: Created
+
+[dto.PipelineDetailResponse](#dto.pipelinedetailresponse)
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### DELETE /pipelines/{id}
+
+Delete a pipeline and all its steps
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Pipeline ID |
+
+
+#### Responses
+
+- 204: No Content
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### GET /pipelines/{id}
+
+Get a pipeline with its steps and dependencies
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Pipeline ID |
+
+
+#### Responses
+
+- 200: OK
+
+[dto.PipelineDetailResponse](#dto.pipelinedetailresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### PUT /pipelines/{id}
+
+Replace pipeline name and steps
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Pipeline ID |
+
+
+#### Request Body
+
+[dto.PipelineUpdateRequest](#dto.pipelineupdaterequest)
+
+
+#### Responses
+
+- 200: OK
+
+[dto.PipelineDetailResponse](#dto.pipelinedetailresponse)
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 ### GET /queue
 
 List tasks in the queue
@@ -622,6 +754,129 @@ List code snippets for a commit (backed by enrichments)
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+### GET /repositories/{id}/config/chunking
+
+Get current chunking configuration for a repository
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Repository ID |
+
+
+#### Responses
+
+- 200: OK
+
+[dto.ChunkingConfigResponse](#dto.chunkingconfigresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### PUT /repositories/{id}/config/chunking
+
+Update chunking configuration for a repository
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Repository ID |
+
+
+#### Request Body
+
+[dto.ChunkingConfigUpdateRequest](#dto.chunkingconfigupdaterequest)
+
+
+#### Responses
+
+- 200: OK
+
+[dto.ChunkingConfigResponse](#dto.chunkingconfigresponse)
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### GET /repositories/{id}/config/pipeline
+
+Get the pipeline assigned to a repository. Use ?include=pipeline to include the full pipeline resource.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Repository ID |
+| include | string |  | Comma-separated related resources to include (e.g. pipeline) |
+
+
+#### Responses
+
+- 200: OK
+
+[dto.PipelineConfigResponse](#dto.pipelineconfigresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### PUT /repositories/{id}/config/pipeline
+
+Assign a pipeline to a repository
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Repository ID |
+
+
+#### Request Body
+
+[dto.PipelineConfigUpdateRequest](#dto.pipelineconfigupdaterequest)
+
+
+#### Responses
+
+- 200: OK
+
+[dto.PipelineConfigResponse](#dto.pipelineconfigresponse)
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 ### GET /repositories/{id}/enrichments
 
 List recent enrichments across commits for a repository
@@ -643,6 +898,39 @@ List recent enrichments across commits for a repository
 - 200: OK
 
 [dto.EnrichmentJSONAPIListResponse](#dto.enrichmentjsonapilistresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### GET /repositories/{id}/grep
+
+Deprecated: use GET /api/v1/search/grep instead. Searches file contents in a repository using git grep.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Repository ID |
+| pattern | string | True | Search pattern |
+| glob | string |  | Glob pattern to filter files |
+| limit | integer |  | Maximum results (default 50, max 200) |
+
+
+#### Responses
+
+- 200: OK
+
+[dto.GrepResponse](#dto.grepresponse)
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 404: Not Found
 
@@ -1065,8 +1353,106 @@ Search code snippets using semantic similarity
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+### GET /steps
+
+List all steps with pagination
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| page | integer |  | Page number (default: 1) |
+| page_size | integer |  | Results per page (default: 20, max: 100) |
+
+
+#### Responses
+
+- 200: OK
+
+[dto.StepListResponse](#dto.steplistresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+### GET /steps/{id}
+
+Get a step by ID
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Step ID |
+
+
+#### Responses
+
+- 200: OK
+
+[dto.StepResponse](#dto.stepresponse)
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 ## Components
 
+
+
+### dto.ChunkingConfigAttributes
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| chunk_overlap | integer |  |
+| chunk_size | integer |  |
+| min_chunk_size | integer |  |
+
+
+### dto.ChunkingConfigData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| type | string |  |
+
+
+### dto.ChunkingConfigResponse
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+
+
+### dto.ChunkingConfigUpdateData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| type | string |  |
+
+
+### dto.ChunkingConfigUpdateRequest
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
 
 
 ### dto.CommitAttributes
@@ -1323,6 +1709,175 @@ Search code snippets using semantic similarity
 | meta |  |  |
 
 
+### dto.PipelineAttributes
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| created_at | string |  |
+| name | string |  |
+| updated_at | string |  |
+
+
+### dto.PipelineConfigAttributes
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| pipeline_id | integer |  |
+
+
+### dto.PipelineConfigData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| links |  |  |
+| type | string |  |
+
+
+### dto.PipelineConfigLinks
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| pipeline | string |  |
+
+
+### dto.PipelineConfigResponse
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+| included | array |  |
+
+
+### dto.PipelineConfigUpdateData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| type | string |  |
+
+
+### dto.PipelineConfigUpdateRequest
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+
+
+### dto.PipelineCreateAttributes
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| name | string |  |
+| steps | array |  |
+
+
+### dto.PipelineCreateData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| type | string |  |
+
+
+### dto.PipelineCreateRequest
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+
+
+### dto.PipelineData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| id | integer |  |
+| links |  |  |
+| type | string |  |
+
+
+### dto.PipelineDetailResponse
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+| included | array |  |
+
+
+### dto.PipelineLinks
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| self | string |  |
+
+
+### dto.PipelineListResponse
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data | array |  |
+| links |  |  |
+| meta |  |  |
+
+
+### dto.PipelineUpdateAttributes
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| name | string |  |
+| steps | array |  |
+
+
+### dto.PipelineUpdateData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| type | string |  |
+
+
+### dto.PipelineUpdateRequest
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+
+
 ### dto.RepositoryAttributes
 
 
@@ -1335,6 +1890,7 @@ Search code snippets using semantic similarity
 | num_branches | integer |  |
 | num_commits | integer |  |
 | num_tags | integer |  |
+| pipeline_id | integer |  |
 | remote_uri | string |  |
 | tracking_branch | string |  |
 | updated_at | string |  |
@@ -1401,6 +1957,7 @@ Search code snippets using semantic similarity
 |-------|------|-------------|
 | attributes |  |  |
 | id | string |  |
+| links |  |  |
 | type | string |  |
 
 
@@ -1413,6 +1970,15 @@ Search code snippets using semantic similarity
 | branches | array |  |
 | data |  |  |
 | recent_commits | array |  |
+
+
+### dto.RepositoryLinks
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| pipeline | string |  |
 
 
 ### dto.RepositoryListResponse
@@ -1581,6 +2147,71 @@ Search code snippets using semantic similarity
 | data | array |  |
 | links |  |  |
 | meta |  |  |
+
+
+### dto.StepAttributes
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| depends_on | array |  |
+| join_type | string |  |
+| kind | string |  |
+| name | string |  |
+
+
+### dto.StepData
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| attributes |  |  |
+| id | integer |  |
+| links |  |  |
+| type | string |  |
+
+
+### dto.StepInput
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| depends_on | array |  |
+| join_type | string |  |
+| kind | string |  |
+| name | string |  |
+
+
+### dto.StepLinks
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| self | string |  |
+
+
+### dto.StepListResponse
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data | array |  |
+| links |  |  |
+| meta |  |  |
+
+
+### dto.StepResponse
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
 
 
 ### dto.TagAttributes

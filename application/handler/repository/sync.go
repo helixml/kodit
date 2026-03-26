@@ -23,7 +23,7 @@ type Sync struct {
 	cloner         domainservice.Cloner
 	scanner        domainservice.Scanner
 	queue          *service.Queue
-	prescribedOps  task.PrescribedOperations
+	resolver       handler.CommitOperationResolver
 	trackerFactory handler.TrackerFactory
 	logger         zerolog.Logger
 }
@@ -35,7 +35,7 @@ func NewSync(
 	cloner domainservice.Cloner,
 	scanner domainservice.Scanner,
 	queue *service.Queue,
-	prescribedOps task.PrescribedOperations,
+	resolver handler.CommitOperationResolver,
 	trackerFactory handler.TrackerFactory,
 	logger zerolog.Logger,
 ) *Sync {
@@ -45,7 +45,7 @@ func NewSync(
 		cloner:         cloner,
 		scanner:        scanner,
 		queue:          queue,
-		prescribedOps:  prescribedOps,
+		resolver:       resolver,
 		trackerFactory: trackerFactory,
 		logger:         logger,
 	}
@@ -165,6 +165,10 @@ func (h *Sync) enqueueCommitScans(ctx context.Context, repo repository.Repositor
 		"commit_sha":    commitSHA,
 	}
 
-	operations := h.prescribedOps.ScanAndIndexCommit()
+	operations, err := h.resolver.Operations(ctx, repo.PipelineID())
+	if err != nil {
+		return fmt.Errorf("resolve pipeline operations: %w", err)
+	}
+
 	return h.queue.EnqueueOperations(ctx, operations, task.PriorityNormal, payload)
 }

@@ -3,26 +3,30 @@ package persistence
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/helixml/kodit/infrastructure/persistence/models"
 )
 
 // RepositoryModel represents a Git repository in the database.
 type RepositoryModel struct {
-	ID                 int64      `gorm:"primaryKey;autoIncrement"`
-	SanitizedRemoteURI string     `gorm:"column:sanitized_remote_uri;index;uniqueIndex;size:1024"`
-	RemoteURI          string     `gorm:"column:remote_uri;size:1024"`
-	UpstreamURL        *string    `gorm:"column:upstream_url;index;size:1024"`
-	ClonedPath         *string    `gorm:"column:cloned_path;size:1024"`
-	LastScannedAt      *time.Time `gorm:"column:last_scanned_at"`
-	NumCommits         int        `gorm:"column:num_commits;default:0"`
-	NumBranches        int        `gorm:"column:num_branches;default:0"`
-	NumTags            int        `gorm:"column:num_tags;default:0"`
-	TrackingType       string     `gorm:"column:tracking_type;index;size:255"`
-	TrackingName       string     `gorm:"column:tracking_name;index;size:255"`
-	ChunkSize          int        `gorm:"column:chunk_size"`
-	ChunkOverlap       int        `gorm:"column:chunk_overlap"`
-	MinChunkSize       int        `gorm:"column:min_chunk_size"`
-	CreatedAt          time.Time  `gorm:"column:created_at"`
-	UpdatedAt          time.Time  `gorm:"column:updated_at"`
+	ID                 int64           `gorm:"primaryKey;autoIncrement"`
+	PipelineID         *int64          `gorm:"column:pipeline_id;index"`
+	Pipeline           models.Pipeline `gorm:"foreignKey:PipelineID;constraint:OnDelete:SET NULL"`
+	SanitizedRemoteURI string          `gorm:"column:sanitized_remote_uri;index;uniqueIndex;size:1024"`
+	RemoteURI          string          `gorm:"column:remote_uri;size:1024"`
+	UpstreamURL        *string         `gorm:"column:upstream_url;index;size:1024"`
+	ClonedPath         *string         `gorm:"column:cloned_path;size:1024"`
+	LastScannedAt      *time.Time      `gorm:"column:last_scanned_at"`
+	NumCommits         int             `gorm:"column:num_commits;default:0"`
+	NumBranches        int             `gorm:"column:num_branches;default:0"`
+	NumTags            int             `gorm:"column:num_tags;default:0"`
+	TrackingType       string          `gorm:"column:tracking_type;index;size:255"`
+	TrackingName       string          `gorm:"column:tracking_name;index;size:255"`
+	ChunkSize          int             `gorm:"column:chunk_size"`
+	ChunkOverlap       int             `gorm:"column:chunk_overlap"`
+	MinChunkSize       int             `gorm:"column:min_chunk_size"`
+	CreatedAt          time.Time       `gorm:"column:created_at"`
+	UpdatedAt          time.Time       `gorm:"column:updated_at"`
 }
 
 // TableName returns the table name.
