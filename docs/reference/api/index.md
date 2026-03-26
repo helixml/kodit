@@ -1926,6 +1926,7 @@ Get a step by ID
 
 | Field | Type | Description |
 |-------|------|-------------|
+| pipeline | string | Optional pipeline name; looked up by name and assigned to the repository (defaults to the system default pipeline) |
 | remote_uri | string |  |
 | upstream_url | string | Optional canonical upstream URL; used for deduplication when multiple clone URLs point to the same repo |
 

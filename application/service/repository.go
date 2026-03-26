@@ -14,6 +14,7 @@ import (
 type RepositoryAddParams struct {
 	URL         string
 	UpstreamURL string
+	Pipeline    string
 	Branch      string
 	Tag         string
 	Commit      string
@@ -126,11 +127,11 @@ func (s *Repository) Add(ctx context.Context, params *RepositoryAddParams) (repo
 		)
 	}
 
-	defaultPID, err := s.resolver.DefaultID(ctx)
+	pipelineID, err := s.resolvePipelineID(ctx, params.Pipeline)
 	if err != nil {
-		return repository.Source{}, false, fmt.Errorf("resolve default pipeline: %w", err)
+		return repository.Source{}, false, fmt.Errorf("resolve pipeline: %w", err)
 	}
-	repo = repo.WithPipelineID(defaultPID)
+	repo = repo.WithPipelineID(pipelineID)
 
 	savedRepo, err := s.repoStore.Save(ctx, repo)
 	if err != nil {
@@ -349,6 +350,18 @@ func (s *Repository) BackfillDefaultPipeline(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// resolvePipelineID looks up a pipeline by name, or falls back to the default.
+func (s *Repository) resolvePipelineID(ctx context.Context, name string) (int64, error) {
+	if name == "" {
+		return s.resolver.DefaultID(ctx)
+	}
+	pipeline, err := s.pipelineStore.FindOne(ctx, repository.WithName(name))
+	if err != nil {
+		return 0, fmt.Errorf("find pipeline %q: %w", name, err)
+	}
+	return pipeline.ID(), nil
 }
 
 // --- internal write operations ---
