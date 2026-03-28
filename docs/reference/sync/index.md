@@ -63,8 +63,19 @@ If you prefer to sync manually:
 PERIODIC_SYNC_ENABLED=false
 ```
 
+## Manual Sync
+
+You can also trigger a manual sync for a specific repository via the API:
+
+```sh
+curl -X POST http://localhost:8080/api/v1/repositories/1/sync
+```
+
+This enqueues a sync task (git fetch + branch scan + commit indexing) and returns
+immediately with a `202 Accepted` status.
+
 ## Limitations
 
-- **Only syncs existing indexes**: The sync scheduler does not create new indexes for repositories that haven't been indexed yet
-- **Sequential processing**: Indexes are synced one at a time to avoid overwhelming the system
+- **Only syncs existing repositories**: The sync scheduler does not create new indexes for repositories that haven't been added yet
+- **Sequential processing**: Repositories are synced one at a time to avoid overwhelming the system
 - **No conflict resolution**: If there are conflicts during sync, the operation may fail and require manual intervention

@@ -35,8 +35,14 @@ curl http://localhost:8080/api/v1/repositories \
 curl http://localhost:8080/api/v1/repositories/1/status
 ```
 
-Wait for the indexing process to complete. If you see any errors at this stage, check
-your logs and consult the [troubleshooting guide](../reference/troubleshooting/index.md).
+Wait for the indexing process to complete. You can also check the aggregated summary:
+
+```sh
+curl http://localhost:8080/api/v1/repositories/1/status/summary
+```
+
+If you see any errors at this stage, check your logs and consult the
+[troubleshooting guide](../../reference/troubleshooting/index.md).
 
 ## 4. Search for Code
 
@@ -60,8 +66,37 @@ curl http://localhost:8080/api/v1/search \
 }'
 ```
 
-Check the API docs for more endpoints and examples.
+You can also use the keyword or semantic search endpoints directly:
 
-## 5. Integrate with your AI coding assistant
+```sh
+# Keyword search (BM25)
+curl "http://localhost:8080/api/v1/search/keyword?keywords=orders&limit=5"
+
+# Semantic search
+curl "http://localhost:8080/api/v1/search/semantic?query=get+all+orders&limit=5"
+
+# Grep (regex search via git grep)
+curl "http://localhost:8080/api/v1/search/grep?repository_id=1&pattern=GetAllOrders"
+
+# List files matching a pattern
+curl "http://localhost:8080/api/v1/search/ls?repository_id=1&pattern=**/*.go"
+```
+
+Check the [API docs](../../reference/api/index.md) for more endpoints and examples.
+
+## 5. Browse Enrichments
+
+If you configured an enrichment endpoint, Kodit generates AI-powered documentation for
+your repository. You can browse it via the API:
+
+```sh
+# List enrichments for the latest commit
+curl http://localhost:8080/api/v1/repositories/1/enrichments
+
+# View the wiki table of contents
+curl http://localhost:8080/api/v1/repositories/1/wiki
+```
+
+## 6. Integrate with your AI coding assistant
 
 Now [add the Kodit MCP server to your AI coding assistant](../integration/index.md).

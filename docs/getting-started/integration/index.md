@@ -13,7 +13,7 @@ Kodit runs an HTTP server that streams responses to connected AI coding assistan
 the `/mcp` endpoint.
 
 See the [MCP Reference](../../reference/mcp/index.md) for comprehensive integration
-instructions for popular coding assistants like Cursor, Claude, Cline, etc.
+instructions for popular coding assistants like Cursor, Claude Code, Cline, and Kilo Code.
 
 ### Local
 
@@ -30,5 +30,11 @@ instructions for popular coding assistants like Cursor, Claude, Cline, etc.
 
 ## HTTP API Connection Methods
 
-Helix also exposes a REST API with an `/api/v1/search` endpoint to allow integration
-with other tools. See the [Kodit HTTP API documentation](../../reference/api/index.md) for more information.
+Kodit also exposes a REST API with search, file browsing, and repository management
+endpoints. See the [API documentation](../../reference/api/index.md) for details.
+
+## Go SDK
+
+For programmatic access from Go applications, Kodit provides a library for direct
+embedding and a generated HTTP client for remote access. See the
+[Go SDK reference](../../reference/go-sdk/index.md) for details.

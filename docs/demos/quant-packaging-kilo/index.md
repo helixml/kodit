@@ -53,13 +53,13 @@ Let's index the quant helper library and create our analysis notebook:
 
    ```sh
    curl --request POST \
-   --url http://localhost:8080/api/v1/indexes \
+   --url http://localhost:8080/api/v1/repositories \
    --header 'Content-Type: application/json' \
    --data '{
    "data": {
-      "type": "index",
+      "type": "repository",
       "attributes": {
-         "uri": "https://github.com/philwinder/quant-helper"
+         "remote_uri": "https://github.com/philwinder/quant-helper"
       }
    }
    }'
@@ -67,13 +67,13 @@ Let's index the quant helper library and create our analysis notebook:
 
    ```sh
    curl --request POST \
-   --url http://localhost:8080/api/v1/indexes \
+   --url http://localhost:8080/api/v1/repositories \
    --header 'Content-Type: application/json' \
    --data '{
    "data": {
-      "type": "index",
+      "type": "repository",
       "attributes": {
-         "uri": "https://github.com/philwinder/quant-packaging"
+         "remote_uri": "https://github.com/philwinder/quant-packaging"
       }
    }
    }'

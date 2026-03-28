@@ -62,13 +62,13 @@ Now let's index the microservices and try again:
 
    ```sh
    curl --request POST \
-   --url http://localhost:8080/api/v1/indexes \
+   --url http://localhost:8080/api/v1/repositories \
    --header 'Content-Type: application/json' \
    --data '{
    "data": {
-      "type": "index",
+      "type": "repository",
       "attributes": {
-         "uri": "https://gist.github.com/philwinder/db2e17413332844fa4b14971ae5adb34.git"
+         "remote_uri": "https://gist.github.com/philwinder/db2e17413332844fa4b14971ae5adb34.git"
       }
    }
    }'
@@ -79,13 +79,13 @@ Now let's index the microservices and try again:
 
    ```sh
    curl --request POST \
-   --url http://localhost:8080/api/v1/indexes \
+   --url http://localhost:8080/api/v1/repositories \
    --header 'Content-Type: application/json' \
    --data '{
    "data": {
-      "type": "index",
+      "type": "repository",
       "attributes": {
-         "uri": "https://gist.github.com/philwinder/7aa38185e20433c04c533f2b28f4e217.git"
+         "remote_uri": "https://gist.github.com/philwinder/7aa38185e20433c04c533f2b28f4e217.git"
       }
    }
    }'
