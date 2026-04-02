@@ -6,20 +6,20 @@ Kodit currently supports a single embedding model at a time (text-only). Users n
 
 ## User Stories
 
-**US-1: Multiple text embedders**
-As a developer, I want to register more than one text embedding model so that I can use different models optimised for different content types (e.g. one for code, one for documentation prose).
+**US-1: Search images by visual similarity**
+As a developer, I want to search my repository's images (diagrams, screenshots, UI mockups) by describing what I'm looking for, so that I can find visually relevant assets without remembering exact filenames or alt text.
 
-**US-2: Vision embedding model**
-As a developer, I want to register a vision embedding model so that image content (diagrams, screenshots) in my repositories can be indexed and searched by visual similarity.
+**US-2: Better search results per content type**
+As a developer, I want code search and documentation search to each use a model trained for that content type, so that results are more relevant than using a single general-purpose model for everything.
 
-**US-3: N embedders without limit**
-As a developer, I want to register an arbitrary number of embedders (text, vision, or multimodal) so I can compose specialised pipelines without artificial constraints.
+**US-3: Add specialised embedders without rebuilding**
+As a developer, I want to introduce a new specialised embedder (e.g. for audio transcripts or diagrams) without disrupting existing embedding pipelines, so that I can extend coverage incrementally.
 
-**US-4: Named embedder results in search**
-As a developer, I want search results to indicate which embedder produced them so I can distinguish code-vector hits from vision-vector hits.
+**US-4: Know which embedder produced a result**
+As a developer, I want search results to tell me which embedding model matched them, so that I can understand why a result was returned and tune my query accordingly.
 
-**US-5: Embedder-scoped search**
-As a developer, I want to restrict a search query to a specific named embedder so that vision queries only hit vision embeddings and code queries only hit code embeddings.
+**US-5: Target a query at a specific embedder**
+As a developer, I want to direct a search query at one specific embedder (e.g. vision-only), so that I get back only the results that are semantically meaningful for that modality.
 
 ## Acceptance Criteria
 
