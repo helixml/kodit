@@ -1,44 +1,34 @@
 # Implementation Tasks
 
-## Domain layer
+## Domain
 
-- [ ] Add `VisionEmbedder` interface and `Image` type to `domain/search/embedder.go`
-- [ ] Add `NamedEmbedder` struct to `domain/search/embedder.go` (pairs name + text/vision capability)
-- [ ] Add `EmbedderName` field to `search.Embedding` and `search.Result`
-- [ ] Add `WithEmbedderName(name string)` repository option in `domain/search/options.go`
+- [ ] Add `domain/search/vision_embedder.go` — `VisionEmbedder` interface (`EmbedImages`, `EmbedQuery`) and `Image` type
+- [ ] Add `domain/search/image_result.go` — `ImageResult` and `ImageResults` types
 
-## Provider layer
+## Provider
 
-- [ ] Add `VisionEmbedder` interface and `VisionEmbeddingRequest` type to `infrastructure/provider/provider.go`
-- [ ] Create `infrastructure/provider/openai_vision.go` — `OpenAIVisionEmbedder` using an OpenAI-compatible endpoint
-- [ ] Add `VisionEmbedderAdapter` in `kodit.go` bridging `provider.VisionEmbedder` → `search.VisionEmbedder`
+- [ ] Add `infrastructure/provider/vision.go` — `VisionEmbedding` interface and `OpenAIVisionEmbedder` implementation
 
-## Storage layer
+## Storage
 
-- [ ] Add `embedder_name` column (default `"default"`) to the SQLite embedding model structs; let AutoMigrate apply
-- [ ] Update SQLite store `Find`, `Search`, `Exists`, `DeleteBy` to filter by `WithEmbedderName` when set
-- [ ] Update VectorChord store to derive table name from embedder name (e.g. `kodit_code_embeddings_<name>`) so different vector dimensions coexist
+- [ ] Add `infrastructure/persistence/image_embedding_store_sqlite.go` — GORM model + SQLite store for `kodit_image_embeddings`
+- [ ] Add `infrastructure/persistence/image_embedding_store_vectorchord.go` — VectorChord store for image embeddings
 
-## Configuration & wiring
+## Indexing
 
-- [ ] Add `EmbedderConfig` struct and `EmbedderType` enum to `options.go`
-- [ ] Add `WithEmbedders([]EmbedderConfig)` SDK option; register each as a named embedder
-- [ ] Update `kodit.go` `New()` to iterate `EmbedderConfig` slice and create one `EmbeddingService` + `EmbeddingStore` per embedder
-- [ ] Ensure backwards compatibility: `WithOpenAI`, `WithEmbeddingProvider` still register a `"default"` text embedder
-
-## Indexing pipeline
-
-- [ ] Update `application/handler/indexing/create_embeddings.go` to iterate all registered text embedders
-- [ ] Create `application/handler/indexing/create_image_embeddings.go` — new handler iterating vision embedders over image blobs
+- [ ] Add `application/handler/indexing/create_image_embeddings.go` — walk indexed files, filter by image MIME type, call vision embedder, save embeddings
 
 ## Search
 
-- [ ] Propagate `EmbedderName` through `search.Result` to the API response
-- [ ] Update `application/service/search.go` to support `WithEmbedderName` option — restricts vector search to one embedder's store
+- [ ] Add `QueryImages(ctx, description string, opts ...SearchOption) (*ImageResults, error)` to `application/service/search.go`
+
+## Wiring
+
+- [ ] Add `WithVisionProvider(provider.VisionEmbedding)` option to `options.go`
+- [ ] Wire vision provider, image embedding store, and image indexing handler in `kodit.go`; skip image indexing if no vision provider is configured
 
 ## Tests
 
-- [ ] Unit test `NamedEmbedder` routing: text docs go to text embedders, images go to vision embedders
-- [ ] Unit test SQLite store `WithEmbedderName` filtering
-- [ ] Integration test: register two text embedders + one vision embedder; verify each stores and retrieves from its own namespace
-- [ ] Verify backwards compatibility: single-embedder setup still works with no config changes
+- [ ] Unit test `OpenAIVisionEmbedder` (mock HTTP)
+- [ ] Unit test `QueryImages` with a fake vision embedder and fake store
+- [ ] Integration test: index an image file, query by description, assert result is returned
