@@ -1,26 +1,21 @@
-# Design: Image Search
+# Design: Vision Embedding Type
 
-## What We're Building
+## Scope
 
-A new `QueryImages` method on `service.Search` that embeds a text description using a vision model and returns matching images from the repository. To support this, we need:
+Add a vision embedding interface to the domain and one provider implementation. No pipeline, search, storage, or wiring changes — those come in follow-up tasks.
 
-1. A vision embedder interface and an initial implementation (OpenAI-compatible endpoint).
-2. An image indexing step that runs during repository sync.
-3. A separate image embedding store (different vector dimension from text embedders).
-4. A `WithVisionProvider` SDK option.
+## Domain interface
 
-The existing text embedding pipeline is untouched.
-
-## Key Design Decisions
-
-### Vision embedder interface
-
-Add `search.VisionEmbedder` alongside the existing `search.Embedder`:
+Add `domain/search/vision_embedder.go`:
 
 ```go
 // VisionEmbedder converts image bytes into embedding vectors.
 type VisionEmbedder interface {
+    // EmbedImages returns one vector per image.
     EmbedImages(ctx context.Context, images []Image) ([][]float64, error)
+    // EmbedQuery embeds a text description in the vision embedding space,
+    // so query vectors can be compared against image vectors (e.g. CLIP).
+    EmbedQuery(ctx context.Context, text string) ([]float64, error)
 }
 
 type Image struct {
@@ -29,66 +24,24 @@ type Image struct {
 }
 ```
 
-Also add the symmetric capability to embed a text query into the vision embedding space — required so `QueryImages` can embed the user's description and compare it against image vectors:
+Both methods live on one interface because CLIP-style models share a single embedding space for images and text — separating them would make it impossible to compare a text query against image vectors.
 
-```go
-// EmbedQuery embeds a text description in the vision embedding space.
-EmbedQuery(ctx context.Context, text string) ([]float64, error)
-```
+## Provider interface and implementation
 
-Both methods live on the same interface since a vision model typically handles both directions (text → vector, image → vector) in a shared embedding space (e.g. CLIP).
+Add `infrastructure/provider/vision.go`:
 
-### Provider implementation
+- `VisionEmbedding` interface (mirrors the domain interface at the provider layer, consistent with how `provider.Embedder` mirrors `search.Embedder`)
+- `OpenAIVisionEmbedder` struct implementing it, calling an OpenAI-compatible `/v1/embeddings` endpoint with base64-encoded image inputs
+- Constructor: `NewOpenAIVisionEmbedder(baseURL, model, apiKey string) *OpenAIVisionEmbedder`
 
-Add `provider.VisionEmbedding` interface in `infrastructure/provider/` and an initial `OpenAIVisionEmbedder` that calls any OpenAI-compatible endpoint (covers hosted CLIP, LLaVA-style APIs, or a local server). Configured via `WithVisionProvider(provider.VisionEmbedding)` option.
-
-### Storage
-
-Add a dedicated `ImageEmbeddingStore` (SQLite and VectorChord variants). Image embeddings are stored in separate tables (`kodit_image_embeddings`) so their vector dimension never conflicts with text embeddings. The table holds: `file_id`, `repo_id`, `path`, `embedding`.
-
-### Indexing pipeline
-
-Add a new `CreateImageEmbeddings` handler that runs during repository indexing. It walks indexed files, filters by MIME type (JPEG/PNG/WebP), reads the raw bytes, and calls the vision embedder. Skipped entirely if no vision provider is configured.
-
-### Image search
-
-Add `QueryImages(ctx, description string, opts ...SearchOption) (*ImageResults, error)` to `service.Search`. Steps:
-
-1. Embed the description text using `VisionEmbedder.EmbedQuery`.
-2. Call `ImageEmbeddingStore.Search` with the resulting vector.
-3. Return ranked `ImageResult` values (file path, repo, similarity score).
-
-### SDK option
-
-```go
-kodit.New(
-    kodit.WithSQLite(".kodit/data.db"),
-    kodit.WithOpenAI(os.Getenv("OPENAI_API_KEY")),
-    kodit.WithVisionProvider(provider.NewOpenAIVisionEmbedder(
-        os.Getenv("VISION_API_KEY"),
-        provider.WithVisionModel("clip-vit-base-patch32"),
-    )),
-)
-```
-
-## File Map
+## Files
 
 | File | Change |
 |---|---|
-| `domain/search/vision_embedder.go` | new: `VisionEmbedder`, `Image` |
-| `domain/search/image_result.go` | new: `ImageResult`, `ImageResults` |
+| `domain/search/vision_embedder.go` | new: `VisionEmbedder` interface, `Image` type |
 | `infrastructure/provider/vision.go` | new: `VisionEmbedding` interface, `OpenAIVisionEmbedder` |
-| `infrastructure/persistence/image_embedding_store_sqlite.go` | new: SQLite image embedding store |
-| `infrastructure/persistence/image_embedding_store_vectorchord.go` | new: VectorChord image embedding store |
-| `application/handler/indexing/create_image_embeddings.go` | new: image indexing handler |
-| `application/service/search.go` | add `QueryImages` method |
-| `options.go` | add `WithVisionProvider` |
-| `kodit.go` | wire vision provider + image embedding store |
 
-## Patterns Found in Codebase
+## Patterns
 
-- GORM AutoMigrate only — define a new GORM model struct for `kodit_image_embeddings`.
-- New options follow the `repository.WithCondition` pattern in `domain/<domain>/options.go`.
-- `provider.Embedder` bridges to `search.Embedder` via an adapter in `kodit.go` — do the same for vision.
-- Indexing handlers are registered as pipeline steps — the new image handler follows the same registration pattern.
-- CLAUDE.md: no SQL migration files, no fallbacks, fail on missing configuration.
+- Provider interface at `infrastructure/provider/` mirrors domain interface at `domain/search/` — same pattern as `provider.Embedder` / `search.Embedder`.
+- CLAUDE.md: no fallbacks, return errors, no panics.
