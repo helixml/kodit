@@ -10,8 +10,8 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/application/handler"
-	"github.com/helixml/kodit/domain/chunk"
 	"github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/chunking"
@@ -33,7 +33,7 @@ type ChunkFiles struct {
 	repoStore        repository.RepositoryStore
 	enrichmentStore  enrichment.EnrichmentStore
 	associationStore enrichment.AssociationStore
-	lineRangeStore   chunk.LineRangeStore
+	lineRangeStore   sourcelocation.Store
 	fileStore        repository.FileStore
 	fileContent      FileContentSource
 	documentText     DocumentTextSource
@@ -49,7 +49,7 @@ func NewChunkFiles(
 	repoStore repository.RepositoryStore,
 	enrichmentStore enrichment.EnrichmentStore,
 	associationStore enrichment.AssociationStore,
-	lineRangeStore chunk.LineRangeStore,
+	lineRangeStore sourcelocation.Store,
 	fileStore repository.FileStore,
 	fileContent FileContentSource,
 	documentText DocumentTextSource,
@@ -207,7 +207,7 @@ func (h *ChunkFiles) persistChunks(ctx context.Context, textChunks chunking.Text
 			return fmt.Errorf("save chunk enrichment: %w", saveErr)
 		}
 
-		lr := chunk.NewLineRange(saved.ID(), ch.StartLine(), ch.EndLine())
+		lr := sourcelocation.New(saved.ID(), ch.StartLine(), ch.EndLine())
 		if _, err := h.lineRangeStore.Save(ctx, lr); err != nil {
 			return fmt.Errorf("save chunk line range: %w", err)
 		}

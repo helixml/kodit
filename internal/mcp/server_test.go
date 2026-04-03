@@ -16,7 +16,7 @@ import (
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/helixml/kodit/application/service"
-	"github.com/helixml/kodit/domain/chunk"
+	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
@@ -116,7 +116,7 @@ func (f *fakeKeywordSearcher) SearchKeywordsWithScores(_ context.Context, _ stri
 // fakeEnrichmentResolver implements EnrichmentResolver with canned data.
 type fakeEnrichmentResolver struct {
 	sourceFiles   map[string][]int64
-	lineRanges    map[string]chunk.LineRange
+	lineRanges    map[string]sourcelocation.SourceLocation
 	repositoryIDs map[string]int64
 }
 
@@ -124,7 +124,7 @@ func (f *fakeEnrichmentResolver) SourceFiles(_ context.Context, _ []int64) (map[
 	return f.sourceFiles, nil
 }
 
-func (f *fakeEnrichmentResolver) LineRanges(_ context.Context, _ []int64) (map[string]chunk.LineRange, error) {
+func (f *fakeEnrichmentResolver) SourceLocations(_ context.Context, _ []int64) (map[string]sourcelocation.SourceLocation, error) {
 	return f.lineRanges, nil
 }
 
@@ -267,7 +267,7 @@ func testServer() *Server {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileLister{},
@@ -417,7 +417,7 @@ func TestServer_ListRepositories_DisplaysUpstreamURL(t *testing.T) {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileLister{},
@@ -470,7 +470,7 @@ func TestServer_ListRepositories_FallsBackToSanitizedURL(t *testing.T) {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileLister{},
@@ -694,7 +694,7 @@ func semanticSearchServer() *Server {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"99": {10}},
-			lineRanges:    map[string]chunk.LineRange{"99": chunk.ReconstructLineRange(1, 99, 10, 25)},
+			lineRanges:    map[string]sourcelocation.SourceLocation{"99": sourcelocation.Reconstruct(1, 99, 0, 10, 25)},
 			repositoryIDs: map[string]int64{"99": 1},
 		},
 		&fakeFileLister{},
@@ -814,7 +814,7 @@ func TestServer_SemanticSearch_AbsolutePathNormalized(t *testing.T) {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"77": {20}},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{"77": 1},
 		},
 		&fakeFileLister{},
@@ -893,7 +893,7 @@ func TestServer_SemanticSearch_LanguageFilterDotPrefix(t *testing.T) {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"55": {30}},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{"55": 1},
 		},
 		&fakeFileLister{},
@@ -1047,7 +1047,7 @@ func TestServer_SemanticSearch_LimitCapsResults(t *testing.T) {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"61": {101}, "62": {102}, "63": {103}},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{"61": 1, "62": 1, "63": 1},
 		},
 		&fakeFileLister{},
@@ -1144,7 +1144,7 @@ func TestServer_SemanticSearchThenReadFile(t *testing.T) {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"42": {10}},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{"42": 1},
 		},
 		&fakeFileLister{},
@@ -1228,7 +1228,7 @@ func TestServer_SemanticSearchThenReadFile_AbsolutePath(t *testing.T) {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"77": {20}},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{"77": 1},
 		},
 		&fakeFileLister{},
@@ -1308,7 +1308,7 @@ func TestServer_SemanticSearchThenReadFile_WithLineRange(t *testing.T) {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"88": {15}},
-			lineRanges:    map[string]chunk.LineRange{"88": chunk.ReconstructLineRange(1, 88, 3, 5)},
+			lineRanges:    map[string]sourcelocation.SourceLocation{"88": sourcelocation.Reconstruct(1, 88, 0, 3, 5)},
 			repositoryIDs: map[string]int64{"88": 1},
 		},
 		&fakeFileLister{},
@@ -1370,7 +1370,7 @@ func TestServer_SemanticSearchNoResults(t *testing.T) {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileLister{},
@@ -1428,7 +1428,7 @@ func keywordSearchServer() *Server {
 		},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"99": {10}},
-			lineRanges:    map[string]chunk.LineRange{"99": chunk.ReconstructLineRange(1, 99, 10, 25)},
+			lineRanges:    map[string]sourcelocation.SourceLocation{"99": sourcelocation.Reconstruct(1, 99, 0, 10, 25)},
 			repositoryIDs: map[string]int64{"99": 1},
 		},
 		&fakeFileLister{},
@@ -1645,7 +1645,7 @@ func TestServer_KeywordSearch_NoResults(t *testing.T) {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileLister{},
@@ -1759,7 +1759,7 @@ func TestServer_KeywordSearchThenReadFile(t *testing.T) {
 		},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"99": {10}},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{"99": 1},
 		},
 		&fakeFileLister{},
@@ -1877,7 +1877,7 @@ func wikiServer() *Server {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileLister{},
@@ -1955,7 +1955,7 @@ func TestServer_GetWiki_NoWiki(t *testing.T) {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileLister{},
@@ -2073,7 +2073,7 @@ func lsServer(files []service.FileEntry) *Server {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileLister{files: files},
@@ -2253,7 +2253,7 @@ func TestServer_Ls_RepoNotFound(t *testing.T) {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileLister{},
@@ -2315,7 +2315,7 @@ func credentialServer() *Server {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileLister{},
@@ -2390,7 +2390,7 @@ func TestServer_GetWiki_SanitizesCredentials(t *testing.T) {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileLister{},
@@ -2435,7 +2435,7 @@ func TestServer_GetWikiPage_SanitizesCredentials(t *testing.T) {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileLister{},
@@ -2481,7 +2481,7 @@ func TestServer_Grep_SanitizesCredentials(t *testing.T) {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileLister{},
@@ -2539,7 +2539,7 @@ func TestServer_Ls_SanitizesCredentials(t *testing.T) {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileLister{files: []service.FileEntry{{Path: "README.md", Size: 100}}},
@@ -2689,7 +2689,7 @@ func grepServer() *Server {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileLister{},
@@ -2834,7 +2834,7 @@ func TestServer_Grep_NoResults(t *testing.T) {
 		&fakeKeywordSearcher{},
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
 		&fakeFileLister{},

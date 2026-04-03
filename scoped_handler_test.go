@@ -9,7 +9,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/application/service"
-	"github.com/helixml/kodit/domain/chunk"
+	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
@@ -57,7 +57,7 @@ func TestScopedMCPServer_RepositoryListFiltered(t *testing.T) {
 		scopedKS,
 		&scopedFakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
-			lineRanges:    map[string]chunk.LineRange{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
 		scopedFL,
@@ -121,7 +121,7 @@ func TestScopedMCPServer_ReadResourceBlocked(t *testing.T) {
 		scopedSS,
 		scopedKS,
 		&scopedFakeEnrichmentResolver{
-			sourceFiles: map[string][]int64{}, lineRanges: map[string]chunk.LineRange{},
+			sourceFiles: map[string][]int64{}, lineRanges: map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
 		scopedFL,
@@ -181,7 +181,7 @@ func TestScopedMCPServer_NilRepoIDsNoScoping(t *testing.T) {
 		&scopedFakeSemanticSearcher{},
 		&scopedFakeKeywordSearcher{},
 		&scopedFakeEnrichmentResolver{
-			sourceFiles: map[string][]int64{}, lineRanges: map[string]chunk.LineRange{},
+			sourceFiles: map[string][]int64{}, lineRanges: map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
 		&scopedFakeFileLister{},
@@ -293,7 +293,7 @@ func TestScopedMCPServer_ListRepositories_SanitizesCredentials(t *testing.T) {
 		scopedSS,
 		scopedKS,
 		&scopedFakeEnrichmentResolver{
-			sourceFiles: map[string][]int64{}, lineRanges: map[string]chunk.LineRange{},
+			sourceFiles: map[string][]int64{}, lineRanges: map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
 		scopedFL,
@@ -415,7 +415,7 @@ func (f *scopedFakeKeywordSearcher) SearchKeywordsWithScores(_ context.Context, 
 
 type scopedFakeEnrichmentResolver struct {
 	sourceFiles   map[string][]int64
-	lineRanges    map[string]chunk.LineRange
+	lineRanges    map[string]sourcelocation.SourceLocation
 	repositoryIDs map[string]int64
 }
 
@@ -423,7 +423,7 @@ func (f *scopedFakeEnrichmentResolver) SourceFiles(_ context.Context, _ []int64)
 	return f.sourceFiles, nil
 }
 
-func (f *scopedFakeEnrichmentResolver) LineRanges(_ context.Context, _ []int64) (map[string]chunk.LineRange, error) {
+func (f *scopedFakeEnrichmentResolver) SourceLocations(_ context.Context, _ []int64) (map[string]sourcelocation.SourceLocation, error) {
 	return f.lineRanges, nil
 }
 

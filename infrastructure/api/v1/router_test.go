@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/helixml/kodit"
-	"github.com/helixml/kodit/domain/chunk"
+	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	v1 "github.com/helixml/kodit/infrastructure/api/v1"
@@ -202,8 +202,8 @@ func newTestClientWithSeededLineRange(t *testing.T) (*kodit.Client, enrichment.E
 		t.Fatalf("save enrichment: %v", err)
 	}
 
-	lrStore := persistence.NewChunkLineRangeStore(db)
-	_, err = lrStore.Save(ctx, chunk.NewLineRange(saved.ID(), 10, 20))
+	lrStore := persistence.NewSourceLocationStore(db)
+	_, err = lrStore.Save(ctx, sourcelocation.New(saved.ID(), 10, 20))
 	if err != nil {
 		t.Fatalf("save line range: %v", err)
 	}

@@ -13,7 +13,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/application/service"
-	"github.com/helixml/kodit/domain/chunk"
+	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
@@ -60,7 +60,7 @@ type KeywordSearcher interface {
 // EnrichmentResolver provides enrichment-to-entity resolution.
 type EnrichmentResolver interface {
 	SourceFiles(ctx context.Context, enrichmentIDs []int64) (map[string][]int64, error)
-	LineRanges(ctx context.Context, enrichmentIDs []int64) (map[string]chunk.LineRange, error)
+	SourceLocations(ctx context.Context, enrichmentIDs []int64) (map[string]sourcelocation.SourceLocation, error)
 	RepositoryIDs(ctx context.Context, enrichmentIDs []int64) (map[string]int64, error)
 }
 
@@ -524,7 +524,7 @@ func (s *Server) resolveFileResults(
 		return nil, fmt.Errorf("resolve source files: %w", err)
 	}
 
-	lineRanges, err := s.enrichmentResolver.LineRanges(ctx, ids)
+	lineRanges, err := s.enrichmentResolver.SourceLocations(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("resolve line ranges: %w", err)
 	}

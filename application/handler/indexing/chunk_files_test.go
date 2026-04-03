@@ -46,7 +46,7 @@ func TestChunkFiles_SkipsWhenEnrichmentsExist(t *testing.T) {
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
-	lineRangeStore := persistence.NewChunkLineRangeStore(db)
+	lineRangeStore := persistence.NewSourceLocationStore(db)
 	repoStore := persistence.NewRepositoryStore(db)
 	fileStore := persistence.NewFileStore(db)
 
@@ -101,7 +101,7 @@ func TestChunkFiles_CreatesEnrichmentsForTextFiles(t *testing.T) {
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
-	lineRangeStore := persistence.NewChunkLineRangeStore(db)
+	lineRangeStore := persistence.NewSourceLocationStore(db)
 	repoStore := persistence.NewRepositoryStore(db)
 	fileStore := persistence.NewFileStore(db)
 
@@ -201,7 +201,7 @@ func TestChunkFiles_SkipsBinaryFiles(t *testing.T) {
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
-	lineRangeStore := persistence.NewChunkLineRangeStore(db)
+	lineRangeStore := persistence.NewSourceLocationStore(db)
 	repoStore := persistence.NewRepositoryStore(db)
 	fileStore := persistence.NewFileStore(db)
 
@@ -256,7 +256,7 @@ func TestChunkFiles_ContinuesOnFileContentError(t *testing.T) {
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
-	lineRangeStore := persistence.NewChunkLineRangeStore(db)
+	lineRangeStore := persistence.NewSourceLocationStore(db)
 	repoStore := persistence.NewRepositoryStore(db)
 	fileStore := persistence.NewFileStore(db)
 
@@ -368,7 +368,7 @@ func TestChunkFiles_HandlesAbsoluteFilePaths(t *testing.T) {
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
-	lineRangeStore := persistence.NewChunkLineRangeStore(db)
+	lineRangeStore := persistence.NewSourceLocationStore(db)
 	repoStore := persistence.NewRepositoryStore(db)
 	fileStore := persistence.NewFileStore(db)
 
@@ -432,7 +432,7 @@ func TestChunkFiles_OnlyIndexesSourceAndDocFiles(t *testing.T) {
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
-	lineRangeStore := persistence.NewChunkLineRangeStore(db)
+	lineRangeStore := persistence.NewSourceLocationStore(db)
 	repoStore := persistence.NewRepositoryStore(db)
 	fileStore := persistence.NewFileStore(db)
 
@@ -541,7 +541,7 @@ func TestChunkFiles_SetsLanguageFromExtension(t *testing.T) {
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
-	lineRangeStore := persistence.NewChunkLineRangeStore(db)
+	lineRangeStore := persistence.NewSourceLocationStore(db)
 	repoStore := persistence.NewRepositoryStore(db)
 	fileStore := persistence.NewFileStore(db)
 
@@ -603,7 +603,7 @@ func TestChunkFiles_PersistsLineRanges(t *testing.T) {
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
-	lineRangeStore := persistence.NewChunkLineRangeStore(db)
+	lineRangeStore := persistence.NewSourceLocationStore(db)
 	repoStore := persistence.NewRepositoryStore(db)
 	fileStore := persistence.NewFileStore(db)
 
@@ -702,7 +702,7 @@ func TestChunkFiles_ExtractsDocumentFiles(t *testing.T) {
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
-	lineRangeStore := persistence.NewChunkLineRangeStore(db)
+	lineRangeStore := persistence.NewSourceLocationStore(db)
 	repoStore := persistence.NewRepositoryStore(db)
 	fileStore := persistence.NewFileStore(db)
 
@@ -786,7 +786,7 @@ func TestChunkFiles_SkipsDocumentsWhenExtractorNil(t *testing.T) {
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
-	lineRangeStore := persistence.NewChunkLineRangeStore(db)
+	lineRangeStore := persistence.NewSourceLocationStore(db)
 	repoStore := persistence.NewRepositoryStore(db)
 	fileStore := persistence.NewFileStore(db)
 
@@ -837,7 +837,7 @@ func TestChunkFiles_ContinuesOnDocumentExtractionError(t *testing.T) {
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
-	lineRangeStore := persistence.NewChunkLineRangeStore(db)
+	lineRangeStore := persistence.NewSourceLocationStore(db)
 	repoStore := persistence.NewRepositoryStore(db)
 	fileStore := persistence.NewFileStore(db)
 
@@ -902,7 +902,7 @@ func TestChunkFiles_ParsesCSVFiles(t *testing.T) {
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
-	lineRangeStore := persistence.NewChunkLineRangeStore(db)
+	lineRangeStore := persistence.NewSourceLocationStore(db)
 	repoStore := persistence.NewRepositoryStore(db)
 	fileStore := persistence.NewFileStore(db)
 

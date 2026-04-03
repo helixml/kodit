@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/application/service"
-	"github.com/helixml/kodit/domain/chunk"
+	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
@@ -102,10 +102,10 @@ func (r *EnrichmentsRouter) List(w http.ResponseWriter, req *http.Request) {
 	for i, e := range enrichments {
 		ids[i] = e.ID()
 	}
-	lineRanges, err := r.client.Enrichments.LineRanges(ctx, ids)
+	lineRanges, err := r.client.Enrichments.SourceLocations(ctx, ids)
 	if err != nil {
 		r.logger.Warn().Err(err).Msg("failed to fetch line ranges")
-		lineRanges = map[string]chunk.LineRange{}
+		lineRanges = map[string]sourcelocation.SourceLocation{}
 	}
 
 	response := dto.EnrichmentJSONAPIListResponse{
@@ -146,10 +146,10 @@ func (r *EnrichmentsRouter) Get(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	lineRanges, err := r.client.Enrichments.LineRanges(ctx, []int64{id})
+	lineRanges, err := r.client.Enrichments.SourceLocations(ctx, []int64{id})
 	if err != nil {
 		r.logger.Warn().Err(err).Msg("failed to fetch line ranges")
-		lineRanges = map[string]chunk.LineRange{}
+		lineRanges = map[string]sourcelocation.SourceLocation{}
 	}
 
 	middleware.WriteJSON(w, http.StatusOK, dto.EnrichmentJSONAPIResponse{
@@ -157,7 +157,7 @@ func (r *EnrichmentsRouter) Get(w http.ResponseWriter, req *http.Request) {
 	})
 }
 
-func enrichmentsToJSONAPIDTO(enrichments []enrichment.Enrichment, lineRanges map[string]chunk.LineRange) []dto.EnrichmentData {
+func enrichmentsToJSONAPIDTO(enrichments []enrichment.Enrichment, lineRanges map[string]sourcelocation.SourceLocation) []dto.EnrichmentData {
 	result := make([]dto.EnrichmentData, len(enrichments))
 	for i, e := range enrichments {
 		result[i] = enrichmentToJSONAPIDTO(e, lineRanges)
@@ -165,7 +165,7 @@ func enrichmentsToJSONAPIDTO(enrichments []enrichment.Enrichment, lineRanges map
 	return result
 }
 
-func enrichmentToJSONAPIDTO(e enrichment.Enrichment, lineRanges map[string]chunk.LineRange) dto.EnrichmentData {
+func enrichmentToJSONAPIDTO(e enrichment.Enrichment, lineRanges map[string]sourcelocation.SourceLocation) dto.EnrichmentData {
 	attrs := dto.EnrichmentAttributes{
 		Type:      string(e.Type()),
 		Subtype:   string(e.Subtype()),
@@ -231,10 +231,10 @@ func (r *EnrichmentsRouter) Update(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	lineRanges, err := r.client.Enrichments.LineRanges(ctx, []int64{id})
+	lineRanges, err := r.client.Enrichments.SourceLocations(ctx, []int64{id})
 	if err != nil {
 		r.logger.Warn().Err(err).Msg("failed to fetch line ranges")
-		lineRanges = map[string]chunk.LineRange{}
+		lineRanges = map[string]sourcelocation.SourceLocation{}
 	}
 
 	middleware.WriteJSON(w, http.StatusOK, dto.EnrichmentJSONAPIResponse{

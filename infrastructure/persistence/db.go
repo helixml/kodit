@@ -109,6 +109,25 @@ func PreMigrate(db database.Database) error {
 		log.Info().Msg("one-time database migration complete: tasks.dedup_key unique index created")
 	}
 
+	// Rename chunk_line_ranges → source_locations.
+	var hasOldChunkTable bool
+	err = gdb.Raw(`
+		SELECT EXISTS(
+			SELECT 1 FROM information_schema.tables
+			WHERE table_name = 'chunk_line_ranges'
+		)
+	`).Scan(&hasOldChunkTable).Error
+	if err != nil {
+		return err
+	}
+	if hasOldChunkTable {
+		log.Warn().Msg("one-time database migration: renaming chunk_line_ranges to source_locations")
+		if err := gdb.Exec(`ALTER TABLE chunk_line_ranges RENAME TO source_locations`).Error; err != nil {
+			return fmt.Errorf("rename chunk_line_ranges: %w", err)
+		}
+		log.Info().Msg("one-time database migration complete: chunk_line_ranges renamed to source_locations")
+	}
+
 	return nil
 }
 
@@ -123,7 +142,7 @@ func AutoMigrate(db database.Database) error {
 		&EnrichmentModel{},
 		&EnrichmentAssociationModel{},
 		&EmbeddingModel{},
-		&ChunkLineRangeModel{},
+		&SourceLocationModel{},
 		&TaskModel{},
 		&TaskStatusModel{},
 		&models.Pipeline{},
@@ -218,7 +237,7 @@ func allModels() []interface{} {
 		&EnrichmentModel{},
 		&EnrichmentAssociationModel{},
 		&EmbeddingModel{},
-		&ChunkLineRangeModel{},
+		&SourceLocationModel{},
 		&TaskModel{},
 		&TaskStatusModel{},
 		&models.Pipeline{},

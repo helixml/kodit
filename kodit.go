@@ -110,7 +110,7 @@ type Client struct {
 	// Stores not grouped into aggregates
 	taskStore      persistence.TaskStore
 	statusStore    persistence.StatusStore
-	lineRangeStore persistence.ChunkLineRangeStore
+	lineRangeStore persistence.SourceLocationStore
 
 	// Aggregate dependencies
 	enrichCtx handler.EnrichmentContext
@@ -239,7 +239,7 @@ func New(opts ...Option) (*Client, error) {
 	fileStore := persistence.NewFileStore(db)
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
-	lineRangeStore := persistence.NewChunkLineRangeStore(db)
+	lineRangeStore := persistence.NewSourceLocationStore(db)
 	pipelineStore := persistence.NewPipelineStore(db)
 	stepStore := persistence.NewStepStore(db)
 	pipelineStepStore := persistence.NewPipelineStepStore(db)

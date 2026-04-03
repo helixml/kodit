@@ -15,7 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/application/service"
-	"github.com/helixml/kodit/domain/chunk"
+	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
@@ -574,10 +574,10 @@ func (r *SearchRouter) resolveAndBuildResponse(
 		fileMap = map[string][]repository.File{}
 	}
 
-	lineRanges, err := r.client.Enrichments.LineRanges(ctx, ids)
+	lineRanges, err := r.client.Enrichments.SourceLocations(ctx, ids)
 	if err != nil {
 		r.logger.Warn().Err(err).Msg("failed to fetch line ranges")
-		lineRanges = map[string]chunk.LineRange{}
+		lineRanges = map[string]sourcelocation.SourceLocation{}
 	}
 
 	commits, err := r.commitMap(ctx, fileMap)
@@ -596,7 +596,7 @@ func (r *SearchRouter) resolveAndBuildResponse(
 	for i, e := range enrichments {
 		idStr := strconv.FormatInt(e.ID(), 10)
 		lr, hasLR := lineRanges[idStr]
-		var lrPtr *chunk.LineRange
+		var lrPtr *sourcelocation.SourceLocation
 		if hasLR {
 			lrPtr = &lr
 		}
@@ -644,7 +644,7 @@ func enrichmentToSearchResult(
 	scores []float64,
 	related []enrichment.Enrichment,
 	files []repository.File,
-	lr *chunk.LineRange,
+	lr *sourcelocation.SourceLocation,
 	commits map[string]repository.Commit,
 	repos map[int64]repository.Repository,
 ) dto.SnippetData {
