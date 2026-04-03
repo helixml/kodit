@@ -27,20 +27,21 @@ func testPNG(t *testing.T, width, height int, c color.Color) []byte {
 	return buf.Bytes()
 }
 
-// siglip2ModelPath returns the models directory if the SigLIP2 model has been
-// downloaded, or skips the test otherwise (run `make download-siglip2`).
-func siglip2ModelPath(t *testing.T) string {
+// localVisionModelPath returns the models directory if the SigLIP2 model has
+// been downloaded, or skips the test (run `make download-siglip2`).
+func localVisionModelPath(t *testing.T) string {
 	t.Helper()
-	candidate := filepath.Join("models", siglip2ModelDir, "onnx", siglip2VisionOnnx)
+	cfg := SigLIP2BaseConfig
+	candidate := filepath.Join("models", cfg.ModelDir, "onnx", cfg.VisionOnnx)
 	if _, err := os.Stat(candidate); err != nil {
-		t.Skipf("skipping: siglip2 model not on disk (run make download-siglip2): %v", err)
+		t.Skipf("skipping: vision model not on disk (run make download-siglip2): %v", err)
 	}
 	return "models"
 }
 
-func TestSigLIP2Embedding_EmbedImage(t *testing.T) {
-	modelDir := siglip2ModelPath(t)
-	emb := NewSigLIP2Embedding(modelDir)
+func TestLocalVisionEmbedding_EmbedImage(t *testing.T) {
+	modelDir := localVisionModelPath(t)
+	emb := NewLocalVisionEmbedding(SigLIP2BaseConfig, modelDir)
 	require.True(t, emb.Available())
 
 	vision := emb.VisionEmbedder()
@@ -56,9 +57,9 @@ func TestSigLIP2Embedding_EmbedImage(t *testing.T) {
 	require.Equal(t, 768, len(embeddings[0]), "siglip2-base produces 768 dimensions")
 }
 
-func TestSigLIP2Embedding_EmbedQuery(t *testing.T) {
-	modelDir := siglip2ModelPath(t)
-	emb := NewSigLIP2Embedding(modelDir)
+func TestLocalVisionEmbedding_EmbedQuery(t *testing.T) {
+	modelDir := localVisionModelPath(t)
+	emb := NewLocalVisionEmbedding(SigLIP2BaseConfig, modelDir)
 	require.True(t, emb.Available())
 
 	text := emb.TextEmbedder()
@@ -72,27 +73,25 @@ func TestSigLIP2Embedding_EmbedQuery(t *testing.T) {
 	require.Equal(t, 768, len(embeddings[0]), "siglip2-base produces 768 dimensions")
 }
 
-func TestSigLIP2Embedding_EmbedEmpty(t *testing.T) {
+func TestLocalVisionEmbedding_EmbedEmpty(t *testing.T) {
 	modelDir := t.TempDir()
-	emb := NewSigLIP2Embedding(modelDir)
+	emb := NewLocalVisionEmbedding(SigLIP2BaseConfig, modelDir)
 
 	vision := emb.VisionEmbedder()
 	text := emb.TextEmbedder()
 
-	// Empty image request should return empty without initialization.
 	resp, err := vision.Embed(context.Background(), NewEmbeddingRequest(nil))
 	require.NoError(t, err)
 	require.Empty(t, resp.Embeddings())
 
-	// Empty text request too.
 	textResp, err := text.Embed(context.Background(), NewEmbeddingRequest(nil))
 	require.NoError(t, err)
 	require.Empty(t, textResp.Embeddings())
 }
 
-func TestSigLIP2Embedding_CancelledContext(t *testing.T) {
+func TestLocalVisionEmbedding_CancelledContext(t *testing.T) {
 	modelDir := t.TempDir()
-	emb := NewSigLIP2Embedding(modelDir)
+	emb := NewLocalVisionEmbedding(SigLIP2BaseConfig, modelDir)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
