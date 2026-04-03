@@ -32,6 +32,7 @@ const (
 	SubtypeExample        Subtype = "example"
 	SubtypeExampleSummary Subtype = "example_summary"
 	SubtypeChunk          Subtype = "chunk"
+	SubtypePageImage      Subtype = "page_image"
 )
 
 // History subtypes.

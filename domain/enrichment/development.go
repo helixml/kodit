@@ -42,6 +42,13 @@ func NewChunkEnrichmentWithLanguage(content, language string) Enrichment {
 	return NewEnrichmentWithLanguage(TypeDevelopment, SubtypeChunk, EntityTypeCommit, content, language)
 }
 
+// NewPageImage creates a page image enrichment for a commit.
+// Page image enrichments represent rendered pages of documents (PDFs, spreadsheets, etc.).
+// Content is empty because images are rendered on demand.
+func NewPageImage() Enrichment {
+	return NewEnrichment(TypeDevelopment, SubtypePageImage, EntityTypeCommit, "")
+}
+
 // IsDevelopmentEnrichment returns true if the enrichment is a development type.
 func IsDevelopmentEnrichment(e Enrichment) bool {
 	return e.Type() == TypeDevelopment

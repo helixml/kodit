@@ -5,10 +5,10 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
+	"github.com/helixml/kodit/domain/sourcelocation"
 )
 
 // Recording fakes for search stores — genuine fakes because real stores

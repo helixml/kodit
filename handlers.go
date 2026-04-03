@@ -52,6 +52,17 @@ func (c *Client) registerHandlers() error {
 			enrichment.TypeDevelopment, enrichment.SubtypeChunk),
 	))
 
+	// Page image extraction — create enrichment metadata for each page of rasterizable documents
+	c.registry.Register(task.OperationExtractPageImagesForCommit, handler.WithCleanup(
+		indexinghandler.NewExtractPageImages(
+			c.repoStores.Repositories, c.enrichCtx.Enrichments, c.enrichCtx.Associations,
+			c.lineRangeStore, c.repoStores.Files, c.rasterizers,
+			c.enrichCtx.Tracker, c.logger,
+		),
+		handler.NewEnrichmentCleanup(c.Enrichments, c.repoStores.Commits,
+			enrichment.TypeDevelopment, enrichment.SubtypePageImage),
+	))
+
 	subtype := enrichment.SubtypeChunk
 
 	// BM25 index handler — cascade-deletes when parent enrichments are deleted

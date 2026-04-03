@@ -10,9 +10,9 @@ import (
 	"testing"
 
 	"github.com/helixml/kodit"
-	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/domain/sourcelocation"
 	v1 "github.com/helixml/kodit/infrastructure/api/v1"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
 	"github.com/helixml/kodit/infrastructure/persistence"

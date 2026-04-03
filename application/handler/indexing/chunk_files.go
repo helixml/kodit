@@ -11,8 +11,8 @@ import (
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
-	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/chunking"
 	"github.com/helixml/kodit/infrastructure/extraction"
