@@ -114,6 +114,15 @@ func PreMigrate(db database.Database) error {
 
 // AutoMigrate runs GORM auto migration for all models.
 func AutoMigrate(db database.Database) error {
+	// Rename chunk_line_ranges → source_locations (works on both PostgreSQL and SQLite).
+	if db.GORM().Migrator().HasTable("chunk_line_ranges") {
+		log.Warn().Msg("one-time database migration: renaming chunk_line_ranges to source_locations")
+		if err := db.GORM().Exec(`ALTER TABLE chunk_line_ranges RENAME TO source_locations`).Error; err != nil {
+			return fmt.Errorf("rename chunk_line_ranges: %w", err)
+		}
+		log.Info().Msg("one-time database migration complete: chunk_line_ranges renamed to source_locations")
+	}
+
 	if err := db.GORM().AutoMigrate(
 		&RepositoryModel{},
 		&CommitModel{},
@@ -123,7 +132,7 @@ func AutoMigrate(db database.Database) error {
 		&EnrichmentModel{},
 		&EnrichmentAssociationModel{},
 		&EmbeddingModel{},
-		&ChunkLineRangeModel{},
+		&SourceLocationModel{},
 		&TaskModel{},
 		&TaskStatusModel{},
 		&models.Pipeline{},
@@ -218,7 +227,7 @@ func allModels() []interface{} {
 		&EnrichmentModel{},
 		&EnrichmentAssociationModel{},
 		&EmbeddingModel{},
-		&ChunkLineRangeModel{},
+		&SourceLocationModel{},
 		&TaskModel{},
 		&TaskStatusModel{},
 		&models.Pipeline{},

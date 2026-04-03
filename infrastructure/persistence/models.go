@@ -137,17 +137,20 @@ func (EnrichmentAssociationModel) TableName() string {
 	return "enrichment_associations"
 }
 
-// ChunkLineRangeModel records the source-file line range of a chunk enrichment.
-type ChunkLineRangeModel struct {
+// SourceLocationModel records where an enrichment's content originates within
+// its source file. For text chunks this is a line range; for page images this
+// is a page number.
+type SourceLocationModel struct {
 	ID           int64           `gorm:"column:id;primaryKey;autoIncrement"`
 	EnrichmentID int64           `gorm:"column:enrichment_id;not null;uniqueIndex"`
 	Enrichment   EnrichmentModel `gorm:"foreignKey:EnrichmentID;references:ID;constraint:OnDelete:CASCADE"`
+	Page         int             `gorm:"column:page;not null;default:0"`
 	StartLine    int             `gorm:"column:start_line;not null"`
 	EndLine      int             `gorm:"column:end_line;not null"`
 }
 
 // TableName returns the table name.
-func (ChunkLineRangeModel) TableName() string { return "chunk_line_ranges" }
+func (SourceLocationModel) TableName() string { return "source_locations" }
 
 // EmbeddingModel represents a vector embedding in the database.
 type EmbeddingModel struct {

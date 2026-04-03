@@ -5,8 +5,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/helixml/kodit/domain/chunk"
 	"github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
 )
@@ -381,21 +381,22 @@ func (m EnrichmentMapper) ToModel(e enrichment.Enrichment) EnrichmentModel {
 	}
 }
 
-// ChunkLineRangeMapper maps between domain LineRange and persistence ChunkLineRangeModel.
-type ChunkLineRangeMapper struct{}
+// SourceLocationMapper maps between domain SourceLocation and persistence SourceLocationModel.
+type SourceLocationMapper struct{}
 
-// ToDomain converts a ChunkLineRangeModel to a domain LineRange.
-func (m ChunkLineRangeMapper) ToDomain(e ChunkLineRangeModel) chunk.LineRange {
-	return chunk.ReconstructLineRange(e.ID, e.EnrichmentID, e.StartLine, e.EndLine)
+// ToDomain converts a SourceLocationModel to a domain SourceLocation.
+func (m SourceLocationMapper) ToDomain(e SourceLocationModel) sourcelocation.SourceLocation {
+	return sourcelocation.Reconstruct(e.ID, e.EnrichmentID, e.Page, e.StartLine, e.EndLine)
 }
 
-// ToModel converts a domain LineRange to a ChunkLineRangeModel.
-func (m ChunkLineRangeMapper) ToModel(r chunk.LineRange) ChunkLineRangeModel {
-	return ChunkLineRangeModel{
-		ID:           r.ID(),
-		EnrichmentID: r.EnrichmentID(),
-		StartLine:    r.StartLine(),
-		EndLine:      r.EndLine(),
+// ToModel converts a domain SourceLocation to a SourceLocationModel.
+func (m SourceLocationMapper) ToModel(s sourcelocation.SourceLocation) SourceLocationModel {
+	return SourceLocationModel{
+		ID:           s.ID(),
+		EnrichmentID: s.EnrichmentID(),
+		Page:         s.Page(),
+		StartLine:    s.StartLine(),
+		EndLine:      s.EndLine(),
 	}
 }
 

@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/helixml/kodit/domain/chunk"
+	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
@@ -52,7 +52,7 @@ func (r *recordingEmbeddingStore) DeleteBy(_ context.Context, opts ...repository
 	return nil
 }
 
-func TestEnrichment_LineRanges(t *testing.T) {
+func TestEnrichment_SourceLocations(t *testing.T) {
 	stores := newTestStores(t)
 	ctx := context.Background()
 
@@ -67,7 +67,7 @@ func TestEnrichment_LineRanges(t *testing.T) {
 		t.Fatalf("save enrichment: %v", err)
 	}
 
-	lr := chunk.NewLineRange(saved.ID(), 10, 25)
+	lr := sourcelocation.New(saved.ID(), 10, 25)
 	_, err = stores.lineRanges.Save(ctx, lr)
 	if err != nil {
 		t.Fatalf("save line range: %v", err)
@@ -75,9 +75,9 @@ func TestEnrichment_LineRanges(t *testing.T) {
 
 	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, stores.lineRanges)
 
-	result, err := svc.LineRanges(ctx, []int64{saved.ID()})
+	result, err := svc.SourceLocations(ctx, []int64{saved.ID()})
 	if err != nil {
-		t.Fatalf("LineRanges: %v", err)
+		t.Fatalf("SourceLocations: %v", err)
 	}
 
 	idStr := strconv.FormatInt(saved.ID(), 10)
@@ -93,10 +93,10 @@ func TestEnrichment_LineRanges(t *testing.T) {
 	}
 }
 
-func TestEnrichment_LineRanges_EmptyIDs(t *testing.T) {
+func TestEnrichment_SourceLocations_EmptyIDs(t *testing.T) {
 	svc := NewEnrichment(nil, nil, nil, nil, nil, nil)
 
-	result, err := svc.LineRanges(context.Background(), nil)
+	result, err := svc.SourceLocations(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/helixml/kodit/domain/chunk"
 	"github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 )
@@ -30,7 +30,7 @@ type Enrichment struct {
 	bm25Store          search.BM25Store
 	codeEmbeddingStore search.EmbeddingStore
 	textEmbeddingStore search.EmbeddingStore
-	lineRangeStore     chunk.LineRangeStore
+	lineRangeStore     sourcelocation.Store
 }
 
 // NewEnrichment creates a new Enrichment service.
@@ -40,7 +40,7 @@ func NewEnrichment(
 	bm25Store search.BM25Store,
 	codeEmbeddingStore search.EmbeddingStore,
 	textEmbeddingStore search.EmbeddingStore,
-	lineRangeStore chunk.LineRangeStore,
+	lineRangeStore sourcelocation.Store,
 ) *Enrichment {
 	return &Enrichment{
 		Collection:         repository.NewCollection[enrichment.Enrichment](enrichmentStore),
@@ -237,10 +237,10 @@ func (s *Enrichment) SourceFiles(ctx context.Context, enrichmentIDs []int64) (ma
 	return result, nil
 }
 
-// LineRanges returns chunk line ranges keyed by enrichment ID string.
-func (s *Enrichment) LineRanges(ctx context.Context, enrichmentIDs []int64) (map[string]chunk.LineRange, error) {
+// SourceLocations returns source locations keyed by enrichment ID string.
+func (s *Enrichment) SourceLocations(ctx context.Context, enrichmentIDs []int64) (map[string]sourcelocation.SourceLocation, error) {
 	if len(enrichmentIDs) == 0 {
-		return map[string]chunk.LineRange{}, nil
+		return map[string]sourcelocation.SourceLocation{}, nil
 	}
 
 	ranges, err := s.lineRangeStore.Find(ctx, repository.WithConditionIn("enrichment_id", enrichmentIDs))
@@ -248,7 +248,7 @@ func (s *Enrichment) LineRanges(ctx context.Context, enrichmentIDs []int64) (map
 		return nil, fmt.Errorf("find line ranges: %w", err)
 	}
 
-	result := make(map[string]chunk.LineRange, len(ranges))
+	result := make(map[string]sourcelocation.SourceLocation, len(ranges))
 	for _, r := range ranges {
 		result[strconv.FormatInt(r.EnrichmentID(), 10)] = r
 	}

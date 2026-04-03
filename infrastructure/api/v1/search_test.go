@@ -13,7 +13,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit"
-	"github.com/helixml/kodit/domain/chunk"
+	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/search"
 	v1 "github.com/helixml/kodit/infrastructure/api/v1"
@@ -56,8 +56,8 @@ func TestSearchRouter_LineRanges(t *testing.T) {
 	}
 
 	// Seed line range.
-	lineRangeStore := persistence.NewChunkLineRangeStore(db)
-	lr := chunk.NewLineRange(saved.ID(), 5, 12)
+	lineRangeStore := persistence.NewSourceLocationStore(db)
+	lr := sourcelocation.New(saved.ID(), 5, 12)
 	_, err = lineRangeStore.Save(ctx, lr)
 	if err != nil {
 		t.Fatalf("save line range: %v", err)

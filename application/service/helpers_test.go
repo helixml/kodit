@@ -23,7 +23,7 @@ type testStores struct {
 	tasks        persistence.TaskStore
 	enrichments  persistence.EnrichmentStore
 	associations persistence.AssociationStore
-	lineRanges   persistence.ChunkLineRangeStore
+	lineRanges   persistence.SourceLocationStore
 }
 
 func newTestStores(t *testing.T) testStores {
@@ -38,7 +38,7 @@ func newTestStores(t *testing.T) testStores {
 		tasks:        persistence.NewTaskStore(db),
 		enrichments:  persistence.NewEnrichmentStore(db),
 		associations: persistence.NewAssociationStore(db),
-		lineRanges:   persistence.NewChunkLineRangeStore(db),
+		lineRanges:   persistence.NewSourceLocationStore(db),
 	}
 }
 
