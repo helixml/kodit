@@ -24,14 +24,22 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Download model
-        run: make download-model
+      - name: Download models
+        run: make download-model download-siglip2
 
-      - name: Upload model
+      - name: Upload text embedding model
         uses: actions/upload-artifact@v7
         with:
           name: embedding-model
           path: infrastructure/provider/models/flax-sentence-embeddings_st-codesearch-distilroberta-base
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload SigLIP2 model
+        uses: actions/upload-artifact@v7
+        with:
+          name: siglip2-model
+          path: infrastructure/provider/models/google_siglip2-base-patch16-512
           if-no-files-found: error
           retention-days: 1
 
@@ -71,6 +79,12 @@ jobs:
         with:
           name: embedding-model
           path: infrastructure/provider/models/flax-sentence-embeddings_st-codesearch-distilroberta-base
+
+      - name: Download SigLIP2 model
+        uses: actions/download-artifact@v8
+        with:
+          name: siglip2-model
+          path: infrastructure/provider/models/google_siglip2-base-patch16-512
 
       - name: Build binary
         run: make build VERSION=${{ github.event.release.tag_name }}
