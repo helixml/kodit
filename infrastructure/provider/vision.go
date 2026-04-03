@@ -24,16 +24,17 @@ func (r VisionEmbeddingRequest) Images() []VisionImage {
 }
 
 // VisionImage holds raw image data for embedding at the provider layer.
+// The image format (PNG, JPEG, etc.) is detected automatically from the
+// data bytes.
 type VisionImage struct {
-	data     []byte
-	mimeType string
+	data []byte
 }
 
-// NewVisionImage creates a VisionImage.
-func NewVisionImage(data []byte, mimeType string) VisionImage {
+// NewVisionImage creates a VisionImage from raw bytes.
+func NewVisionImage(data []byte) VisionImage {
 	cp := make([]byte, len(data))
 	copy(cp, data)
-	return VisionImage{data: cp, mimeType: mimeType}
+	return VisionImage{data: cp}
 }
 
 // Data returns a defensive copy of the image bytes.
@@ -42,9 +43,6 @@ func (i VisionImage) Data() []byte {
 	copy(cp, i.data)
 	return cp
 }
-
-// MIMEType returns the image MIME type.
-func (i VisionImage) MIMEType() string { return i.mimeType }
 
 // VisionEmbedder generates embeddings for images and text queries in a
 // shared embedding space (CLIP-style dual encoder).

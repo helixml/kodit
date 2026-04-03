@@ -14,17 +14,17 @@ type VisionEmbedder interface {
 	EmbedQuery(ctx context.Context, text string) ([]float64, error)
 }
 
-// Image holds raw image data for embedding.
+// Image holds raw image data for embedding. The format (PNG, JPEG, etc.)
+// is detected automatically from the data bytes.
 type Image struct {
-	data     []byte
-	mimeType string
+	data []byte
 }
 
-// NewImage creates an Image from raw bytes and MIME type.
-func NewImage(data []byte, mimeType string) Image {
+// NewImage creates an Image from raw bytes.
+func NewImage(data []byte) Image {
 	cp := make([]byte, len(data))
 	copy(cp, data)
-	return Image{data: cp, mimeType: mimeType}
+	return Image{data: cp}
 }
 
 // Data returns a defensive copy of the image bytes.
@@ -33,6 +33,3 @@ func (i Image) Data() []byte {
 	copy(cp, i.data)
 	return cp
 }
-
-// MIMEType returns the image MIME type (e.g. "image/jpeg", "image/png").
-func (i Image) MIMEType() string { return i.mimeType }

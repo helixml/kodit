@@ -13,6 +13,7 @@ import (
 
 	"github.com/knights-analytics/hugot"
 	"github.com/knights-analytics/hugot/pipelines"
+	"github.com/knights-analytics/hugot/util/imageutil"
 )
 
 const (
@@ -99,6 +100,12 @@ func (s *SigLIP2Embedding) initialize() error {
 	}
 
 	if s.visionPipeline == nil {
+		// SigLIP2 expects 512x512 images, rescaled to [0,1] and normalized
+		// with mean=0.5, std=0.5 per the preprocessor_config.json.
+		siglipNorm := imageutil.PixelNormalizationStep(
+			[3]float32{0.5, 0.5, 0.5},
+			[3]float32{0.5, 0.5, 0.5},
+		)
 		visionConfig := hugot.FeatureExtractionConfig{
 			ModelPath:    modelPath,
 			Name:         siglip2VisionPipeline,
@@ -106,6 +113,15 @@ func (s *SigLIP2Embedding) initialize() error {
 			Options: []hugot.FeatureExtractionOption{
 				pipelines.WithNormalization(),
 				pipelines.WithImageMode(),
+				pipelines.WithOutputName("pooler_output"),
+				pipelines.WithPreprocessSteps[*pipelines.FeatureExtractionPipeline](
+					imageutil.ResizeStep(512),
+					imageutil.CenterCropStep(512, 512),
+				),
+				pipelines.WithNormalizationSteps[*pipelines.FeatureExtractionPipeline](
+					imageutil.RescaleStep(),
+					siglipNorm,
+				),
 			},
 		}
 		visionPipeline, err := hugot.NewPipeline(session, visionConfig)
