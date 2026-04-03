@@ -22,12 +22,10 @@ const (
 	siglip2TextOnnx   = "text_model.onnx"
 )
 
-// SigLIP2Embedding provides vision and text embedding using the SigLIP2
-// dual-encoder model. Images and text queries are embedded into the same
-// 768-dimensional space, enabling cross-modal similarity search.
-//
-// The model is loaded from cacheDir (disk or extracted from the embedded
-// binary) and shares the process-wide ORT session with HugotEmbedding.
+// SigLIP2Embedding manages the SigLIP2 dual-encoder model and exposes two
+// Embedder implementations that produce vectors in the same 768-dimensional
+// space: one for images, one for text queries. Both share the process-wide
+// ORT session and the same model directory.
 type SigLIP2Embedding struct {
 	cacheDir       string
 	visionPipeline *pipelines.FeatureExtractionPipeline
@@ -40,22 +38,38 @@ func NewSigLIP2Embedding(cacheDir string) *SigLIP2Embedding {
 	return &SigLIP2Embedding{cacheDir: cacheDir}
 }
 
+// VisionEmbedder returns an Embedder that accepts image bytes (PNG, JPEG)
+// and produces vectors in SigLIP2's shared embedding space.
+func (s *SigLIP2Embedding) VisionEmbedder() Embedder {
+	return &siglip2VisionEmbedder{parent: s}
+}
+
+// TextEmbedder returns an Embedder that accepts UTF-8 text and produces
+// vectors in the same embedding space as VisionEmbedder. Use this to embed
+// text queries for cross-modal image search.
+func (s *SigLIP2Embedding) TextEmbedder() Embedder {
+	return &siglip2TextEmbedder{parent: s}
+}
+
 // Available reports whether the SigLIP2 model files exist on disk or
 // are embedded in the binary.
 func (s *SigLIP2Embedding) Available() bool {
 	if hasEmbeddedModel {
 		modelDir := filepath.Join(s.cacheDir, siglip2ModelDir)
-		// Check extracted cache first.
 		if s.hasModelFiles(modelDir) {
 			return true
 		}
-		// Check the embedded FS.
 		visionPath := filepath.Join("models", siglip2ModelDir, "onnx", siglip2VisionOnnx)
 		if _, err := embeddedModelFS.Open(visionPath); err == nil {
 			return true
 		}
 	}
 	return s.hasModelFiles(filepath.Join(s.cacheDir, siglip2ModelDir))
+}
+
+// Close is a no-op. The ORT session is process-global.
+func (s *SigLIP2Embedding) Close() error {
+	return nil
 }
 
 func (s *SigLIP2Embedding) hasModelFiles(dir string) bool {
@@ -83,7 +97,6 @@ func (s *SigLIP2Embedding) initialize() error {
 		return err
 	}
 
-	// Reuse existing pipelines if already registered on the session.
 	if v, vErr := hugot.GetPipeline[*pipelines.FeatureExtractionPipeline](session, siglip2VisionPipeline); vErr == nil {
 		s.visionPipeline = v
 	}
@@ -100,8 +113,6 @@ func (s *SigLIP2Embedding) initialize() error {
 	}
 
 	if s.visionPipeline == nil {
-		// SigLIP2 expects 512x512 images, rescaled to [0,1] and normalized
-		// with mean=0.5, std=0.5 per the preprocessor_config.json.
 		siglipNorm := imageutil.PixelNormalizationStep(
 			[3]float32{0.5, 0.5, 0.5},
 			[3]float32{0.5, 0.5, 0.5},
@@ -164,17 +175,17 @@ func (s *SigLIP2Embedding) resolveModelPath() (string, error) {
 		return "", fmt.Errorf("create cache directory: %w", err)
 	}
 
-	extracted, err := extractEmbeddedModelByName(embeddedModelFS, s.cacheDir, siglip2ModelDir)
-	if err != nil {
-		return "", err
-	}
-	return extracted, nil
+	return extractEmbeddedModelByName(embeddedModelFS, s.cacheDir, siglip2ModelDir)
 }
 
-// EmbedImages returns one embedding vector per image.
-func (s *SigLIP2Embedding) EmbedImages(ctx context.Context, req VisionEmbeddingRequest) (EmbeddingResponse, error) {
-	images := req.Images()
-	if len(images) == 0 {
+// siglip2VisionEmbedder implements Embedder for image inputs.
+type siglip2VisionEmbedder struct {
+	parent *SigLIP2Embedding
+}
+
+func (v *siglip2VisionEmbedder) Embed(ctx context.Context, req EmbeddingRequest) (EmbeddingResponse, error) {
+	inputs := req.Inputs()
+	if len(inputs) == 0 {
 		return NewEmbeddingResponse([][]float64{}, NewUsage(0, 0, 0)), nil
 	}
 
@@ -182,13 +193,13 @@ func (s *SigLIP2Embedding) EmbedImages(ctx context.Context, req VisionEmbeddingR
 		return EmbeddingResponse{}, err
 	}
 
-	if err := s.initialize(); err != nil {
+	if err := v.parent.initialize(); err != nil {
 		return EmbeddingResponse{}, fmt.Errorf("initialize siglip2: %w", err)
 	}
 
-	goImages := make([]image.Image, len(images))
-	for i, img := range images {
-		decoded, _, err := image.Decode(bytes.NewReader(img.Data()))
+	goImages := make([]image.Image, len(inputs))
+	for i, data := range inputs {
+		decoded, _, err := image.Decode(bytes.NewReader(data))
 		if err != nil {
 			return EmbeddingResponse{}, fmt.Errorf("decode image %d: %w", i, err)
 		}
@@ -198,7 +209,7 @@ func (s *SigLIP2Embedding) EmbedImages(ctx context.Context, req VisionEmbeddingR
 	ortSingleton.mu.Lock()
 	defer ortSingleton.mu.Unlock()
 
-	result, err := s.visionPipeline.RunWithImages(goImages)
+	result, err := v.parent.visionPipeline.RunWithImages(goImages)
 	if err != nil {
 		return EmbeddingResponse{}, fmt.Errorf("run vision pipeline: %w", err)
 	}
@@ -206,10 +217,14 @@ func (s *SigLIP2Embedding) EmbedImages(ctx context.Context, req VisionEmbeddingR
 	return toEmbeddingResponse(result.Embeddings), nil
 }
 
-// EmbedQuery embeds a text description in the vision embedding space.
-func (s *SigLIP2Embedding) EmbedQuery(ctx context.Context, req EmbeddingRequest) (EmbeddingResponse, error) {
-	texts := req.Texts()
-	if len(texts) == 0 {
+// siglip2TextEmbedder implements Embedder for text query inputs.
+type siglip2TextEmbedder struct {
+	parent *SigLIP2Embedding
+}
+
+func (t *siglip2TextEmbedder) Embed(ctx context.Context, req EmbeddingRequest) (EmbeddingResponse, error) {
+	inputs := req.Inputs()
+	if len(inputs) == 0 {
 		return NewEmbeddingResponse([][]float64{}, NewUsage(0, 0, 0)), nil
 	}
 
@@ -217,24 +232,24 @@ func (s *SigLIP2Embedding) EmbedQuery(ctx context.Context, req EmbeddingRequest)
 		return EmbeddingResponse{}, err
 	}
 
-	if err := s.initialize(); err != nil {
+	if err := t.parent.initialize(); err != nil {
 		return EmbeddingResponse{}, fmt.Errorf("initialize siglip2: %w", err)
+	}
+
+	texts := make([]string, len(inputs))
+	for i, b := range inputs {
+		texts[i] = string(b)
 	}
 
 	ortSingleton.mu.Lock()
 	defer ortSingleton.mu.Unlock()
 
-	result, err := s.textPipeline.RunPipeline(texts)
+	result, err := t.parent.textPipeline.RunPipeline(texts)
 	if err != nil {
 		return EmbeddingResponse{}, fmt.Errorf("run text pipeline: %w", err)
 	}
 
 	return toEmbeddingResponse(result.Embeddings), nil
-}
-
-// Close is a no-op. The ORT session is process-global.
-func (s *SigLIP2Embedding) Close() error {
-	return nil
 }
 
 func toEmbeddingResponse(embeddings [][]float32) EmbeddingResponse {
@@ -249,4 +264,7 @@ func toEmbeddingResponse(embeddings [][]float32) EmbeddingResponse {
 	return NewEmbeddingResponse(vecs, NewUsage(0, 0, 0))
 }
 
-var _ VisionEmbedder = (*SigLIP2Embedding)(nil)
+var (
+	_ Embedder = (*siglip2VisionEmbedder)(nil)
+	_ Embedder = (*siglip2TextEmbedder)(nil)
+)

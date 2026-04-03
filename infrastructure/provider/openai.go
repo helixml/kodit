@@ -238,9 +238,14 @@ func (p *OpenAIProvider) Embed(ctx context.Context, req EmbeddingRequest) (Embed
 		return EmbeddingResponse{}, ErrUnsupportedOperation
 	}
 
-	texts := req.Texts()
-	if len(texts) == 0 {
+	inputs := req.Inputs()
+	if len(inputs) == 0 {
 		return NewEmbeddingResponse([][]float64{}, NewUsage(0, 0, 0)), nil
+	}
+
+	texts := make([]string, len(inputs))
+	for i, b := range inputs {
+		texts[i] = string(b)
 	}
 
 	openaiReq := openai.EmbeddingRequest{

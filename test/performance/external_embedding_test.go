@@ -57,7 +57,7 @@ func TestExternalEmbeddingBatching(t *testing.T) {
 	texts := sampleTexts(20)
 
 	// Warm up: single request to establish connection and verify credentials.
-	warmup := provider.NewEmbeddingRequest(texts[:1])
+	warmup := provider.NewTextEmbeddingRequest(texts[:1])
 	resp, err := embedder.Embed(ctx, warmup)
 	require.NoError(t, err)
 	require.Len(t, resp.Embeddings(), 1)
@@ -73,7 +73,7 @@ func TestExternalEmbeddingBatching(t *testing.T) {
 
 				start := time.Now()
 				for _, text := range batch {
-					req := provider.NewEmbeddingRequest([]string{text})
+					req := provider.NewTextEmbeddingRequest([]string{text})
 					resp, err := embedder.Embed(ctx, req)
 					require.NoError(t, err)
 					require.Len(t, resp.Embeddings(), 1)
@@ -96,7 +96,7 @@ func TestExternalEmbeddingBatching(t *testing.T) {
 		for i := range iterations {
 			text := texts[i%len(texts)]
 			start := time.Now()
-			req := provider.NewEmbeddingRequest([]string{text})
+			req := provider.NewTextEmbeddingRequest([]string{text})
 			_, err := embedder.Embed(ctx, req)
 			latencies[i] = time.Since(start)
 			require.NoError(t, err)

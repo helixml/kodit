@@ -28,7 +28,7 @@ import (
 type stubEmbedder struct{}
 
 func (stubEmbedder) Embed(_ context.Context, req provider.EmbeddingRequest) (provider.EmbeddingResponse, error) {
-	vecs := make([][]float64, len(req.Texts()))
+	vecs := make([][]float64, len(req.Inputs()))
 	for i := range vecs {
 		vecs[i] = []float64{0}
 	}

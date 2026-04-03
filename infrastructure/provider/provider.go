@@ -147,23 +147,40 @@ func (u Usage) CompletionTokens() int { return u.completionTokens }
 // TotalTokens returns the total number of tokens.
 func (u Usage) TotalTokens() int { return u.totalTokens }
 
-// EmbeddingRequest represents a request for embeddings.
+// EmbeddingRequest represents a request for embeddings. Each input is a raw
+// byte slice — UTF-8 text for text models, encoded image data (PNG, JPEG, …)
+// for vision models.
 type EmbeddingRequest struct {
-	texts []string
+	inputs [][]byte
 }
 
-// NewEmbeddingRequest creates a new EmbeddingRequest.
-func NewEmbeddingRequest(texts []string) EmbeddingRequest {
-	t := make([]string, len(texts))
-	copy(t, texts)
-	return EmbeddingRequest{texts: t}
+// NewEmbeddingRequest creates a new EmbeddingRequest from raw byte slices.
+func NewEmbeddingRequest(inputs [][]byte) EmbeddingRequest {
+	cp := make([][]byte, len(inputs))
+	for i, b := range inputs {
+		cp[i] = make([]byte, len(b))
+		copy(cp[i], b)
+	}
+	return EmbeddingRequest{inputs: cp}
 }
 
-// Texts returns the texts to embed.
-func (r EmbeddingRequest) Texts() []string {
-	t := make([]string, len(r.texts))
-	copy(t, r.texts)
-	return t
+// NewTextEmbeddingRequest is a convenience constructor for text inputs.
+func NewTextEmbeddingRequest(texts []string) EmbeddingRequest {
+	inputs := make([][]byte, len(texts))
+	for i, t := range texts {
+		inputs[i] = []byte(t)
+	}
+	return NewEmbeddingRequest(inputs)
+}
+
+// Inputs returns the raw inputs to embed.
+func (r EmbeddingRequest) Inputs() [][]byte {
+	cp := make([][]byte, len(r.inputs))
+	for i, b := range r.inputs {
+		cp[i] = make([]byte, len(b))
+		copy(cp[i], b)
+	}
+	return cp
 }
 
 // EmbeddingResponse represents an embedding response.
@@ -204,9 +221,9 @@ type TextGenerator interface {
 	ChatCompletion(ctx context.Context, req ChatCompletionRequest) (ChatCompletionResponse, error)
 }
 
-// Embedder generates embeddings for text.
+// Embedder generates embeddings for content (text or images).
 type Embedder interface {
-	// Embed generates embeddings for the given texts.
+	// Embed generates embeddings for the given inputs.
 	Embed(ctx context.Context, req EmbeddingRequest) (EmbeddingResponse, error)
 }
 

@@ -27,13 +27,10 @@ func testPNG(t *testing.T, width, height int, c color.Color) []byte {
 	return buf.Bytes()
 }
 
-// siglip2ModelDir returns the path to the on-disk SigLIP2 model, or skips the
-// test if the model has not been downloaded (run `make download-siglip2`).
+// siglip2ModelPath returns the models directory if the SigLIP2 model has been
+// downloaded, or skips the test otherwise (run `make download-siglip2`).
 func siglip2ModelPath(t *testing.T) string {
 	t.Helper()
-	// The model is downloaded to infrastructure/provider/models/ relative to
-	// the repo root. In tests the working directory is the package directory,
-	// so we go up two levels.
 	candidate := filepath.Join("models", siglip2ModelDir, "onnx", siglip2VisionOnnx)
 	if _, err := os.Stat(candidate); err != nil {
 		t.Skipf("skipping: siglip2 model not on disk (run make download-siglip2): %v", err)
@@ -46,11 +43,12 @@ func TestSigLIP2Embedding_EmbedImage(t *testing.T) {
 	emb := NewSigLIP2Embedding(modelDir)
 	require.True(t, emb.Available())
 
-	// Embed a simple red 64x64 PNG.
-	imgData := testPNG(t, 64, 64, color.RGBA{R: 255, A: 255})
-	req := NewVisionEmbeddingRequest([]VisionImage{NewVisionImage(imgData)})
+	vision := emb.VisionEmbedder()
 
-	resp, err := emb.EmbedImages(context.Background(), req)
+	imgData := testPNG(t, 64, 64, color.RGBA{R: 255, A: 255})
+	req := NewEmbeddingRequest([][]byte{imgData})
+
+	resp, err := vision.Embed(context.Background(), req)
 	require.NoError(t, err)
 
 	embeddings := resp.Embeddings()
@@ -63,8 +61,10 @@ func TestSigLIP2Embedding_EmbedQuery(t *testing.T) {
 	emb := NewSigLIP2Embedding(modelDir)
 	require.True(t, emb.Available())
 
-	req := NewEmbeddingRequest([]string{"a photo of a cat"})
-	resp, err := emb.EmbedQuery(context.Background(), req)
+	text := emb.TextEmbedder()
+
+	req := NewTextEmbeddingRequest([]string{"a photo of a cat"})
+	resp, err := text.Embed(context.Background(), req)
 	require.NoError(t, err)
 
 	embeddings := resp.Embeddings()
@@ -76,15 +76,16 @@ func TestSigLIP2Embedding_EmbedEmpty(t *testing.T) {
 	modelDir := t.TempDir()
 	emb := NewSigLIP2Embedding(modelDir)
 
+	vision := emb.VisionEmbedder()
+	text := emb.TextEmbedder()
+
 	// Empty image request should return empty without initialization.
-	req := NewVisionEmbeddingRequest(nil)
-	resp, err := emb.EmbedImages(context.Background(), req)
+	resp, err := vision.Embed(context.Background(), NewEmbeddingRequest(nil))
 	require.NoError(t, err)
 	require.Empty(t, resp.Embeddings())
 
 	// Empty text request too.
-	textReq := NewEmbeddingRequest(nil)
-	textResp, err := emb.EmbedQuery(context.Background(), textReq)
+	textResp, err := text.Embed(context.Background(), NewEmbeddingRequest(nil))
 	require.NoError(t, err)
 	require.Empty(t, textResp.Embeddings())
 }
@@ -96,8 +97,8 @@ func TestSigLIP2Embedding_CancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
+	vision := emb.VisionEmbedder()
 	imgData := testPNG(t, 8, 8, color.White)
-	req := NewVisionEmbeddingRequest([]VisionImage{NewVisionImage(imgData)})
-	_, err := emb.EmbedImages(ctx, req)
+	_, err := vision.Embed(ctx, NewEmbeddingRequest([][]byte{imgData}))
 	require.Error(t, err)
 }

@@ -149,12 +149,12 @@ func (s *EmbeddingService) Index(ctx context.Context, request search.IndexReques
 			start := offsets[idx]
 			end := start + len(batch)
 
-			texts := make([]string, len(batch))
+			inputs := make([][]byte, len(batch))
 			for j, doc := range batch {
-				texts[j] = s.budget.Truncate(doc.Text())
+				inputs[j] = []byte(s.budget.Truncate(doc.Text()))
 			}
 
-			vectors, err := s.embedder.Embed(ctx, texts)
+			vectors, err := s.embedder.Embed(ctx, inputs)
 			if err != nil {
 				batchErr := fmt.Errorf("embed batch [%d:%d]: %w", start, end, err)
 				mu.Lock()
@@ -218,7 +218,7 @@ func (s *EmbeddingService) Find(ctx context.Context, query string, options ...re
 		return nil, fmt.Errorf("Find: nil embedder")
 	}
 
-	embeddings, err := s.embedder.Embed(ctx, []string{query})
+	embeddings, err := s.embedder.Embed(ctx, [][]byte{[]byte(query)})
 	if err != nil {
 		return nil, fmt.Errorf("embed query: %w", err)
 	}

@@ -222,10 +222,10 @@ func extractEmbeddedModelByName(embedded fs.FS, targetDir, name string) (string,
 	return modelPath, nil
 }
 
-// Embed generates embeddings for the given texts using the local model.
+// Embed generates embeddings for the given text inputs using the local model.
 func (h *HugotEmbedding) Embed(ctx context.Context, req EmbeddingRequest) (EmbeddingResponse, error) {
-	texts := req.Texts()
-	if len(texts) == 0 {
+	inputs := req.Inputs()
+	if len(inputs) == 0 {
 		return NewEmbeddingResponse([][]float64{}, NewUsage(0, 0, 0)), nil
 	}
 
@@ -240,6 +240,11 @@ func (h *HugotEmbedding) Embed(ctx context.Context, req EmbeddingRequest) (Embed
 	// Hold the singleton mutex for inference — ORT is not thread-safe.
 	ortSingleton.mu.Lock()
 	defer ortSingleton.mu.Unlock()
+
+	texts := make([]string, len(inputs))
+	for i, b := range inputs {
+		texts[i] = string(b)
+	}
 
 	result, err := h.pipeline.RunPipeline(texts)
 	if err != nil {

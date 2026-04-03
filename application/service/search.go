@@ -302,7 +302,11 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 		}
 
 		if len(textsToEmbed) > 0 {
-			embeddings, err := s.embedder.Embed(ctx, textsToEmbed)
+			bytesToEmbed := make([][]byte, len(textsToEmbed))
+			for i, t := range textsToEmbed {
+				bytesToEmbed[i] = []byte(t)
+			}
+			embeddings, err := s.embedder.Embed(ctx, bytesToEmbed)
 			if err != nil {
 				return MultiSearchResult{}, fmt.Errorf("embedding failed: %w", err)
 			}
@@ -434,7 +438,7 @@ func (s Search) SearchText(ctx context.Context, query string, topK int) ([]enric
 		topK = 10
 	}
 
-	embeddings, err := s.embedder.Embed(ctx, []string{query})
+	embeddings, err := s.embedder.Embed(ctx, [][]byte{[]byte(query)})
 	if err != nil {
 		return nil, fmt.Errorf("embed query: %w", err)
 	}
@@ -472,7 +476,7 @@ func (s Search) SearchCode(ctx context.Context, query string, topK int) ([]enric
 		topK = 10
 	}
 
-	embeddings, err := s.embedder.Embed(ctx, []string{query})
+	embeddings, err := s.embedder.Embed(ctx, [][]byte{[]byte(query)})
 	if err != nil {
 		return nil, fmt.Errorf("embed query: %w", err)
 	}
@@ -511,7 +515,7 @@ func (s Search) SearchCodeWithScores(ctx context.Context, query string, topK int
 		topK = 10
 	}
 
-	embeddings, err := s.embedder.Embed(ctx, []string{query})
+	embeddings, err := s.embedder.Embed(ctx, [][]byte{[]byte(query)})
 	if err != nil {
 		return nil, nil, fmt.Errorf("embed query: %w", err)
 	}
