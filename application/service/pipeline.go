@@ -89,44 +89,85 @@ func NewPipeline(
 	}
 }
 
-// Initialise seeds the default and RAG pipelines if no pipelines exist yet,
-// and ensures all prescribed operations exist as steps.
-func (s *Pipeline) Initialise(ctx context.Context) error {
-	// Ensure every prescribed operation exists as a step, even on upgrades
-	// where new operations have been added since the pipelines were seeded.
-	if err := s.ensureSteps(ctx); err != nil {
-		return err
-	}
-
-	count, err := s.pipelineStore.Count(ctx)
-	if err != nil {
-		return fmt.Errorf("count pipelines: %w", err)
-	}
-	if count > 0 {
-		return nil
-	}
-
+// builtinSpecs returns the built-in pipeline definitions. Each spec pairs a
+// pipeline name with the step params that should be present. This is the
+// single source of truth for both initial seeding and ongoing reconciliation.
+func (s *Pipeline) builtinSpecs() []CreatePipelineParams {
 	repoSteps := repositoryStepParams()
-
-	// "default" pipeline — repo operations + the full commit operation set.
-	defaultOps := s.prescribedOps.ScanAndIndexCommit()
-	if _, err := s.Create(ctx, &CreatePipelineParams{
-		Name:  repository.PipelineNameDefault,
-		Steps: append(repoSteps, operationsToStepParams(defaultOps)...),
-	}); err != nil {
-		return fmt.Errorf("seed default pipeline: %w", err)
+	return []CreatePipelineParams{
+		{
+			Name:  repository.PipelineNameDefault,
+			Steps: append(repoSteps, operationsToStepParams(s.prescribedOps.ScanAndIndexCommit())...),
+		},
+		{
+			Name:  repository.PipelineNameRAG,
+			Steps: append(repoSteps, operationsToStepParams(task.RAGOnlyPrescribedOperations().ScanAndIndexCommit())...),
+		},
 	}
+}
 
-	// "rag" pipeline — repo operations + RAG-only commit subset (no enrichments).
-	ragOps := task.RAGOnlyPrescribedOperations().ScanAndIndexCommit()
-	if _, err := s.Create(ctx, &CreatePipelineParams{
-		Name:  repository.PipelineNameRAG,
-		Steps: append(repoSteps, operationsToStepParams(ragOps)...),
-	}); err != nil {
-		return fmt.Errorf("seed rag pipeline: %w", err)
+// Initialise seeds built-in pipelines on first run and reconciles them on
+// every startup so that new operations are added automatically.
+func (s *Pipeline) Initialise(ctx context.Context) error {
+	specs := s.builtinSpecs()
+
+	for _, spec := range specs {
+		if err := s.seedOrReconcile(ctx, &spec); err != nil {
+			return fmt.Errorf("initialise pipeline %q: %w", spec.Name, err)
+		}
 	}
 
 	return nil
+}
+
+// seedOrReconcile creates a built-in pipeline if it doesn't exist, or updates
+// it when its steps have changed (e.g. a new operation was added).
+func (s *Pipeline) seedOrReconcile(ctx context.Context, spec *CreatePipelineParams) error {
+	existing, err := s.pipelineStore.FindOne(ctx, repository.WithName(spec.Name))
+	if err != nil {
+		// Pipeline doesn't exist — seed it.
+		if _, createErr := s.Create(ctx, spec); createErr != nil {
+			return fmt.Errorf("seed: %w", createErr)
+		}
+		return nil
+	}
+
+	// Pipeline exists — check whether its steps match the spec.
+	detail, err := s.Detail(ctx, existing.ID())
+	if err != nil {
+		return fmt.Errorf("load detail: %w", err)
+	}
+
+	if stepsMatch(detail.Steps(), spec.Steps) {
+		return nil
+	}
+
+	if _, err := s.Update(ctx, existing.ID(), &UpdatePipelineParams{
+		Name:  spec.Name,
+		Steps: spec.Steps,
+	}); err != nil {
+		return fmt.Errorf("reconcile: %w", err)
+	}
+
+	return nil
+}
+
+// stepsMatch returns true if the current steps match the expected params
+// in both set membership and dependency order.
+func stepsMatch(current []repository.Step, expected []StepParams) bool {
+	if len(current) != len(expected) {
+		return false
+	}
+	currentNames := make(map[string]struct{}, len(current))
+	for _, step := range current {
+		currentNames[step.Name()] = struct{}{}
+	}
+	for _, sp := range expected {
+		if _, ok := currentNames[sp.Name]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // repositoryStepParams returns step params for the four repository-level
@@ -403,17 +444,6 @@ func (s *Pipeline) createSteps(ctx context.Context, pipelineID int64, params []S
 	}
 
 	return steps, deps, assocs, nil
-}
-
-// ensureSteps creates any prescribed operation steps that don't yet exist.
-// This handles upgrades where new operations are added after initial seeding.
-func (s *Pipeline) ensureSteps(ctx context.Context) error {
-	for _, op := range s.prescribedOps.All() {
-		if _, err := s.findOrCreateStep(ctx, string(op), "internal"); err != nil {
-			return fmt.Errorf("ensure step %q: %w", op, err)
-		}
-	}
-	return nil
 }
 
 // findOrCreateStep returns an existing step with the given name, or creates one.
