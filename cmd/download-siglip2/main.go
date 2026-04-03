@@ -30,7 +30,15 @@ func main() {
 
 	// Skip if already downloaded.
 	if _, err := os.Stat(filepath.Join(dest, "tokenizer.json")); err == nil {
-		if _, err := os.Stat(filepath.Join(dest, "onnx", "model.onnx")); err == nil {
+		visionOK := false
+		textOK := false
+		if _, err := os.Stat(filepath.Join(dest, "onnx", "vision_model.onnx")); err == nil {
+			visionOK = true
+		}
+		if _, err := os.Stat(filepath.Join(dest, "onnx", "text_model.onnx")); err == nil {
+			textOK = true
+		}
+		if visionOK && textOK {
 			fmt.Printf("Model already present at %s\n", dest)
 			return
 		}

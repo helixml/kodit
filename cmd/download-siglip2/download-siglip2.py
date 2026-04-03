@@ -13,9 +13,9 @@ from huggingface_hub import snapshot_download
 
 REPO_ID = "onnx-community/siglip2-base-patch16-512-ONNX"
 
-# Only download the INT8 quantized model (381 MB) and config/tokenizer files.
-# The full FP32 model is 1.5 GB; INT8 keeps quality while matching the size
-# of the existing bundled text embedding model (~311 MB).
+# Download separate vision and text INT8 models (~380 MB total) plus config
+# and tokenizer files. Separate models let the runtime create independent
+# pipelines for image embedding and text query embedding.
 ALLOW_PATTERNS = [
     "config.json",
     "preprocessor_config.json",
@@ -23,7 +23,8 @@ ALLOW_PATTERNS = [
     "tokenizer.model",
     "tokenizer_config.json",
     "special_tokens_map.json",
-    "onnx/model_int8.onnx",
+    "onnx/vision_model_int8.onnx",
+    "onnx/text_model_int8.onnx",
 ]
 
 
@@ -35,8 +36,9 @@ def main():
     output_dir = sys.argv[1]
 
     # Skip if already downloaded.
-    onnx_dest = os.path.join(output_dir, "onnx", "model.onnx")
-    if os.path.exists(onnx_dest):
+    vision_dest = os.path.join(output_dir, "onnx", "vision_model.onnx")
+    text_dest = os.path.join(output_dir, "onnx", "text_model.onnx")
+    if os.path.exists(vision_dest) and os.path.exists(text_dest):
         print(f"Model already present at {output_dir}")
         return
 
@@ -46,11 +48,17 @@ def main():
         allow_patterns=ALLOW_PATTERNS,
     )
 
-    # Rename int8 model to model.onnx so the runtime finds it at the
-    # conventional path (onnx/model.onnx).
-    int8_path = os.path.join(output_dir, "onnx", "model_int8.onnx")
-    if os.path.exists(int8_path) and not os.path.exists(onnx_dest):
-        os.rename(int8_path, onnx_dest)
+    # Rename INT8 models to canonical names.
+    renames = {
+        "vision_model_int8.onnx": "vision_model.onnx",
+        "text_model_int8.onnx": "text_model.onnx",
+    }
+    onnx_dir = os.path.join(output_dir, "onnx")
+    for src_name, dst_name in renames.items():
+        src = os.path.join(onnx_dir, src_name)
+        dst = os.path.join(onnx_dir, dst_name)
+        if os.path.exists(src) and not os.path.exists(dst):
+            os.rename(src, dst)
 
     print(f"Model downloaded to {output_dir}")
 
