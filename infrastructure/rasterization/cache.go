@@ -57,7 +57,7 @@ func (c *Cache) Image(path string, page int) ([]byte, error) {
 		return nil, fmt.Errorf("create cache file: %w", err)
 	}
 	if err := png.Encode(f, img); err != nil {
-		f.Close()
+		_ = f.Close()
 		return nil, fmt.Errorf("encode png: %w", err)
 	}
 
