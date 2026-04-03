@@ -89,8 +89,15 @@ func NewPipeline(
 	}
 }
 
-// Initialise seeds the default and RAG pipelines if no pipelines exist yet.
+// Initialise seeds the default and RAG pipelines if no pipelines exist yet,
+// and ensures all prescribed operations exist as steps.
 func (s *Pipeline) Initialise(ctx context.Context) error {
+	// Ensure every prescribed operation exists as a step, even on upgrades
+	// where new operations have been added since the pipelines were seeded.
+	if err := s.ensureSteps(ctx); err != nil {
+		return err
+	}
+
 	count, err := s.pipelineStore.Count(ctx)
 	if err != nil {
 		return fmt.Errorf("count pipelines: %w", err)
@@ -396,6 +403,17 @@ func (s *Pipeline) createSteps(ctx context.Context, pipelineID int64, params []S
 	}
 
 	return steps, deps, assocs, nil
+}
+
+// ensureSteps creates any prescribed operation steps that don't yet exist.
+// This handles upgrades where new operations are added after initial seeding.
+func (s *Pipeline) ensureSteps(ctx context.Context) error {
+	for _, op := range s.prescribedOps.All() {
+		if _, err := s.findOrCreateStep(ctx, string(op), "internal"); err != nil {
+			return fmt.Errorf("ensure step %q: %w", op, err)
+		}
+	}
+	return nil
 }
 
 // findOrCreateStep returns an existing step with the given name, or creates one.
