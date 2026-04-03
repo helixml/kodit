@@ -263,7 +263,7 @@ func New(opts ...Option) (*Client, error) {
 	needsDimensionProbe := cfg.embeddingProvider != nil &&
 		cfg.database == databasePostgresVectorchord
 	if needsDimensionProbe {
-		resp, err := cfg.embeddingProvider.Embed(ctx, provider.NewEmbeddingRequest([]string{"dimension probe"}))
+		resp, err := cfg.embeddingProvider.Embed(ctx, provider.NewTextEmbeddingRequest([]string{"dimension probe"}))
 		if err != nil {
 			errClose := db.Close()
 			return nil, errors.Join(fmt.Errorf("probe embedding dimension: %w", err), errClose)
@@ -546,8 +546,8 @@ type embeddingAdapter struct {
 	inner provider.Embedder
 }
 
-func (a *embeddingAdapter) Embed(ctx context.Context, texts []string) ([][]float64, error) {
-	resp, err := a.inner.Embed(ctx, provider.NewEmbeddingRequest(texts))
+func (a *embeddingAdapter) Embed(ctx context.Context, inputs [][]byte) ([][]float64, error) {
+	resp, err := a.inner.Embed(ctx, provider.NewEmbeddingRequest(inputs))
 	if err != nil {
 		return nil, err
 	}

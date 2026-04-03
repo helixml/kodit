@@ -72,7 +72,7 @@ dev: docker-dev ## Start Docker development environment (idempotent, non-destruc
 	docker compose -f docker-compose.dev.yaml --profile kodit logs -f kodit
 
 .PHONY: docker-dev
-docker-dev: download-model download-ort 
+docker-dev: download-model download-siglip2 download-ort
 	docker compose -f docker-compose.dev.yaml build kodit
 	docker compose -f docker-compose.dev.yaml $(PROFILES) up -d --wait
 
@@ -81,7 +81,7 @@ docker-clean:
 	docker compose -f docker-compose.dev.yaml $(ALL_PROFILES) down -v
 
 .PHONY: build
-build: download-model download-ort ## Build the application binary (with embedded model)
+build: download-model download-siglip2 download-ort ## Build the application binary (with embedded model)
 	CGO_ENABLED=$(CGO_ENABLED) $(GOENV) $(GOCMD) build -tags "$(EMBED_TAGS)" $(LDFLAGS) -o $(BINARY_OUTPUT) $(CMD_DIR)
 
 .PHONY: clean
@@ -94,16 +94,16 @@ clean: docker-clean ## Remove build artifacts
 ##@ Testing
 
 .PHONY: test
-test: download-model download-ort ## Run tests (PKG=./path/... to target)
+test: download-model download-siglip2 download-ort ## Run tests (PKG=./path/... to target)
 	$(GOENV) $(GOCMD) test -tags "$(EMBED_TAGS)" -v $$(go list $(PKG) | grep -v /test/smoke)
 
 .PHONY: test-cover
-test-cover: download-model download-ort ## Run tests with coverage (excludes smoke tests)
+test-cover: download-model download-siglip2 download-ort ## Run tests with coverage (excludes smoke tests)
 	$(GOENV) $(GOCMD) test -tags "$(EMBED_TAGS)" -v -coverprofile=$(COVERAGE_FILE) -covermode=atomic $$(go list ./... | grep -v /test/smoke)
 	$(GOCMD) tool cover -func=$(COVERAGE_FILE)
 
 .PHONY: test-e2e
-test-e2e: download-model download-ort ## Run end-to-end tests only
+test-e2e: download-model download-siglip2 download-ort ## Run end-to-end tests only
 	$(GOENV) $(GOCMD) test -tags "$(EMBED_TAGS)" -v ./test/e2e/...
 
 .PHONY: mcp-inspector
@@ -147,6 +147,10 @@ check: fmt vet lint test ## Run all checks (PKG=./path/... to target vet/lint/te
 .PHONY: download-model
 download-model: ## Convert and prepare the built-in embedding model (requires uv + Python)
 	$(GOCMD) run ./cmd/download-model infrastructure/provider/models/flax-sentence-embeddings_st-codesearch-distilroberta-base
+
+.PHONY: download-siglip2
+download-siglip2: ## Download the SigLIP2 vision-language ONNX model (requires uv + Python)
+	$(GOCMD) run ./cmd/download-siglip2 infrastructure/provider/models/google_siglip2-base-patch16-512
 
 .PHONY: download-ort
 download-ort: ## Download the ONNX Runtime shared library for the current platform

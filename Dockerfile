@@ -37,15 +37,17 @@ EXPOSE 8080
 
 CMD ["air", "-c", ".air.toml"]
 
-# Model stage — downloads and converts the embedding model to ONNX format
+# Model stage — downloads and converts embedding models to ONNX format.
 # Uses debian-slim variant (not the default distroless) because the Python
 # ML dependencies (torch, onnxruntime) need system libraries and a shell.
 FROM ghcr.io/astral-sh/uv:debian-slim@sha256:3c13cc639ea813f44a375ce679c99b7fbd37c67d902c0b22ef900c1985742313 AS model
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 COPY cmd/download-model/convert-model.py ./convert-model.py
+COPY cmd/download-siglip2/download-siglip2.py ./download-siglip2.py
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv run --script convert-model.py infrastructure/provider/models/flax-sentence-embeddings_st-codesearch-distilroberta-base
+    uv run --script convert-model.py infrastructure/provider/models/flax-sentence-embeddings_st-codesearch-distilroberta-base \
+    && uv run --script download-siglip2.py infrastructure/provider/models/google_siglip2-base-patch16-512
 
 # Build stage — independent from dev, no Air or hot-reload tooling
 FROM golang:1.26-bookworm AS builder

@@ -313,7 +313,7 @@ func TestCachingTransport_EmbeddingProvider(t *testing.T) {
 	ctx := t.Context()
 
 	// First call — should hit upstream
-	resp1, err := p.Embed(ctx, NewEmbeddingRequest(texts))
+	resp1, err := p.Embed(ctx, NewTextEmbeddingRequest(texts))
 	if err != nil {
 		t.Fatalf("first embed: %v", err)
 	}
@@ -325,7 +325,7 @@ func TestCachingTransport_EmbeddingProvider(t *testing.T) {
 	}
 
 	// Second call with identical texts — should come from cache
-	resp2, err := p.Embed(ctx, NewEmbeddingRequest(texts))
+	resp2, err := p.Embed(ctx, NewTextEmbeddingRequest(texts))
 	if err != nil {
 		t.Fatalf("second embed: %v", err)
 	}
@@ -337,7 +337,7 @@ func TestCachingTransport_EmbeddingProvider(t *testing.T) {
 	}
 
 	// Third call with different texts — should hit upstream again
-	_, err = p.Embed(ctx, NewEmbeddingRequest([]string{"different text"}))
+	_, err = p.Embed(ctx, NewTextEmbeddingRequest([]string{"different text"}))
 	if err != nil {
 		t.Fatalf("third embed: %v", err)
 	}

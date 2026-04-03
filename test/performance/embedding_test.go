@@ -35,8 +35,8 @@ type embeddingAdapter struct {
 	inner provider.Embedder
 }
 
-func (a *embeddingAdapter) Embed(ctx context.Context, texts []string) ([][]float64, error) {
-	resp, err := a.inner.Embed(ctx, provider.NewEmbeddingRequest(texts))
+func (a *embeddingAdapter) Embed(ctx context.Context, inputs [][]byte) ([][]float64, error) {
+	resp, err := a.inner.Embed(ctx, provider.NewEmbeddingRequest(inputs))
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +143,7 @@ func TestEmbeddingPipeline(t *testing.T) {
 				}
 
 				start := time.Now()
-				req := provider.NewEmbeddingRequest(texts)
+				req := provider.NewTextEmbeddingRequest(texts)
 				resp, err := embedder.Embed(ctx, req)
 				elapsed := time.Since(start)
 				require.NoError(t, err)
@@ -314,7 +314,7 @@ func TestEmbeddingPipelineCPUProfile(t *testing.T) {
 	defer func() { require.NoError(t, f.Close()) }()
 
 	// Warm up the ONNX model before profiling
-	warmReq := provider.NewEmbeddingRequest([]string{"warmup"})
+	warmReq := provider.NewTextEmbeddingRequest([]string{"warmup"})
 	_, err = embedder.Embed(ctx, warmReq)
 	require.NoError(t, err)
 
@@ -364,7 +364,7 @@ func TestEmbeddingPipelineMemProfile(t *testing.T) {
 	require.NoError(t, err)
 
 	// Warm up
-	warmReq := provider.NewEmbeddingRequest([]string{"warmup"})
+	warmReq := provider.NewTextEmbeddingRequest([]string{"warmup"})
 	_, err = embedder.Embed(ctx, warmReq)
 	require.NoError(t, err)
 

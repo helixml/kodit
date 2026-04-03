@@ -1,0 +1,88 @@
+// Standalone tool that downloads the pre-converted SigLIP2 ONNX model
+// from onnx-community on Hugging Face.
+//
+// The Python download script is embedded in the binary so this command
+// works when installed via `go install`.
+//
+// Requires uv (https://docs.astral.sh/uv/) and Python >=3.10.
+//
+// Usage: download-siglip2 <dest>
+package main
+
+import (
+	_ "embed"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"time"
+)
+
+//go:embed download-siglip2.py
+var script []byte
+
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Fprintln(os.Stderr, "usage: download-siglip2 <dest>")
+		os.Exit(1)
+	}
+	dest := os.Args[1]
+
+	// Skip if already downloaded.
+	if _, err := os.Stat(filepath.Join(dest, "tokenizer.json")); err == nil {
+		visionOK := false
+		textOK := false
+		if _, err := os.Stat(filepath.Join(dest, "onnx", "vision_model.onnx")); err == nil {
+			visionOK = true
+		}
+		if _, err := os.Stat(filepath.Join(dest, "onnx", "text_model.onnx")); err == nil {
+			textOK = true
+		}
+		if visionOK && textOK {
+			fmt.Printf("Model already present at %s\n", dest)
+			return
+		}
+	}
+
+	// Write embedded script to a temp file.
+	tmp, err := os.CreateTemp("", "download-siglip2-*.py")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "create temp file: %v\n", err)
+		os.Exit(1)
+	}
+	defer func() { _ = os.Remove(tmp.Name()) }()
+
+	if _, err := tmp.Write(script); err != nil {
+		fmt.Fprintf(os.Stderr, "write temp file: %v\n", err)
+		os.Exit(1)
+	}
+	if err := tmp.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "close temp file: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Downloading SigLIP2 model to %s...\n", dest)
+
+	delay := 2 * time.Second
+	for i := range 4 {
+		if i > 0 {
+			fmt.Fprintf(os.Stderr, "retry in %s: %v\n", delay, err)
+			time.Sleep(delay)
+			delay *= 2
+		}
+
+		cmd := exec.Command("uv", "run", tmp.Name(), dest)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err = cmd.Run(); err == nil {
+			break
+		}
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "download model: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Model ready at %s\n", dest)
+}

@@ -21,7 +21,7 @@ func TestHugotEmbedding_Embed(t *testing.T) {
 		require.NoError(t, emb.Close())
 	}()
 
-	req := NewEmbeddingRequest([]string{"hello world"})
+	req := NewTextEmbeddingRequest([]string{"hello world"})
 	resp, err := emb.Embed(context.Background(), req)
 	require.NoError(t, err)
 
@@ -46,7 +46,7 @@ func TestHugotEmbedding_EmbedBatch(t *testing.T) {
 		texts[i] = "test sentence number"
 	}
 
-	req := NewEmbeddingRequest(texts)
+	req := NewTextEmbeddingRequest(texts)
 	resp, err := emb.Embed(context.Background(), req)
 	require.NoError(t, err)
 
@@ -64,7 +64,7 @@ func TestHugotEmbedding_EmbedEmpty(t *testing.T) {
 		require.NoError(t, emb.Close())
 	}()
 
-	req := NewEmbeddingRequest([]string{})
+	req := NewTextEmbeddingRequest([]string{})
 	resp, err := emb.Embed(context.Background(), req)
 	require.NoError(t, err)
 
@@ -190,7 +190,7 @@ func TestHugotEmbedding_CancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	req := NewEmbeddingRequest([]string{"hello"})
+	req := NewTextEmbeddingRequest([]string{"hello"})
 	_, err := emb.Embed(ctx, req)
 	require.Error(t, err)
 }

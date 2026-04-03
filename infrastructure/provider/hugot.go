@@ -12,15 +12,15 @@ import (
 	"github.com/knights-analytics/hugot/pipelines"
 )
 
-// ortSingleton holds the process-wide ONNX Runtime session and pipeline.
-// ORT only allows one active session per process, so all HugotEmbedding
-// instances must share it. The mutex serializes both initialization and
-// inference (ORT is not thread-safe).
+// ortSingleton holds the process-wide ONNX Runtime session.
+// ORT only allows one active session per process, so all providers
+// (HugotEmbedding, SigLIP2Embedding, etc.) must share it. The mutex
+// serializes session creation, pipeline registration, and inference
+// (ORT is not thread-safe).
 var ortSingleton struct {
-	session  *hugot.Session
-	pipeline *pipelines.FeatureExtractionPipeline
-	mu       sync.Mutex
-	ready    bool
+	session *hugot.Session
+	mu      sync.Mutex
+	ready   bool
 }
 
 // HugotEmbedding provides local embedding generation using the st-codesearch-distilroberta-base
@@ -35,6 +35,7 @@ var ortSingleton struct {
 // one active session per process.
 type HugotEmbedding struct {
 	cacheDir string
+	pipeline *pipelines.FeatureExtractionPipeline
 }
 
 // NewHugotEmbedding creates a HugotEmbedding that looks for model files in cacheDir.
@@ -56,42 +57,63 @@ func (h *HugotEmbedding) Available() bool {
 	return err == nil
 }
 
-func (h *HugotEmbedding) initialize() error {
-	ortSingleton.mu.Lock()
-	defer ortSingleton.mu.Unlock()
+const builtinEmbeddingsPipeline = "builtin-embeddings"
 
-	if ortSingleton.ready {
+func (h *HugotEmbedding) initialize() error {
+	if h.pipeline != nil {
 		return nil
 	}
 
-	session, err := newHugotSession()
+	session, err := ensureORTSession()
 	if err != nil {
-		return fmt.Errorf("create hugot session: %w", err)
+		return err
+	}
+
+	// Reuse existing pipeline if another HugotEmbedding already created it.
+	if existing, getErr := hugot.GetPipeline[*pipelines.FeatureExtractionPipeline](session, builtinEmbeddingsPipeline); getErr == nil {
+		h.pipeline = existing
+		return nil
 	}
 
 	modelPath, err := h.resolveModelPath()
 	if err != nil {
-		_ = session.Destroy()
 		return err
 	}
 
 	config := hugot.FeatureExtractionConfig{
 		ModelPath: modelPath,
-		Name:      "builtin-embeddings",
+		Name:      builtinEmbeddingsPipeline,
 		Options: []hugot.FeatureExtractionOption{
 			pipelines.WithNormalization(),
 		},
 	}
 	pipeline, err := hugot.NewPipeline(session, config)
 	if err != nil {
-		_ = session.Destroy()
 		return fmt.Errorf("create feature extraction pipeline: %w", err)
 	}
 
-	ortSingleton.session = session
-	ortSingleton.pipeline = pipeline
-	ortSingleton.ready = true
+	h.pipeline = pipeline
 	return nil
+}
+
+// ensureORTSession creates the process-wide ORT session if it does not exist,
+// or returns the existing one. Callers must hold ortSingleton.mu for inference.
+func ensureORTSession() (*hugot.Session, error) {
+	ortSingleton.mu.Lock()
+	defer ortSingleton.mu.Unlock()
+
+	if ortSingleton.ready {
+		return ortSingleton.session, nil
+	}
+
+	session, err := newHugotSession()
+	if err != nil {
+		return nil, fmt.Errorf("create hugot session: %w", err)
+	}
+
+	ortSingleton.session = session
+	ortSingleton.ready = true
+	return session, nil
 }
 
 // resolveModelPath returns the path to a usable model directory.
@@ -134,8 +156,8 @@ func (h *HugotEmbedding) diskModelPath() (string, error) {
 	return "", fmt.Errorf("no model subdirectory with tokenizer.json found in %s", h.cacheDir)
 }
 
-// extractEmbeddedModel writes the statically embedded model files to targetDir
-// and returns the path to the model subdirectory.
+// extractEmbeddedModel writes the first embedded model subdirectory to targetDir
+// and returns the path to the extracted model.
 func extractEmbeddedModel(embedded fs.FS, targetDir string) (string, error) {
 	modelsFS, err := fs.Sub(embedded, "models")
 	if err != nil {
@@ -158,16 +180,22 @@ func extractEmbeddedModel(embedded fs.FS, targetDir string) (string, error) {
 		return "", fmt.Errorf("no model directory found in embedded models")
 	}
 
-	modelPath := filepath.Join(targetDir, modelSubdir)
+	return extractEmbeddedModelByName(embedded, targetDir, modelSubdir)
+}
 
-	// Skip extraction if already present
-	if _, statErr := os.Stat(filepath.Join(modelPath, "tokenizer.json")); statErr == nil {
-		return modelPath, nil
+// extractEmbeddedModelByName writes the named model subdirectory from the
+// embedded FS to targetDir and returns the path to the extracted model.
+func extractEmbeddedModelByName(embedded fs.FS, targetDir, name string) (string, error) {
+	modelFS, err := fs.Sub(embedded, filepath.Join("models", name))
+	if err != nil {
+		return "", fmt.Errorf("access embedded model %s: %w", name, err)
 	}
 
-	modelFS, err := fs.Sub(modelsFS, modelSubdir)
-	if err != nil {
-		return "", fmt.Errorf("access model subdirectory: %w", err)
+	modelPath := filepath.Join(targetDir, name)
+
+	// Skip extraction if already present.
+	if _, statErr := os.Stat(filepath.Join(modelPath, "tokenizer.json")); statErr == nil {
+		return modelPath, nil
 	}
 
 	err = fs.WalkDir(modelFS, ".", func(path string, d fs.DirEntry, walkErr error) error {
@@ -188,16 +216,16 @@ func extractEmbeddedModel(embedded fs.FS, targetDir string) (string, error) {
 		return os.WriteFile(target, data, 0o644)
 	})
 	if err != nil {
-		return "", fmt.Errorf("extract embedded model: %w", err)
+		return "", fmt.Errorf("extract embedded model %s: %w", name, err)
 	}
 
 	return modelPath, nil
 }
 
-// Embed generates embeddings for the given texts using the local model.
+// Embed generates embeddings for the given text inputs using the local model.
 func (h *HugotEmbedding) Embed(ctx context.Context, req EmbeddingRequest) (EmbeddingResponse, error) {
-	texts := req.Texts()
-	if len(texts) == 0 {
+	inputs := req.Inputs()
+	if len(inputs) == 0 {
 		return NewEmbeddingResponse([][]float64{}, NewUsage(0, 0, 0)), nil
 	}
 
@@ -213,21 +241,17 @@ func (h *HugotEmbedding) Embed(ctx context.Context, req EmbeddingRequest) (Embed
 	ortSingleton.mu.Lock()
 	defer ortSingleton.mu.Unlock()
 
-	result, err := ortSingleton.pipeline.RunPipeline(texts)
+	texts := make([]string, len(inputs))
+	for i, b := range inputs {
+		texts[i] = string(b)
+	}
+
+	result, err := h.pipeline.RunPipeline(texts)
 	if err != nil {
 		return EmbeddingResponse{}, fmt.Errorf("run embedding pipeline: %w", err)
 	}
 
-	embeddings := make([][]float64, len(result.Embeddings))
-	for i, vec32 := range result.Embeddings {
-		vec64 := make([]float64, len(vec32))
-		for j, v := range vec32 {
-			vec64[j] = float64(v)
-		}
-		embeddings[i] = vec64
-	}
-
-	return NewEmbeddingResponse(embeddings, NewUsage(0, 0, 0)), nil
+	return toEmbeddingResponse(result.Embeddings), nil
 }
 
 // Close is a no-op. The ONNX Runtime session is process-global and shared

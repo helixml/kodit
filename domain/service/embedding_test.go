@@ -16,11 +16,15 @@ import (
 
 type fakeEmbedder struct {
 	mu    sync.Mutex
-	calls [][]string
-	errAt int // batch index at which to return an error; -1 = never
+	calls [][]string // recorded as strings for test assertions
+	errAt int        // batch index at which to return an error; -1 = never
 }
 
-func (f *fakeEmbedder) Embed(_ context.Context, texts []string) ([][]float64, error) {
+func (f *fakeEmbedder) Embed(_ context.Context, inputs [][]byte) ([][]float64, error) {
+	texts := make([]string, len(inputs))
+	for i, b := range inputs {
+		texts[i] = string(b)
+	}
 	f.mu.Lock()
 	idx := len(f.calls)
 	f.calls = append(f.calls, texts)
@@ -28,8 +32,8 @@ func (f *fakeEmbedder) Embed(_ context.Context, texts []string) ([][]float64, er
 	if f.errAt >= 0 && idx == f.errAt {
 		return nil, fmt.Errorf("embed error at batch %d", idx)
 	}
-	vectors := make([][]float64, len(texts))
-	for i := range texts {
+	vectors := make([][]float64, len(inputs))
+	for i := range inputs {
 		vectors[i] = []float64{0.1, 0.2, 0.3}
 	}
 	return vectors, nil
