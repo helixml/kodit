@@ -269,6 +269,110 @@ func TestExtractPageImages_ContinuesOnPageCountError(t *testing.T) {
 	assert.Len(t, images, 2)
 }
 
+func TestExtractPageImages_DataAccessibleAfterIndexing(t *testing.T) {
+	ctx, enrichmentStore, associationStore, sourceLocStore, repoStore, fileStore := setupPageImageTest(t)
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
+	commitSHA := "fff666aaa777"
+
+	savedRepo := saveTestRepo(t, ctx, repoStore)
+	clonedPath := savedRepo.WorkingCopy().Path()
+
+	// Two PDF files: 2 pages and 1 page.
+	pdf1 := repository.NewFileWithDetails(commitSHA, "docs/manual.pdf", "hash1", "application/pdf", ".pdf", 2000)
+	savedPDF1, err := fileStore.Save(ctx, pdf1)
+	require.NoError(t, err)
+
+	pdf2 := repository.NewFileWithDetails(commitSHA, "slides/deck.pdf", "hash2", "application/pdf", ".pdf", 3000)
+	savedPDF2, err := fileStore.Save(ctx, pdf2)
+	require.NoError(t, err)
+
+	rast := &fakeRasterizer{pages: map[string]int{
+		clonedPath + "/docs/manual.pdf": 2,
+		clonedPath + "/slides/deck.pdf": 1,
+	}}
+	reg := newTestRegistry(rast, ".pdf")
+
+	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, reg, &fakeTrackerFactory{}, logger)
+	err = h.Execute(ctx, map[string]any{
+		"repository_id": savedRepo.ID(),
+		"commit_sha":    commitSHA,
+	})
+	require.NoError(t, err)
+
+	// Query all page image enrichments through the store.
+	images, err := enrichmentStore.Find(ctx,
+		enrichment.WithCommitSHA(commitSHA),
+		enrichment.WithType(enrichment.TypeDevelopment),
+		enrichment.WithSubtype(enrichment.SubtypePageImage),
+	)
+	require.NoError(t, err)
+	require.Len(t, images, 3, "2 pages from manual.pdf + 1 page from deck.pdf")
+
+	// Collect enrichment IDs for bulk queries.
+	ids := make([]int64, len(images))
+	for i, img := range images {
+		ids[i] = img.ID()
+	}
+
+	// Verify all source locations are accessible and have correct page numbers.
+	pagesByFile := map[int64][]int{} // fileID → pages
+	for _, img := range images {
+		locs, err := sourceLocStore.Find(ctx, sourcelocation.WithEnrichmentID(img.ID()))
+		require.NoError(t, err)
+		require.Len(t, locs, 1, "each enrichment should have exactly one source location")
+		assert.Greater(t, locs[0].Page(), 0, "page should be 1-based")
+		assert.Zero(t, locs[0].StartLine(), "page image should not have line ranges")
+		assert.Zero(t, locs[0].EndLine(), "page image should not have line ranges")
+
+		// Find the file association to group pages by file.
+		fileAssocs, err := associationStore.Find(ctx,
+			enrichment.WithEnrichmentID(img.ID()),
+			enrichment.WithEntityType(enrichment.EntityTypeFile),
+		)
+		require.NoError(t, err)
+		require.Len(t, fileAssocs, 1)
+		fileID, _ := strconv.ParseInt(fileAssocs[0].EntityID(), 10, 64)
+		pagesByFile[fileID] = append(pagesByFile[fileID], locs[0].Page())
+	}
+
+	// manual.pdf (2 pages) should have pages [1, 2].
+	manualPages := pagesByFile[savedPDF1.ID()]
+	assert.ElementsMatch(t, []int{1, 2}, manualPages, "manual.pdf should have pages 1 and 2")
+
+	// deck.pdf (1 page) should have page [1].
+	deckPages := pagesByFile[savedPDF2.ID()]
+	assert.ElementsMatch(t, []int{1}, deckPages, "deck.pdf should have page 1")
+
+	// Verify commit associations exist for all enrichments.
+	for _, img := range images {
+		commitAssocs, err := associationStore.Find(ctx,
+			enrichment.WithEnrichmentID(img.ID()),
+			enrichment.WithEntityType(enrichment.EntityTypeCommit),
+		)
+		require.NoError(t, err)
+		require.Len(t, commitAssocs, 1)
+		assert.Equal(t, commitSHA, commitAssocs[0].EntityID())
+	}
+
+	// Verify repo associations exist for all enrichments.
+	for _, img := range images {
+		repoAssocs, err := associationStore.Find(ctx,
+			enrichment.WithEnrichmentID(img.ID()),
+			enrichment.WithEntityType(enrichment.EntityTypeRepository),
+		)
+		require.NoError(t, err)
+		require.Len(t, repoAssocs, 1)
+		assert.Equal(t, strconv.FormatInt(savedRepo.ID(), 10), repoAssocs[0].EntityID())
+	}
+
+	// Verify enrichment content is empty (images rendered on demand).
+	for _, img := range images {
+		assert.Empty(t, img.Content(), "page image content should be empty")
+		assert.Equal(t, enrichment.SubtypePageImage, img.Subtype())
+		assert.Equal(t, enrichment.TypeDevelopment, img.Type())
+	}
+}
+
 func TestExtractPageImages_NoFiles(t *testing.T) {
 	ctx, enrichmentStore, associationStore, sourceLocStore, repoStore, fileStore := setupPageImageTest(t)
 	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
