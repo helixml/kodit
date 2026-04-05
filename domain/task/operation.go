@@ -40,6 +40,7 @@ const (
 	OperationCreateExampleCodeEmbeddingsForCommit    Operation = "kodit.commit.create_example_code_embeddings"
 	OperationCreateExampleSummaryEmbeddingsForCommit Operation = "kodit.commit.create_example_summary_embeddings"
 	OperationGenerateWikiForCommit                   Operation = "kodit.commit.generate_wiki"
+	OperationExtractPageImagesForCommit              Operation = "kodit.commit.extract_page_images"
 	OperationScanCommit                              Operation = "kodit.commit.scan"
 	OperationRescanCommit                            Operation = "kodit.commit.rescan"
 )
@@ -136,6 +137,7 @@ func (p PrescribedOperations) ScanAndIndexCommit() []Operation {
 	ops := []Operation{
 		OperationScanCommit,
 		OperationExtractSnippetsForCommit,
+		OperationExtractPageImagesForCommit,
 	}
 	if p.examples {
 		ops = append(ops, OperationExtractExamplesForCommit)
@@ -176,6 +178,7 @@ func (p PrescribedOperations) ScanAndIndexCommit() []Operation {
 func (p PrescribedOperations) IndexCommit() []Operation {
 	ops := []Operation{
 		OperationExtractSnippetsForCommit,
+		OperationExtractPageImagesForCommit,
 		OperationCreateBM25IndexForCommit,
 		OperationCreateCodeEmbeddingsForCommit,
 	}
@@ -204,6 +207,7 @@ func (p PrescribedOperations) RescanCommit() []Operation {
 		OperationRescanCommit,
 		OperationScanCommit,
 		OperationExtractSnippetsForCommit,
+		OperationExtractPageImagesForCommit,
 	}
 	if p.examples {
 		ops = append(ops, OperationExtractExamplesForCommit)

@@ -555,6 +555,58 @@ func TestPipeline_JoinType_ValidationRejectsInvalid(t *testing.T) {
 	}
 }
 
+func TestPipeline_Initialise_Reconciles(t *testing.T) {
+	db := testdb.New(t)
+	pipelineStore := persistence.NewPipelineStore(db)
+	stepStore := persistence.NewStepStore(db)
+	pipelineStepStore := persistence.NewPipelineStepStore(db)
+	depStore := persistence.NewStepDependencyStore(db)
+	ctx := context.Background()
+
+	// First boot: seed with RAG-only operations (smaller set).
+	svc1 := NewPipeline(pipelineStore, stepStore, pipelineStepStore, depStore,
+		task.RAGOnlyPrescribedOperations())
+	if err := svc1.Initialise(ctx); err != nil {
+		t.Fatalf("Initialise (v1): %v", err)
+	}
+
+	defaultID, err := svc1.DefaultID(ctx)
+	if err != nil {
+		t.Fatalf("DefaultID: %v", err)
+	}
+	v1Detail, err := svc1.Detail(ctx, defaultID)
+	if err != nil {
+		t.Fatalf("Detail v1: %v", err)
+	}
+	v1StepCount := len(v1Detail.Steps())
+
+	// Second boot: upgrade to full operations (larger set, includes enrichments).
+	svc2 := NewPipeline(pipelineStore, stepStore, pipelineStepStore, depStore,
+		task.FullPrescribedOperations())
+	if err := svc2.Initialise(ctx); err != nil {
+		t.Fatalf("Initialise (v2): %v", err)
+	}
+
+	// The default pipeline should now have more steps.
+	v2Detail, err := svc2.Detail(ctx, defaultID)
+	if err != nil {
+		t.Fatalf("Detail v2: %v", err)
+	}
+	if len(v2Detail.Steps()) <= v1StepCount {
+		t.Errorf("expected more steps after reconciliation: v1=%d, v2=%d",
+			v1StepCount, len(v2Detail.Steps()))
+	}
+
+	// Still exactly 2 pipelines.
+	pipelines, err := svc2.Find(ctx)
+	if err != nil {
+		t.Fatalf("Find: %v", err)
+	}
+	if len(pipelines) != 2 {
+		t.Errorf("expected 2 pipelines, got %d", len(pipelines))
+	}
+}
+
 func TestPipeline_RequiredOperations(t *testing.T) {
 	svc := newPipelineService(t)
 	ops := svc.RequiredOperations()

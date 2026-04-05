@@ -74,6 +74,7 @@ import (
 	"github.com/helixml/kodit/infrastructure/git"
 	"github.com/helixml/kodit/infrastructure/persistence"
 	"github.com/helixml/kodit/infrastructure/provider"
+	"github.com/helixml/kodit/infrastructure/rasterization"
 	"github.com/helixml/kodit/infrastructure/tracking"
 	"github.com/helixml/kodit/internal/config"
 	"github.com/helixml/kodit/internal/database"
@@ -127,6 +128,9 @@ type Client struct {
 
 	// Document text extraction (internal)
 	documentText *extraction.DocumentText
+
+	// Document rasterization (internal)
+	rasterizers *rasterization.Registry
 
 	// Discovery services (each used by exactly one handler)
 	archDiscoverer   *enricher.PhysicalArchitectureService
@@ -385,6 +389,18 @@ func New(opts ...Option) (*Client, error) {
 	// Create document text extractor
 	documentText := extraction.NewDocumentText()
 
+	// Create rasterization registry for document-to-image conversion.
+	rasterizers := rasterization.NewRegistry()
+	pdfRast, err := rasterization.NewPdfiumRasterizer()
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("create pdfium rasterizer: %w", err)
+	}
+	if pdfRast != nil {
+		rasterizers.Register(".pdf", pdfRast)
+		cfg.closers = append(cfg.closers, pdfRast)
+	}
+
 	// Create enrichment infrastructure (always available)
 	archDiscoverer := enricher.NewPhysicalArchitectureService()
 	schemaDiscoverer := enricher.NewDatabaseSchemaService()
@@ -411,6 +427,7 @@ func New(opts ...Option) (*Client, error) {
 		periodicSync:     periodicSync,
 		registry:         registry,
 		documentText:     documentText,
+		rasterizers:      rasterizers,
 		archDiscoverer:   archDiscoverer,
 		schemaDiscoverer: schemaDiscoverer,
 		apiDocService:    apiDocSvc,

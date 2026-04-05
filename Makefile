@@ -118,11 +118,11 @@ test-smoke: ## Run smoke tests (resets database for idempotency)
 
 .PHONY: lint
 lint: ## Run golangci-lint (PKG=./path/... to target)
-	golangci-lint run $(PKG)
+	golangci-lint run --build-tags "$(EMBED_TAGS)" $(PKG)
 
 .PHONY: lint-fix
 lint-fix: format ## Run golangci-lint with auto-fix
-	golangci-lint run --fix
+	golangci-lint run --build-tags "$(EMBED_TAGS)" --fix
 
 .PHONY: fmt
 fmt: ## Format Go code with gofmt
@@ -176,7 +176,7 @@ deps-update: ## Update all dependencies
 
 .PHONY: tools
 tools: ## Install development tools
-	$(GOCMD) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	$(GOCMD) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 	$(GOCMD) install golang.org/x/tools/cmd/goimports@latest
 	$(GOCMD) install github.com/swaggo/swag/cmd/swag@latest
 	$(GOCMD) install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.1

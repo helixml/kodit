@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/helixml/kodit/domain/enrichment"
-	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/task"
 )
 
