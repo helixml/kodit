@@ -798,9 +798,7 @@ func TestIntegration_DocumentExtraction(t *testing.T) {
 
 // TestIntegration_PageImageExtraction verifies the page image pipeline step
 // runs without error when indexing a repository containing PDF files.
-// Without the pdfium build tag, the rasterizer is nil and the step skips
-// gracefully — no page image enrichments are created, but the pipeline
-// completes. With pdfium enabled, this test verifies enrichments are created.
+// PDFium runs via WebAssembly (Wazero) — no CGO or system library needed.
 func TestIntegration_PageImageExtraction(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -850,10 +848,8 @@ func TestIntegration_PageImageExtraction(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Without the pdfium build tag the rasterizer is nil, so the handler
-	// skips and produces no enrichments. With pdfium, the 1-page test PDF
-	// should produce exactly 1 page image enrichment.
-	t.Logf("page image enrichments: %d (pdfium build tag may not be active)", len(pageImages))
+	// The 1-page test PDF should produce exactly 1 page image enrichment.
+	require.NotEmpty(t, pageImages, "expected page image enrichments for the test PDF")
 
 	for _, pi := range pageImages {
 		assert.Empty(t, pi.Content(), "page image content should be empty (images rendered on demand)")

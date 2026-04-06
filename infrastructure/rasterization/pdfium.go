@@ -1,5 +1,3 @@
-//go:build pdfium
-
 package rasterization
 
 import (
@@ -9,24 +7,35 @@ import (
 
 	"github.com/klippa-app/go-pdfium"
 	"github.com/klippa-app/go-pdfium/requests"
-	"github.com/klippa-app/go-pdfium/single_threaded"
+	"github.com/klippa-app/go-pdfium/webassembly"
 )
 
 // renderDPI is the resolution used when rendering document pages to images.
 const renderDPI = 150
 
-// PdfiumRasterizer renders PDF pages using the PDFium library via CGo.
+// PdfiumRasterizer renders PDF pages using the PDFium library via WebAssembly
+// (Wazero). No CGO or system libraries are required — the PDFium WASM binary
+// is embedded in the go-pdfium module.
 type PdfiumRasterizer struct {
 	pool     pdfium.Pool
 	instance pdfium.Pdfium
 }
 
-// NewPdfiumRasterizer initialises PDFium and returns a Rasterizer for PDF files.
+// NewPdfiumRasterizer initialises PDFium via the Wazero WebAssembly runtime
+// and returns a Rasterizer for PDF files.
 func NewPdfiumRasterizer() (*PdfiumRasterizer, error) {
-	pool := single_threaded.Init(single_threaded.Config{})
+	pool, err := webassembly.Init(webassembly.Config{
+		MinIdle:  1,
+		MaxIdle:  1,
+		MaxTotal: 1,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init pdfium wasm pool: %w", err)
+	}
+
 	inst, err := pool.GetInstance(30 * time.Second)
 	if err != nil {
-		pool.Close()
+		_ = pool.Close()
 		return nil, fmt.Errorf("get pdfium instance: %w", err)
 	}
 	return &PdfiumRasterizer{pool: pool, instance: inst}, nil
@@ -40,9 +49,11 @@ func (r *PdfiumRasterizer) PageCount(path string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("open pdf %s: %w", path, err)
 	}
-	defer r.instance.FPDF_CloseDocument(&requests.FPDF_CloseDocument{
-		Document: doc.Document,
-	})
+	defer func() {
+		_, _ = r.instance.FPDF_CloseDocument(&requests.FPDF_CloseDocument{
+			Document: doc.Document,
+		})
+	}()
 
 	resp, err := r.instance.FPDF_GetPageCount(&requests.FPDF_GetPageCount{
 		Document: doc.Document,
@@ -61,9 +72,11 @@ func (r *PdfiumRasterizer) Render(path string, page int) (image.Image, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open pdf %s: %w", path, err)
 	}
-	defer r.instance.FPDF_CloseDocument(&requests.FPDF_CloseDocument{
-		Document: doc.Document,
-	})
+	defer func() {
+		_, _ = r.instance.FPDF_CloseDocument(&requests.FPDF_CloseDocument{
+			Document: doc.Document,
+		})
+	}()
 
 	pageIndex := page - 1 // convert 1-based to 0-based
 	resp, err := r.instance.RenderPageInDPI(&requests.RenderPageInDPI{
@@ -85,6 +98,8 @@ func (r *PdfiumRasterizer) Render(path string, page int) (image.Image, error) {
 
 // Close releases all PDFium resources.
 func (r *PdfiumRasterizer) Close() error {
-	r.instance.Close()
+	if err := r.instance.Close(); err != nil {
+		return err
+	}
 	return r.pool.Close()
 }
