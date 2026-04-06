@@ -2701,6 +2701,64 @@ const docTemplate = `{
                 }
             }
         },
+        "/search/visual": {
+            "get": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Search document pages (PDFs, etc.) using cross-modal visual similarity",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "search"
+                ],
+                "summary": "Visual document search",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Natural language search query",
+                        "name": "query",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Repository ID filter",
+                        "name": "repository_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum results (default 10)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SearchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.JSONAPIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/steps": {
             "get": {
                 "security": [

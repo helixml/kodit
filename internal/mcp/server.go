@@ -57,6 +57,11 @@ type KeywordSearcher interface {
 	SearchKeywordsWithScores(ctx context.Context, query string, limit int, filters search.Filters) ([]enrichment.Enrichment, map[string]float64, error)
 }
 
+// VisualSearcher provides cross-modal visual search with scores.
+type VisualSearcher interface {
+	SearchVisualWithScores(ctx context.Context, query string, topK int, filters search.Filters) ([]enrichment.Enrichment, map[string]float64, error)
+}
+
 // EnrichmentResolver provides enrichment-to-entity resolution.
 type EnrichmentResolver interface {
 	SourceFiles(ctx context.Context, enrichmentIDs []int64) (map[string][]int64, error)
@@ -88,6 +93,7 @@ type Server struct {
 	fileContent        FileContentReader
 	semanticSearch     SemanticSearcher
 	keywordSearch      KeywordSearcher
+	visualSearch       VisualSearcher
 	enrichmentResolver EnrichmentResolver
 	fileLister         FileLister
 	files              FileFinder
@@ -112,6 +118,7 @@ const instructions = "This server provides access to code knowledge through mult
 	"- kodit_wiki_page() - Get the content of a specific wiki page by slug\n" +
 	"- kodit_semantic_search() - Find files matching a natural language query (returns resource URIs)\n" +
 	"- kodit_keyword_search() - Find files matching keywords using BM25 search (returns resource URIs)\n" +
+	"- kodit_visual_search() - Find document pages (PDFs, etc.) matching a text query using visual similarity\n" +
 	"- kodit_grep() - Search file contents using git grep with regex patterns (returns resource URIs)\n" +
 	"- kodit_ls() - List files matching a glob pattern in a repository\n" +
 	"- kodit_read_resource() - Read file content from a resource URI returned by search tools\n\n" +
@@ -133,6 +140,7 @@ func NewServer(
 	fileContent FileContentReader,
 	semanticSearch SemanticSearcher,
 	keywordSearch KeywordSearcher,
+	visualSearch VisualSearcher,
 	enrichmentResolver EnrichmentResolver,
 	fileLister FileLister,
 	files FileFinder,
@@ -148,6 +156,7 @@ func NewServer(
 		fileContent:        fileContent,
 		semanticSearch:     semanticSearch,
 		keywordSearch:      keywordSearch,
+		visualSearch:       visualSearch,
 		enrichmentResolver: enrichmentResolver,
 		fileLister:         fileLister,
 		files:              files,
@@ -187,6 +196,7 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 		"kodit_wiki_page":          s.handleGetWikiPage,
 		"kodit_semantic_search":    s.handleSemanticSearch,
 		"kodit_keyword_search":     s.handleKeywordSearch,
+		"kodit_visual_search":      s.handleVisualSearch,
 		"kodit_grep":               s.handleGrep,
 		"kodit_read_resource":      s.handleReadResource,
 		"kodit_ls":                 s.handleLs,
@@ -734,6 +744,78 @@ func (s *Server) handleKeywordSearch(ctx context.Context, request mcp.CallToolRe
 			}
 		}
 		enrichments = filtered
+	}
+
+	if len(enrichments) > limit {
+		enrichments = enrichments[:limit]
+	}
+
+	if len(enrichments) == 0 {
+		return mcp.NewToolResultText("[]"), nil
+	}
+
+	results, err := s.resolveFileResults(ctx, enrichments, scores, sourceRepoID)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	if len(results) == 0 {
+		return mcp.NewToolResultText("[]"), nil
+	}
+
+	jsonBytes, err := json.Marshal(results)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("marshal results: %v", err)), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+// handleVisualSearch handles the visual_search tool invocation.
+func (s *Server) handleVisualSearch(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if s.visualSearch == nil {
+		return mcp.NewToolResultError("visual search is not available — vision model not configured"), nil
+	}
+
+	query, err := request.RequireString("query")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("query is required: %v", err)), nil
+	}
+	if strings.TrimSpace(query) == "" {
+		return mcp.NewToolResultError("query must not be empty"), nil
+	}
+
+	limit := int(request.GetFloat("limit", 10))
+	if limit < 0 {
+		return mcp.NewToolResultError("limit must not be negative"), nil
+	}
+	if limit == 0 {
+		return mcp.NewToolResultText("[]"), nil
+	}
+
+	// Resolve source_repo URL to a repository ID for post-filtering.
+	var sourceRepoID int64
+	if repoURL := request.GetString("source_repo", ""); repoURL != "" {
+		repos, repoErr := s.resolveRepository(ctx, repoURL)
+		if repoErr != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("resolve source_repo: %v", repoErr)), nil
+		}
+		if len(repos) == 0 {
+			return mcp.NewToolResultText("[]"), nil
+		}
+		sourceRepoID = repos[0].ID()
+	}
+
+	var filterOpts []search.FiltersOption
+	if sourceRepoID > 0 {
+		filterOpts = append(filterOpts, search.WithSourceRepos([]int64{sourceRepoID}))
+	}
+	filters := search.NewFilters(filterOpts...)
+
+	enrichments, scores, err := s.visualSearch.SearchVisualWithScores(ctx, query, limit, filters)
+	if err != nil {
+		s.logger.Error().Interface("error", err).Msg("visual search failed")
+		return mcp.NewToolResultError(fmt.Sprintf("visual search failed: %v", err)), nil
 	}
 
 	if len(enrichments) > limit {

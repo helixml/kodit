@@ -249,6 +249,9 @@ type ClientInterface interface {
 	// GetSearchSemantic request
 	GetSearchSemantic(ctx context.Context, params *GetSearchSemanticParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetSearchVisual request
+	GetSearchVisual(ctx context.Context, params *GetSearchVisualParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetSteps request
 	GetSteps(ctx context.Context, params *GetStepsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -918,6 +921,18 @@ func (c *Client) GetSearchLs(ctx context.Context, params *GetSearchLsParams, req
 
 func (c *Client) GetSearchSemantic(ctx context.Context, params *GetSearchSemanticParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetSearchSemanticRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetSearchVisual(ctx context.Context, params *GetSearchVisualParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSearchVisualRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -3588,6 +3603,83 @@ func NewGetSearchSemanticRequest(server string, params *GetSearchSemanticParams)
 	return req, nil
 }
 
+// NewGetSearchVisualRequest generates requests for GetSearchVisual
+func NewGetSearchVisualRequest(server string, params *GetSearchVisualParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/search/visual")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "query", runtime.ParamLocationQuery, params.Query); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.RepositoryId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "repository_id", runtime.ParamLocationQuery, *params.RepositoryId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetStepsRequest generates requests for GetSteps
 func NewGetStepsRequest(server string, params *GetStepsParams) (*http.Request, error) {
 	var err error
@@ -3889,6 +3981,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetSearchSemanticWithResponse request
 	GetSearchSemanticWithResponse(ctx context.Context, params *GetSearchSemanticParams, reqEditors ...RequestEditorFn) (*GetSearchSemanticResponse, error)
+
+	// GetSearchVisualWithResponse request
+	GetSearchVisualWithResponse(ctx context.Context, params *GetSearchVisualParams, reqEditors ...RequestEditorFn) (*GetSearchVisualResponse, error)
 
 	// GetStepsWithResponse request
 	GetStepsWithResponse(ctx context.Context, params *GetStepsParams, reqEditors ...RequestEditorFn) (*GetStepsResponse, error)
@@ -5037,6 +5132,30 @@ func (r GetSearchSemanticResponse) StatusCode() int {
 	return 0
 }
 
+type GetSearchVisualResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DtoSearchResponse
+	JSON400      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSearchVisualResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSearchVisualResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetStepsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -5578,6 +5697,15 @@ func (c *ClientWithResponses) GetSearchSemanticWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseGetSearchSemanticResponse(rsp)
+}
+
+// GetSearchVisualWithResponse request returning *GetSearchVisualResponse
+func (c *ClientWithResponses) GetSearchVisualWithResponse(ctx context.Context, params *GetSearchVisualParams, reqEditors ...RequestEditorFn) (*GetSearchVisualResponse, error) {
+	rsp, err := c.GetSearchVisual(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSearchVisualResponse(rsp)
 }
 
 // GetStepsWithResponse request returning *GetStepsResponse
@@ -7397,6 +7525,46 @@ func ParseGetSearchSemanticResponse(rsp *http.Response) (*GetSearchSemanticRespo
 	}
 
 	response := &GetSearchSemanticResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DtoSearchResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetSearchVisualResponse parses an HTTP response from a GetSearchVisualWithResponse call
+func ParseGetSearchVisualResponse(rsp *http.Response) (*GetSearchVisualResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSearchVisualResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

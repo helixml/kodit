@@ -68,7 +68,7 @@ func newTestStores(t *testing.T) testStores {
 	commitStore := persistence.NewCommitStore(db)
 	fileStore := persistence.NewFileStore(db)
 
-	enrichSvc := service.NewEnrichment(enrichmentStore, associationStore, nil, nil, nil, nil)
+	enrichSvc := service.NewEnrichment(enrichmentStore, associationStore, nil, nil, nil, nil, nil)
 
 	return testStores{
 		enrichments:  enrichmentStore,

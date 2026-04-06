@@ -218,6 +218,121 @@ func TestKeywordSearch_GET_NonExistentRepo_Returns404(t *testing.T) {
 	}
 }
 
+// ── Visual search endpoint tests ─────────────────────────────────────
+
+func TestVisualSearch_GET_ReturnsEmpty(t *testing.T) {
+	ts := NewTestServer(t)
+
+	resp := ts.GET("/api/v1/search/visual?query=" + url.QueryEscape("chart showing revenue"))
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body := ts.ReadBody(resp)
+		t.Errorf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusOK, body)
+	}
+
+	var result dto.SearchResponse
+	ts.DecodeJSON(resp, &result)
+
+	if len(result.Data) != 0 {
+		t.Errorf("len(data) = %d, want 0", len(result.Data))
+	}
+}
+
+func TestVisualSearch_GET_MissingQuery(t *testing.T) {
+	ts := NewTestServer(t)
+
+	resp := ts.GET("/api/v1/search/visual")
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		body := ts.ReadBody(resp)
+		t.Errorf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusBadRequest, body)
+	}
+}
+
+func TestVisualSearch_GET_WhitespaceOnlyQuery_Returns400(t *testing.T) {
+	ts := NewTestServer(t)
+
+	resp := ts.GET("/api/v1/search/visual?query=" + url.QueryEscape("   "))
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		body := ts.ReadBody(resp)
+		t.Errorf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusBadRequest, body)
+	}
+}
+
+func TestVisualSearch_GET_WithRepositoryID(t *testing.T) {
+	ts := NewTestServer(t)
+	repo := ts.CreateRepository("https://github.com/test/visual-repo.git")
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/search/visual?query=%s&repository_id=%d",
+		url.QueryEscape("diagram of architecture"), repo.ID()))
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body := ts.ReadBody(resp)
+		t.Errorf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusOK, body)
+	}
+
+	var result dto.SearchResponse
+	ts.DecodeJSON(resp, &result)
+
+	// No vision embeddings seeded, expect empty results.
+	if len(result.Data) != 0 {
+		t.Errorf("len(data) = %d, want 0", len(result.Data))
+	}
+}
+
+func TestVisualSearch_GET_InvalidRepositoryID(t *testing.T) {
+	ts := NewTestServer(t)
+
+	resp := ts.GET("/api/v1/search/visual?query=test&repository_id=notanumber")
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		body := ts.ReadBody(resp)
+		t.Errorf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusBadRequest, body)
+	}
+}
+
+func TestVisualSearch_GET_NonExistentRepo_Returns404(t *testing.T) {
+	ts := NewTestServer(t)
+
+	resp := ts.GET("/api/v1/search/visual?query=test&repository_id=99999")
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusNotFound {
+		body := ts.ReadBody(resp)
+		t.Errorf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusNotFound, body)
+	}
+}
+
+func TestVisualSearch_GET_LimitZero_Returns400(t *testing.T) {
+	ts := NewTestServer(t)
+
+	resp := ts.GET("/api/v1/search/visual?query=test&limit=0")
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		body := ts.ReadBody(resp)
+		t.Errorf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusBadRequest, body)
+	}
+}
+
+func TestVisualSearch_GET_RepositoryIDZero_Returns400(t *testing.T) {
+	ts := NewTestServer(t)
+
+	resp := ts.GET("/api/v1/search/visual?query=test&repository_id=0")
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		body := ts.ReadBody(resp)
+		t.Errorf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusBadRequest, body)
+	}
+}
+
 func TestSemanticSearch_GET_LanguageFilter_ReturnsOnlyMatchingLanguage(t *testing.T) {
 	ts := NewTestServer(t)
 

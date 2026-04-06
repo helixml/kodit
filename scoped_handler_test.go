@@ -55,6 +55,7 @@ func TestScopedMCPServer_RepositoryListFiltered(t *testing.T) {
 		scopedFC,
 		scopedSS,
 		scopedKS,
+		nil,
 		&scopedFakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -120,6 +121,7 @@ func TestScopedMCPServer_ReadResourceBlocked(t *testing.T) {
 		scopedFC,
 		scopedSS,
 		scopedKS,
+		nil,
 		&scopedFakeEnrichmentResolver{
 			sourceFiles: map[string][]int64{}, lineRanges: map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
@@ -180,6 +182,7 @@ func TestScopedMCPServer_NilRepoIDsNoScoping(t *testing.T) {
 		&scopedFakeFileContentReader{},
 		&scopedFakeSemanticSearcher{},
 		&scopedFakeKeywordSearcher{},
+		nil,
 		&scopedFakeEnrichmentResolver{
 			sourceFiles: map[string][]int64{}, lineRanges: map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
@@ -292,6 +295,7 @@ func TestScopedMCPServer_ListRepositories_SanitizesCredentials(t *testing.T) {
 		scopedFC,
 		scopedSS,
 		scopedKS,
+		nil,
 		&scopedFakeEnrichmentResolver{
 			sourceFiles: map[string][]int64{}, lineRanges: map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
