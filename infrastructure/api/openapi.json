@@ -123,6 +123,9 @@
                     "end_line": {
                         "type": "integer"
                     },
+                    "page": {
+                        "type": "integer"
+                    },
                     "start_line": {
                         "type": "integer"
                     },
@@ -926,6 +929,9 @@
                     },
                     "language": {
                         "type": "string"
+                    },
+                    "page": {
+                        "type": "integer"
                     },
                     "start_line": {
                         "type": "integer"
@@ -2294,7 +2300,7 @@
         },
         "/repositories/{id}/blob/{blob_name}/{path}": {
             "get": {
-                "description": "Returns raw file content from a Git repository at a given blob reference (commit SHA, tag, or branch)",
+                "description": "Returns raw file content from a Git repository at a given blob reference (commit SHA, tag, or branch). Use mode=raster&page=N to get a rasterized PNG of a document page.",
                 "parameters": [
                     {
                         "description": "Repository ID",
@@ -2338,6 +2344,22 @@
                         "schema": {
                             "type": "boolean"
                         }
+                    },
+                    {
+                        "description": "Output mode: 'raster' returns a PNG image of the page",
+                        "in": "query",
+                        "name": "mode",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "1-based page number (required when mode=raster)",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
                     }
                 ],
                 "responses": {
@@ -2347,6 +2369,11 @@
                     "400": {
                         "content": {
                             "application/octet-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            },
+                            "image/png": {
                                 "schema": {
                                     "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
@@ -2366,6 +2393,11 @@
                                     "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             },
+                            "image/png": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            },
                             "text/plain": {
                                 "schema": {
                                     "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
@@ -2377,6 +2409,11 @@
                     "500": {
                         "content": {
                             "application/octet-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            },
+                            "image/png": {
                                 "schema": {
                                     "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }

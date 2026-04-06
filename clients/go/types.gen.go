@@ -75,6 +75,7 @@ type DtoEnrichmentAttributes struct {
 	Content   *string `json:"content,omitempty"`
 	CreatedAt *string `json:"created_at,omitempty"`
 	EndLine   *int    `json:"end_line,omitempty"`
+	Page      *int    `json:"page,omitempty"`
 	StartLine *int    `json:"start_line,omitempty"`
 	Subtype   *string `json:"subtype,omitempty"`
 	Type      *string `json:"type,omitempty"`
@@ -456,6 +457,7 @@ type DtoSnippetAttributes struct {
 type DtoSnippetContentSchema struct {
 	EndLine   *int    `json:"end_line,omitempty"`
 	Language  *string `json:"language,omitempty"`
+	Page      *int    `json:"page,omitempty"`
 	StartLine *int    `json:"start_line,omitempty"`
 	Value     *string `json:"value,omitempty"`
 }
@@ -731,6 +733,12 @@ type GetRepositoriesIdBlobBlobNamePathParams struct {
 
 	// LineNumbers Prefix each line with its 1-based line number
 	LineNumbers *bool `form:"line_numbers,omitempty" json:"line_numbers,omitempty"`
+
+	// Mode Output mode: 'raster' returns a PNG image of the page
+	Mode *string `form:"mode,omitempty" json:"mode,omitempty"`
+
+	// Page 1-based page number (required when mode=raster)
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
 }
 
 // GetRepositoriesIdCommitsParams defines parameters for GetRepositoriesIdCommits.

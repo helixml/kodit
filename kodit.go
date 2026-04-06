@@ -603,6 +603,11 @@ func (c *Client) Logger() zerolog.Logger {
 	return c.logger
 }
 
+// Rasterizers returns the document rasterization registry, or nil if unavailable.
+func (c *Client) Rasterizers() *rasterization.Registry {
+	return c.rasterizers
+}
+
 // embeddingAdapter adapts provider.Embedder to the domain search.Embedder interface.
 type embeddingAdapter struct {
 	inner provider.Embedder
