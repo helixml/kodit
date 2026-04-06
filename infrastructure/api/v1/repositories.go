@@ -1893,8 +1893,21 @@ func (r *RepositoriesRouter) GetBlob(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	mode := req.URL.Query().Get("mode")
+	pageParam := req.URL.Query().Get("page")
+
+	if mode != "" && mode != "raster" {
+		middleware.WriteError(w, req, fmt.Errorf("unsupported mode %q, valid modes: raster: %w", mode, middleware.ErrValidation), r.logger)
+		return
+	}
+
+	if pageParam != "" && mode == "" {
+		middleware.WriteError(w, req, fmt.Errorf("page parameter requires mode=raster: %w", middleware.ErrValidation), r.logger)
+		return
+	}
+
 	// Raster mode: render a document page as a PNG image.
-	if req.URL.Query().Get("mode") == "raster" {
+	if mode == "raster" {
 		r.renderRasterPage(w, req, repoID, blobName, filePath)
 		return
 	}

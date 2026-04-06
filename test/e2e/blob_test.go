@@ -329,6 +329,40 @@ func TestBlob_RasterMode_UnsupportedExtension_Returns400(t *testing.T) {
 	}
 }
 
+func TestBlob_InvalidMode_Returns400(t *testing.T) {
+	ts := NewTestServer(t)
+	repoDir, commitSHA := initGitRepo(t)
+
+	repo := ts.CreateRepositoryWithRealWorkingCopy("https://github.com/test/blob-badmode.git", repoDir)
+	ts.CreateCommit(repo, commitSHA, "initial commit")
+	ts.CreateBranch(repo, "main", commitSHA, true)
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/blob/main/README.md?mode=blah", repo.ID()))
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		body := ts.ReadBody(resp)
+		t.Errorf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusBadRequest, body)
+	}
+}
+
+func TestBlob_PageWithoutMode_Returns400(t *testing.T) {
+	ts := NewTestServer(t)
+	repoDir, commitSHA := initGitRepo(t)
+
+	repo := ts.CreateRepositoryWithRealWorkingCopy("https://github.com/test/blob-page-nomode.git", repoDir)
+	ts.CreateCommit(repo, commitSHA, "initial commit")
+	ts.CreateBranch(repo, "main", commitSHA, true)
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/blob/main/README.md?page=2", repo.ID()))
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		body := ts.ReadBody(resp)
+		t.Errorf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusBadRequest, body)
+	}
+}
+
 func TestBlob_WithLineFilter(t *testing.T) {
 	ts := NewTestServer(t)
 	repoDir, commitSHA := initGitRepo(t)

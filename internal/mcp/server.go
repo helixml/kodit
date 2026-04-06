@@ -1118,10 +1118,20 @@ func (s *Server) handleReadFile(ctx context.Context, request mcp.ReadResourceReq
 	filePath := parts[2]
 
 	query := parsed.Query()
+	mode := query.Get("mode")
+	pageParam := query.Get("page")
+
+	if mode != "" && mode != "raster" {
+		return nil, fmt.Errorf("unsupported mode %q, valid modes: raster", mode)
+	}
+
+	if pageParam != "" && mode == "" {
+		return nil, fmt.Errorf("page parameter requires mode=raster")
+	}
 
 	// Raster mode: render a document page as a base64-encoded PNG.
-	if query.Get("mode") == "raster" {
-		return s.handleRasterRead(ctx, uri, repoID, blobName, filePath, query.Get("page"))
+	if mode == "raster" {
+		return s.handleRasterRead(ctx, uri, repoID, blobName, filePath, pageParam)
 	}
 
 	result, err := s.fileContent.Content(ctx, repoID, blobName, filePath)
