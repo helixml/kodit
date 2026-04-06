@@ -399,6 +399,9 @@ func New(opts ...Option) (*Client, error) {
 	if pdfRast != nil {
 		rasterizers.Register(".pdf", pdfRast)
 		cfg.closers = append(cfg.closers, pdfRast)
+		logger.Info().Msg("PDF rasterizer (pdfium WASM) registered")
+	} else {
+		logger.Warn().Msg("PDF rasterizer not available — page image extraction will skip PDF files")
 	}
 
 	// Create enrichment infrastructure (always available)
