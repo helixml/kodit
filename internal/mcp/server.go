@@ -2,9 +2,12 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image/png"
 	"net/url"
 	"path/filepath"
 	"strconv"
@@ -18,6 +21,7 @@ import (
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/wiki"
+	"github.com/helixml/kodit/infrastructure/rasterization"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -45,6 +49,11 @@ type EnrichmentQuery interface {
 // FileContentReader provides raw file content from Git repositories.
 type FileContentReader interface {
 	Content(ctx context.Context, repoID int64, blobName, filePath string) (service.BlobContent, error)
+}
+
+// DiskPathResolver resolves a blob reference to an on-disk file path.
+type DiskPathResolver interface {
+	DiskPath(ctx context.Context, repoID int64, blobName, filePath string) (string, string, error)
 }
 
 // SemanticSearcher provides code vector search with scores.
@@ -91,6 +100,8 @@ type Server struct {
 	commits            CommitFinder
 	enrichmentQuery    EnrichmentQuery
 	fileContent        FileContentReader
+	diskPathResolver   DiskPathResolver
+	rasterizers        *rasterization.Registry
 	semanticSearch     SemanticSearcher
 	keywordSearch      KeywordSearcher
 	visualSearch       VisualSearcher
@@ -127,10 +138,22 @@ const instructions = "This server provides access to code knowledge through mult
 	"template: file://{id}/{blob_name}/{+path}\n" +
 	"where id is the repository ID, blob_name is a commit SHA, tag, or branch name, " +
 	"and path is the file path within the repository.\n" +
-	"Optional query parameters: ?lines=L17-L26,L45 and ?line_numbers=true\n\n" +
+	"Optional query parameters: ?lines=L17-L26,L45 and ?line_numbers=true\n" +
+	"For document pages (PDFs): ?page=N&mode=raster returns a rendered PNG image of the page\n\n" +
 	"Choose the most appropriate tool based on what information you need. " +
 	"Often starting with architecture or API docs provides better context than " +
 	"immediately searching for code snippets."
+
+// ServerOption configures optional Server dependencies.
+type ServerOption func(*Server)
+
+// WithRasterization enables raster mode for file resource reads.
+func WithRasterization(diskPaths DiskPathResolver, rasterizers *rasterization.Registry) ServerOption {
+	return func(s *Server) {
+		s.diskPathResolver = diskPaths
+		s.rasterizers = rasterizers
+	}
+}
 
 // NewServer creates a new MCP server with the given dependencies.
 func NewServer(
@@ -147,6 +170,7 @@ func NewServer(
 	grepper Grepper,
 	version string,
 	logger zerolog.Logger,
+	opts ...ServerOption,
 ) *Server {
 
 	s := &Server{
@@ -163,6 +187,9 @@ func NewServer(
 		grepper:            grepper,
 		version:            version,
 		logger:             logger,
+	}
+	for _, opt := range opts {
+		opt(s)
 	}
 
 	mcpServer := server.NewMCPServer(
@@ -506,6 +533,7 @@ type fileResult struct {
 	Path     string  `json:"path"`
 	Language string  `json:"language"`
 	Lines    string  `json:"lines"`
+	Page     int     `json:"page,omitempty"`
 	Score    float64 `json:"score"`
 	Preview  string  `json:"preview"`
 }
@@ -593,9 +621,16 @@ func (s *Server) resolveFileResults(
 		uri := NewFileURI(repoID, file.CommitSHA(), filePath)
 
 		var lines string
-		if lr, found := lineRanges[idStr]; found && lr.StartLine() > 0 {
-			uri = uri.WithLineRange(lr.StartLine(), lr.EndLine())
-			lines = fmt.Sprintf("L%d-L%d", lr.StartLine(), lr.EndLine())
+		var page int
+		if lr, found := lineRanges[idStr]; found {
+			if lr.StartLine() > 0 {
+				uri = uri.WithLineRange(lr.StartLine(), lr.EndLine())
+				lines = fmt.Sprintf("L%d-L%d", lr.StartLine(), lr.EndLine())
+			}
+			if lr.Page() > 0 {
+				uri = uri.WithPage(lr.Page())
+				page = lr.Page()
+			}
 		}
 
 		preview := e.Content()
@@ -608,6 +643,7 @@ func (s *Server) resolveFileResults(
 			Path:     filePath,
 			Language: e.Language(),
 			Lines:    lines,
+			Page:     page,
 			Score:    scores[idStr],
 			Preview:  preview,
 		})
@@ -1020,12 +1056,18 @@ func (s *Server) handleReadResource(ctx context.Context, request mcp.CallToolReq
 		return mcp.NewToolResultText(""), nil
 	}
 
-	text, ok := contents[0].(mcp.TextResourceContents)
-	if !ok {
+	switch c := contents[0].(type) {
+	case mcp.TextResourceContents:
+		return mcp.NewToolResultText(c.Text), nil
+	case mcp.BlobResourceContents:
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				mcp.NewImageContent(c.Blob, c.MIMEType),
+			},
+		}, nil
+	default:
 		return mcp.NewToolResultError("unexpected resource content type"), nil
 	}
-
-	return mcp.NewToolResultText(text.Text), nil
 }
 
 // registerResources registers MCP resource templates with the server.
@@ -1075,13 +1117,29 @@ func (s *Server) handleReadFile(ctx context.Context, request mcp.ReadResourceReq
 	blobName := parts[1]
 	filePath := parts[2]
 
+	query := parsed.Query()
+	mode := query.Get("mode")
+	pageParam := query.Get("page")
+
+	if mode != "" && mode != "raster" {
+		return nil, fmt.Errorf("unsupported mode %q, valid modes: raster", mode)
+	}
+
+	if pageParam != "" && mode == "" {
+		return nil, fmt.Errorf("page parameter requires mode=raster")
+	}
+
+	// Raster mode: render a document page as a base64-encoded PNG.
+	if mode == "raster" {
+		return s.handleRasterRead(ctx, uri, repoID, blobName, filePath, pageParam)
+	}
+
 	result, err := s.fileContent.Content(ctx, repoID, blobName, filePath)
 	if err != nil {
 		return nil, fmt.Errorf("read file content: %w", err)
 	}
 
 	content := result.Content()
-	query := parsed.Query()
 	linesParam := query.Get("lines")
 	lineNumbers := query.Get("line_numbers") == "true"
 
@@ -1103,6 +1161,50 @@ func (s *Server) handleReadFile(ctx context.Context, request mcp.ReadResourceReq
 			URI:      uri,
 			MIMEType: "text/plain",
 			Text:     string(content),
+		},
+	}, nil
+}
+
+// handleRasterRead renders a document page and returns it as a base64-encoded PNG blob.
+func (s *Server) handleRasterRead(ctx context.Context, uri string, repoID int64, blobName, filePath, pageStr string) ([]mcp.ResourceContents, error) {
+	if s.diskPathResolver == nil || s.rasterizers == nil {
+		return nil, fmt.Errorf("rasterization not available")
+	}
+
+	if pageStr == "" {
+		return nil, fmt.Errorf("page parameter is required for raster mode")
+	}
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		return nil, fmt.Errorf("page must be a positive integer")
+	}
+
+	ext := strings.ToLower(filepath.Ext(filePath))
+	rast, ok := s.rasterizers.For(ext)
+	if !ok {
+		return nil, fmt.Errorf("rasterization not supported for %s files", ext)
+	}
+
+	diskPath, _, err := s.diskPathResolver.DiskPath(ctx, repoID, blobName, filePath)
+	if err != nil {
+		return nil, fmt.Errorf("resolve disk path: %w", err)
+	}
+
+	img, err := rast.Render(diskPath, page)
+	if err != nil {
+		return nil, fmt.Errorf("render page %d: %w", page, err)
+	}
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		return nil, fmt.Errorf("encode png: %w", err)
+	}
+
+	return []mcp.ResourceContents{
+		mcp.BlobResourceContents{
+			URI:      uri,
+			MIMEType: "image/png",
+			Blob:     base64.StdEncoding.EncodeToString(buf.Bytes()),
 		},
 	}, nil
 }

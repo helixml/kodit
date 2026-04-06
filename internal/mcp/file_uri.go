@@ -10,6 +10,7 @@ type FileURI struct {
 	path      string
 	startLine int
 	endLine   int
+	page      int
 }
 
 // NewFileURI creates a FileURI with the required fields.
@@ -28,9 +29,18 @@ func (u FileURI) WithLineRange(start, end int) FileURI {
 	return u
 }
 
+// WithPage returns a copy with page number set (enables raster mode).
+func (u FileURI) WithPage(page int) FileURI {
+	u.page = page
+	return u
+}
+
 // String builds the file:// URI string.
 func (u FileURI) String() string {
 	base := fmt.Sprintf("file://%d/%s/%s", u.repoID, u.blobName, u.path)
+	if u.page > 0 {
+		return fmt.Sprintf("%s?page=%d&mode=raster", base, u.page)
+	}
 	if u.startLine > 0 {
 		return fmt.Sprintf("%s?lines=L%d-L%d&line_numbers=true", base, u.startLine, u.endLine)
 	}

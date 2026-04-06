@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"testing"
 
 	"github.com/helixml/kodit/domain/enrichment"
@@ -163,5 +164,49 @@ func TestEnrichments_Get_NotFound(t *testing.T) {
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestEnrichments_PageImageEnrichment_ReturnsPageAttribute(t *testing.T) {
+	ts := NewTestServer(t)
+
+	repo := ts.CreateRepository("https://github.com/test/page-attr-repo.git")
+	commit := ts.CreateCommit(repo, "aaa111bbb222", "add pdf")
+	file := ts.CreateFile(commit.SHA(), "docs/report.pdf", "abc123", "application/pdf", ".pdf", 1024)
+
+	pageImage := ts.CreatePageImageEnrichment(commit.SHA(), 3, repo.ID(), file.ID())
+
+	// List enrichments for the commit and check page attribute.
+	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/commits/%s/enrichments?enrichment_subtype=page_image",
+		repo.ID(), commit.SHA()))
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body := ts.ReadBody(resp)
+		t.Fatalf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusOK, body)
+	}
+
+	var result dto.EnrichmentJSONAPIListResponse
+	ts.DecodeJSON(resp, &result)
+
+	if len(result.Data) != 1 {
+		t.Fatalf("len(data) = %d, want 1", len(result.Data))
+	}
+
+	d := result.Data[0]
+	if d.ID != strconv.FormatInt(pageImage.ID(), 10) {
+		t.Errorf("id = %q, want %q", d.ID, strconv.FormatInt(pageImage.ID(), 10))
+	}
+	if d.Attributes.Subtype != "page_image" {
+		t.Errorf("subtype = %q, want page_image", d.Attributes.Subtype)
+	}
+	if d.Attributes.Page == nil {
+		t.Error("page is nil, want non-nil")
+	} else if *d.Attributes.Page != 3 {
+		t.Errorf("page = %d, want 3", *d.Attributes.Page)
+	}
+	// Page image enrichments should not have start/end lines.
+	if d.Attributes.StartLine != nil {
+		t.Errorf("start_line = %v, want nil", d.Attributes.StartLine)
 	}
 }

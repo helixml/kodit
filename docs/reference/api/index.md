@@ -419,7 +419,7 @@ Get a repository by ID
 
 ### GET /repositories/{id}/blob/{blob_name}/{path}
 
-Returns raw file content from a Git repository at a given blob reference (commit SHA, tag, or branch)
+Returns raw file content from a Git repository at a given blob reference (commit SHA, tag, or branch). Use mode=raster&page=N to get a rasterized PNG of a document page.
 
 
 #### Parameters
@@ -431,6 +431,8 @@ Returns raw file content from a Git repository at a given blob reference (commit
 | path | string | True | File path within the repository |
 | lines | string |  | Line ranges to extract (e.g. L17-L26,L45,L55-L90) |
 | line_numbers | boolean |  | Prefix each line with its 1-based line number |
+| mode | string |  | Output mode: 'raster' returns a PNG image of the page |
+| page | integer |  | 1-based page number (required when mode=raster) |
 
 
 #### Responses
@@ -443,13 +445,19 @@ Returns raw file content from a Git repository at a given blob reference (commit
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 - 404: Not Found
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 - 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
@@ -1536,6 +1544,7 @@ Get a step by ID
 | content | string |  |
 | created_at | string |  |
 | end_line | integer |  |
+| page | integer |  |
 | start_line | integer |  |
 | subtype | string |  |
 | type | string |  |
@@ -2140,6 +2149,7 @@ Get a step by ID
 |-------|------|-------------|
 | end_line | integer |  |
 | language | string |  |
+| page | integer |  |
 | start_line | integer |  |
 | value | string |  |
 

@@ -26,6 +26,10 @@ func NewScopedMCPHandler(client *Client, repoIDs []int64) http.Handler {
 			mcpinternal.Scope(repositories, fileContent, semanticSearch, keywordSearch, grepper, fileLister, repoIDs)
 	}
 
+	var mcpOpts []mcpinternal.ServerOption
+	if client.Rasterizers() != nil {
+		mcpOpts = append(mcpOpts, mcpinternal.WithRasterization(client.Blobs, client.Rasterizers()))
+	}
 	srv := mcpinternal.NewServer(
 		repositories,
 		client.Commits,
@@ -40,6 +44,7 @@ func NewScopedMCPHandler(client *Client, repoIDs []int64) http.Handler {
 		grepper,
 		"1.0.0",
 		client.logger,
+		mcpOpts...,
 	)
 	return server.NewStreamableHTTPServer(srv.MCPServer())
 }

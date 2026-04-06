@@ -777,10 +777,11 @@ const docTemplate = `{
         },
         "/repositories/{id}/blob/{blob_name}/{path}": {
             "get": {
-                "description": "Returns raw file content from a Git repository at a given blob reference (commit SHA, tag, or branch)",
+                "description": "Returns raw file content from a Git repository at a given blob reference (commit SHA, tag, or branch). Use mode=raster\u0026page=N to get a rasterized PNG of a document page.",
                 "produces": [
                     "application/octet-stream",
-                    "text/plain"
+                    "text/plain",
+                    "image/png"
                 ],
                 "tags": [
                     "repositories"
@@ -818,6 +819,18 @@ const docTemplate = `{
                         "type": "boolean",
                         "description": "Prefix each line with its 1-based line number",
                         "name": "line_numbers",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Output mode: 'raster' returns a PNG image of the page",
+                        "name": "mode",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "1-based page number (required when mode=raster)",
+                        "name": "page",
                         "in": "query"
                     }
                 ],
@@ -2981,6 +2994,9 @@ const docTemplate = `{
                 "end_line": {
                     "type": "integer"
                 },
+                "page": {
+                    "type": "integer"
+                },
                 "start_line": {
                     "type": "integer"
                 },
@@ -3784,6 +3800,9 @@ const docTemplate = `{
                 },
                 "language": {
                     "type": "string"
+                },
+                "page": {
+                    "type": "integer"
                 },
                 "start_line": {
                     "type": "integer"

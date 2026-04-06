@@ -744,17 +744,23 @@ func enrichmentToSearchResult(
 		}
 	}
 
-	links := snippetLinks(files, commits, repos)
+	links := snippetLinks(files, lr, commits, repos)
 
 	content := dto.SnippetContentSchema{
 		Value:    e.Content(),
 		Language: e.Language(),
 	}
 	if lr != nil {
-		startLine := lr.StartLine()
-		endLine := lr.EndLine()
-		content.StartLine = &startLine
-		content.EndLine = &endLine
+		if lr.StartLine() > 0 {
+			startLine := lr.StartLine()
+			endLine := lr.EndLine()
+			content.StartLine = &startLine
+			content.EndLine = &endLine
+		}
+		if lr.Page() > 0 {
+			page := lr.Page()
+			content.Page = &page
+		}
 	}
 
 	return dto.SnippetData{
@@ -837,7 +843,7 @@ func uniqueRepoIDs(commits map[string]repository.Commit) []int64 {
 	return ids
 }
 
-func snippetLinks(files []repository.File, commits map[string]repository.Commit, repos map[int64]repository.Repository) *dto.SnippetLinks {
+func snippetLinks(files []repository.File, lr *sourcelocation.SourceLocation, commits map[string]repository.Commit, repos map[int64]repository.Repository) *dto.SnippetLinks {
 	if len(files) == 0 {
 		return nil
 	}
@@ -854,9 +860,13 @@ func snippetLinks(files []repository.File, commits map[string]repository.Commit,
 	}
 
 	repoID := strconv.FormatInt(repo.ID(), 10)
+	fileLink := fmt.Sprintf("/api/v1/repositories/%s/blob/%s/%s", repoID, commit.SHA(), file.Path())
+	if lr != nil && lr.Page() > 0 {
+		fileLink = fmt.Sprintf("%s?page=%d&mode=raster", fileLink, lr.Page())
+	}
 	return &dto.SnippetLinks{
 		Repository: fmt.Sprintf("/api/v1/repositories/%s", repoID),
 		Commit:     fmt.Sprintf("/api/v1/repositories/%s/commits/%s", repoID, commit.SHA()),
-		File:       fmt.Sprintf("/api/v1/repositories/%s/blob/%s/%s", repoID, commit.SHA(), file.Path()),
+		File:       fileLink,
 	}
 }

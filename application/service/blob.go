@@ -227,6 +227,30 @@ func (b *Blob) ListFilesForCommit(ctx context.Context, repoID int64, commitSHA, 
 	return entries, nil
 }
 
+// DiskPath resolves the blob reference and returns the absolute file path on disk.
+func (b *Blob) DiskPath(ctx context.Context, repoID int64, blobName, filePath string) (string, string, error) {
+	safePath, err := safeRelativePath(filePath)
+	if err != nil {
+		return "", "", fmt.Errorf("%s: %w", filePath, database.ErrNotFound)
+	}
+
+	commitSHA, err := b.Resolve(ctx, repoID, blobName)
+	if err != nil {
+		return "", "", err
+	}
+
+	repo, err := b.repositories.FindOne(ctx, repository.WithID(repoID))
+	if err != nil {
+		return "", "", fmt.Errorf("find repository: %w", err)
+	}
+
+	if !repo.HasWorkingCopy() {
+		return "", "", fmt.Errorf("repository %d has no working copy", repoID)
+	}
+
+	return filepath.Join(repo.WorkingCopy().Path(), safePath), commitSHA, nil
+}
+
 // Content resolves the blob reference and returns the file content at the given path.
 func (b *Blob) Content(ctx context.Context, repoID int64, blobName, filePath string) (BlobContent, error) {
 	safePath, err := safeRelativePath(filePath)
