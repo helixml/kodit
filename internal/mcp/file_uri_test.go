@@ -33,3 +33,20 @@ func TestFileURI_NestedPath(t *testing.T) {
 		t.Errorf("expected %s, got %s", expected, uri.String())
 	}
 }
+
+func TestFileURI_WithPage(t *testing.T) {
+	uri := NewFileURI(1, "abc123", "docs/report.pdf").WithPage(5)
+	expected := "file://1/abc123/docs/report.pdf?page=5&mode=raster"
+	if uri.String() != expected {
+		t.Errorf("expected %s, got %s", expected, uri.String())
+	}
+}
+
+func TestFileURI_PageTakesPrecedenceOverLines(t *testing.T) {
+	// When both page and line range are set, page wins (raster mode).
+	uri := NewFileURI(1, "abc123", "docs/report.pdf").WithLineRange(1, 10).WithPage(3)
+	expected := "file://1/abc123/docs/report.pdf?page=3&mode=raster"
+	if uri.String() != expected {
+		t.Errorf("expected %s, got %s", expected, uri.String())
+	}
+}

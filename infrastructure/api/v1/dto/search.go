@@ -45,6 +45,7 @@ type SnippetContentSchema struct {
 	Language  string `json:"language"`
 	StartLine *int   `json:"start_line,omitempty"`
 	EndLine   *int   `json:"end_line,omitempty"`
+	Page      *int   `json:"page,omitempty"`
 }
 
 // EnrichmentSchema represents an enrichment in search results.

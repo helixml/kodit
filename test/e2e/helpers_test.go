@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/api"
 	apimiddleware "github.com/helixml/kodit/infrastructure/api/middleware"
@@ -32,15 +34,16 @@ type TestServer struct {
 	httpServer *httptest.Server
 
 	// Stores - for direct DB manipulation in tests
-	repoStore        persistence.RepositoryStore
-	commitStore      persistence.CommitStore
-	branchStore      persistence.BranchStore
-	tagStore         persistence.TagStore
-	fileStore        persistence.FileStore
-	taskStore        persistence.TaskStore
-	taskStatusStore  persistence.StatusStore
-	enrichmentStore  persistence.EnrichmentStore
-	associationStore persistence.AssociationStore
+	repoStore           persistence.RepositoryStore
+	commitStore         persistence.CommitStore
+	branchStore         persistence.BranchStore
+	tagStore            persistence.TagStore
+	fileStore           persistence.FileStore
+	taskStore           persistence.TaskStore
+	taskStatusStore     persistence.StatusStore
+	enrichmentStore     persistence.EnrichmentStore
+	associationStore    persistence.AssociationStore
+	sourceLocationStore persistence.SourceLocationStore
 }
 
 // NewTestServer creates a new test server with all dependencies wired up.
@@ -82,6 +85,7 @@ func NewTestServer(t *testing.T) *TestServer {
 	taskStatusStore := persistence.NewStatusStore(db)
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
+	sourceLocationStore := persistence.NewSourceLocationStore(db)
 	// Create API server using the client
 	logger := client.Logger()
 	server := api.NewServer(":0", logger)
@@ -109,19 +113,20 @@ func NewTestServer(t *testing.T) *TestServer {
 	httpServer := httptest.NewServer(router)
 
 	ts := &TestServer{
-		t:                t,
-		client:           client,
-		db:               db,
-		httpServer:       httpServer,
-		repoStore:        repoStore,
-		commitStore:      commitStore,
-		branchStore:      branchStore,
-		tagStore:         tagStore,
-		fileStore:        fileStore,
-		taskStore:        taskStore,
-		taskStatusStore:  taskStatusStore,
-		enrichmentStore:  enrichmentStore,
-		associationStore: associationStore,
+		t:                   t,
+		client:              client,
+		db:                  db,
+		httpServer:          httpServer,
+		repoStore:           repoStore,
+		commitStore:         commitStore,
+		branchStore:         branchStore,
+		tagStore:            tagStore,
+		fileStore:           fileStore,
+		taskStore:           taskStore,
+		taskStatusStore:     taskStatusStore,
+		enrichmentStore:     enrichmentStore,
+		associationStore:    associationStore,
+		sourceLocationStore: sourceLocationStore,
 	}
 
 	t.Cleanup(func() {
@@ -323,6 +328,41 @@ func (ts *TestServer) CreateSnippetEnrichmentForCommit(commitSHA, content, langu
 	if _, err := ts.associationStore.Save(ctx, assoc); err != nil {
 		ts.t.Fatalf("save snippet association: %v", err)
 	}
+	return saved
+}
+
+// CreatePageImageEnrichment creates a page image enrichment with source location and associations.
+func (ts *TestServer) CreatePageImageEnrichment(commitSHA string, page int, repoID int64, fileID int64) enrichment.Enrichment {
+	ts.t.Helper()
+	ctx := context.Background()
+
+	e := enrichment.NewPageImage()
+	saved, err := ts.enrichmentStore.Save(ctx, e)
+	if err != nil {
+		ts.t.Fatalf("save page image enrichment: %v", err)
+	}
+
+	sl := sourcelocation.NewPage(saved.ID(), page)
+	if _, err := ts.sourceLocationStore.Save(ctx, sl); err != nil {
+		ts.t.Fatalf("save page source location: %v", err)
+	}
+
+	if _, err := ts.associationStore.Save(ctx, enrichment.CommitAssociation(saved.ID(), commitSHA)); err != nil {
+		ts.t.Fatalf("save commit association: %v", err)
+	}
+
+	if fileID != 0 {
+		if _, err := ts.associationStore.Save(ctx, enrichment.FileAssociation(saved.ID(), strconv.FormatInt(fileID, 10))); err != nil {
+			ts.t.Fatalf("save file association: %v", err)
+		}
+	}
+
+	if repoID != 0 {
+		if _, err := ts.associationStore.Save(ctx, enrichment.RepositoryAssociation(saved.ID(), strconv.FormatInt(repoID, 10))); err != nil {
+			ts.t.Fatalf("save repository association: %v", err)
+		}
+	}
+
 	return saved
 }
 

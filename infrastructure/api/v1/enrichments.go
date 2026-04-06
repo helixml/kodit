@@ -176,10 +176,16 @@ func enrichmentToJSONAPIDTO(e enrichment.Enrichment, lineRanges map[string]sourc
 
 	idStr := fmt.Sprintf("%d", e.ID())
 	if lr, ok := lineRanges[idStr]; ok {
-		startLine := lr.StartLine()
-		endLine := lr.EndLine()
-		attrs.StartLine = &startLine
-		attrs.EndLine = &endLine
+		if lr.StartLine() > 0 {
+			startLine := lr.StartLine()
+			endLine := lr.EndLine()
+			attrs.StartLine = &startLine
+			attrs.EndLine = &endLine
+		}
+		if lr.Page() > 0 {
+			page := lr.Page()
+			attrs.Page = &page
+		}
 	}
 
 	return dto.EnrichmentData{

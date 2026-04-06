@@ -2,12 +2,15 @@
 package v1
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image/png"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -1854,15 +1857,18 @@ func repoToDTO(repo repository.Repository, numCommits, numBranches, numTags int6
 // GetBlob handles GET /api/v1/repositories/{id}/blob/{blob_name}/*.
 //
 //	@Summary		Get raw file content
-//	@Description	Returns raw file content from a Git repository at a given blob reference (commit SHA, tag, or branch)
+//	@Description	Returns raw file content from a Git repository at a given blob reference (commit SHA, tag, or branch). Use mode=raster&page=N to get a rasterized PNG of a document page.
 //	@Tags			repositories
 //	@Produce		octet-stream
 //	@Produce		plain
+//	@Produce		png
 //	@Param			id			path	int		true	"Repository ID"
 //	@Param			blob_name	path	string	true	"Commit SHA, tag name, or branch name"
 //	@Param			path		path	string	true	"File path within the repository"
 //	@Param			lines			query	string	false	"Line ranges to extract (e.g. L17-L26,L45,L55-L90)"
 //	@Param			line_numbers	query	bool	false	"Prefix each line with its 1-based line number"
+//	@Param			mode			query	string	false	"Output mode: 'raster' returns a PNG image of the page"
+//	@Param			page			query	int		false	"1-based page number (required when mode=raster)"
 //	@Success		200
 //	@Failure		400	{object}	middleware.JSONAPIErrorResponse
 //	@Failure		404	{object}	middleware.JSONAPIErrorResponse
@@ -1884,6 +1890,12 @@ func (r *RepositoriesRouter) GetBlob(w http.ResponseWriter, req *http.Request) {
 
 	if blobName == "" || filePath == "" {
 		middleware.WriteError(w, req, fmt.Errorf("blob_name and file path are required: %w", middleware.ErrValidation), r.logger)
+		return
+	}
+
+	// Raster mode: render a document page as a PNG image.
+	if req.URL.Query().Get("mode") == "raster" {
+		r.renderRasterPage(w, req, repoID, blobName, filePath)
 		return
 	}
 
@@ -1922,6 +1934,56 @@ func (r *RepositoriesRouter) GetBlob(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", contentType)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(result.Content())
+}
+
+// renderRasterPage rasterizes a document page and writes a PNG response.
+func (r *RepositoriesRouter) renderRasterPage(w http.ResponseWriter, req *http.Request, repoID int64, blobName, filePath string) {
+	registry := r.client.Rasterizers()
+	if registry == nil {
+		middleware.WriteError(w, req, fmt.Errorf("rasterization not available: %w", middleware.ErrValidation), r.logger)
+		return
+	}
+
+	pageStr := req.URL.Query().Get("page")
+	if pageStr == "" {
+		middleware.WriteError(w, req, fmt.Errorf("page parameter is required for raster mode: %w", middleware.ErrValidation), r.logger)
+		return
+	}
+	page, parseErr := strconv.Atoi(pageStr)
+	if parseErr != nil || page < 1 {
+		middleware.WriteError(w, req, fmt.Errorf("page must be a positive integer: %w", middleware.ErrValidation), r.logger)
+		return
+	}
+
+	ext := strings.ToLower(filepath.Ext(filePath))
+	rast, ok := registry.For(ext)
+	if !ok {
+		middleware.WriteError(w, req, fmt.Errorf("rasterization not supported for %s files: %w", ext, middleware.ErrValidation), r.logger)
+		return
+	}
+
+	diskPath, commitSHA, err := r.client.Blobs.DiskPath(req.Context(), repoID, blobName, filePath)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	img, err := rast.Render(diskPath, page)
+	if err != nil {
+		middleware.WriteError(w, req, fmt.Errorf("render page %d: %w", page, err), r.logger)
+		return
+	}
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		middleware.WriteError(w, req, fmt.Errorf("encode png: %w", err), r.logger)
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("X-Commit-SHA", commitSHA)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(buf.Bytes())
 }
 
 // Grep searches file contents in a repository using git grep.
