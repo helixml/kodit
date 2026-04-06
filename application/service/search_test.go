@@ -102,6 +102,8 @@ func TestSearch_EmbeddingFailure_ReturnsError(t *testing.T) {
 		fakeEmbeddingStore{},
 		nil,
 		nil,
+		nil,
+		nil,
 		stores.enrichments,
 		nil,
 		zerolog.Nop(),
@@ -139,7 +141,7 @@ func TestSearch_KeywordsProduceSeparateFusionLists(t *testing.T) {
 		},
 	}
 
-	svc := NewSearch(nil, nil, nil, bm25, stores.enrichments, nil, zerolog.Nop())
+	svc := NewSearch(nil, nil, nil, bm25, nil, nil, stores.enrichments, nil, zerolog.Nop())
 
 	req := search.NewMultiRequest(10, "", "", []string{"auth", "login"}, search.NewFilters())
 	result, err := svc.Search(context.Background(), req)
@@ -167,6 +169,8 @@ func TestSearch_TextVectorFailure_ReturnsError(t *testing.T) {
 		fakeEmbeddingStore{err: searchErr},
 		nil,
 		nil,
+		nil,
+		nil,
 		stores.enrichments,
 		nil,
 		zerolog.Nop(),
@@ -191,6 +195,8 @@ func TestSearch_BM25Failure_ReturnsError(t *testing.T) {
 		nil,
 		nil,
 		fakeBM25Store{err: bm25Err},
+		nil,
+		nil,
 		stores.enrichments,
 		nil,
 		zerolog.Nop(),
@@ -209,7 +215,7 @@ func TestSearch_BM25Failure_ReturnsError(t *testing.T) {
 
 func TestSearch_NoStoresConfigured_ReturnsEmpty(t *testing.T) {
 	stores := newTestStores(t)
-	svc := NewSearch(nil, nil, nil, nil, stores.enrichments, nil, zerolog.Nop())
+	svc := NewSearch(nil, nil, nil, nil, nil, nil, stores.enrichments, nil, zerolog.Nop())
 
 	req := search.NewMultiRequest(10, "test", "test", []string{"keyword"}, search.NewFilters())
 	result, err := svc.Search(context.Background(), req)
@@ -242,6 +248,8 @@ func TestSearchCodeWithScores_OrdersByScoreDescending(t *testing.T) {
 		fakeEmbedder{vectors: [][]float64{{0.1, 0.2}}},
 		nil,
 		codeVectorStore,
+		nil,
+		nil,
 		nil,
 		stores.enrichments,
 		nil,
@@ -285,7 +293,7 @@ func TestSearchKeywordsWithScores_ReturnsResults(t *testing.T) {
 		},
 	}
 
-	svc := NewSearch(nil, nil, nil, bm25, stores.enrichments, nil, zerolog.Nop())
+	svc := NewSearch(nil, nil, nil, bm25, nil, nil, stores.enrichments, nil, zerolog.Nop())
 
 	results, scores, err := svc.SearchKeywordsWithScores(context.Background(), "auth", 10, search.NewFilters())
 	if err != nil {
@@ -314,7 +322,7 @@ func TestSearchKeywordsWithScores_ReturnsResults(t *testing.T) {
 
 func TestSearchKeywordsWithScores_NilStore(t *testing.T) {
 	stores := newTestStores(t)
-	svc := NewSearch(nil, nil, nil, nil, stores.enrichments, nil, zerolog.Nop())
+	svc := NewSearch(nil, nil, nil, nil, nil, nil, stores.enrichments, nil, zerolog.Nop())
 
 	results, scores, err := svc.SearchKeywordsWithScores(context.Background(), "auth", 10, search.NewFilters())
 	if err != nil {
@@ -334,7 +342,7 @@ func TestSearchKeywordsWithScores_NoResults(t *testing.T) {
 		resultsByKeyword: map[string][]search.Result{},
 	}
 
-	svc := NewSearch(nil, nil, nil, bm25, stores.enrichments, nil, zerolog.Nop())
+	svc := NewSearch(nil, nil, nil, bm25, nil, nil, stores.enrichments, nil, zerolog.Nop())
 
 	results, scores, err := svc.SearchKeywordsWithScores(context.Background(), "nonexistent", 10, search.NewFilters())
 	if err != nil {
@@ -372,6 +380,8 @@ func TestSearch_Query_ReturnsResults(t *testing.T) {
 		vectorStore,
 		vectorStore,
 		nil,
+		nil,
+		nil,
 		stores.enrichments,
 		nil,
 		zerolog.Nop(),
@@ -393,7 +403,7 @@ func TestSearch_Query_ReturnsResults(t *testing.T) {
 
 func TestSearch_Query_NilStores(t *testing.T) {
 	stores := newTestStores(t)
-	svc := NewSearch(nil, nil, nil, nil, stores.enrichments, nil, zerolog.Nop())
+	svc := NewSearch(nil, nil, nil, nil, nil, nil, stores.enrichments, nil, zerolog.Nop())
 
 	result, err := svc.Query(context.Background(), "test query")
 	if err != nil {
@@ -425,6 +435,8 @@ func TestSearch_SearchText_ReturnsEnrichments(t *testing.T) {
 		textVectorStore,
 		nil,
 		nil,
+		nil,
+		nil,
 		stores.enrichments,
 		nil,
 		zerolog.Nop(),
@@ -444,6 +456,8 @@ func TestSearch_SearchText_NilStore(t *testing.T) {
 	svc := NewSearch(
 		fakeEmbedder{vectors: [][]float64{{0.1, 0.2}}},
 		nil, // no text vector store
+		nil,
+		nil,
 		nil,
 		nil,
 		stores.enrichments,
@@ -466,6 +480,8 @@ func TestSearch_SearchText_EmbedError(t *testing.T) {
 	svc := NewSearch(
 		fakeEmbedder{err: embedErr},
 		fakeEmbeddingStore{},
+		nil,
+		nil,
 		nil,
 		nil,
 		stores.enrichments,
@@ -503,6 +519,8 @@ func TestSearch_SearchCode_ReturnsEnrichments(t *testing.T) {
 		nil,
 		codeVectorStore,
 		nil,
+		nil,
+		nil,
 		stores.enrichments,
 		nil,
 		zerolog.Nop(),
@@ -523,6 +541,8 @@ func TestSearch_SearchCode_NilStore(t *testing.T) {
 		fakeEmbedder{vectors: [][]float64{{0.1, 0.2}}},
 		nil,
 		nil, // no code vector store
+		nil,
+		nil,
 		nil,
 		stores.enrichments,
 		nil,
@@ -545,6 +565,8 @@ func TestSearch_SearchCode_EmbedError(t *testing.T) {
 		fakeEmbedder{err: embedErr},
 		nil,
 		fakeEmbeddingStore{},
+		nil,
+		nil,
 		nil,
 		stores.enrichments,
 		nil,

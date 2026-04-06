@@ -331,6 +331,7 @@ func New(opts ...Option) (*Client, error) {
 
 	// Create vision embedding store and index (only if vision model is available)
 	var visionEmbeddingStore search.EmbeddingStore
+	var visionTextEmbedder search.Embedder
 	var visionIndex handler.VectorIndex
 	if visionEmbedding.Available() {
 		switch cfg.database {
@@ -348,6 +349,7 @@ func New(opts ...Option) (*Client, error) {
 			visionEmbeddingStore = vs
 		}
 		if visionEmbeddingStore != nil {
+			visionTextEmbedder = &embeddingAdapter{inner: visionEmbedding.TextEmbedder()}
 			visionIndex = handler.VectorIndex{
 				Store: visionEmbeddingStore,
 			}
@@ -508,7 +510,7 @@ func New(opts ...Option) (*Client, error) {
 	client.Enrichments = enrichQSvc
 	client.Tasks = queue
 	client.Tracking = trackingSvc
-	client.Search = service.NewSearch(domainEmbedder, textEmbeddingStore, codeEmbeddingStore, bm25Store, enrichmentStore, &client.closed, logger)
+	client.Search = service.NewSearch(domainEmbedder, textEmbeddingStore, codeEmbeddingStore, bm25Store, visionTextEmbedder, visionEmbeddingStore, enrichmentStore, &client.closed, logger)
 	client.Grep = service.NewGrep(repoStore, commitStore, gitAdapter)
 
 	// Register task handlers

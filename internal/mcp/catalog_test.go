@@ -8,12 +8,12 @@ import (
 func TestToolDefinitions_Count(t *testing.T) {
 	defs := ToolDefinitions()
 
-	if len(defs) != 14 {
+	if len(defs) != 15 {
 		names := make([]string, len(defs))
 		for i, def := range defs {
 			names[i] = def.Name()
 		}
-		t.Fatalf("ToolDefinitions() length = %d, want 14; got %v", len(defs), names)
+		t.Fatalf("ToolDefinitions() length = %d, want 15; got %v", len(defs), names)
 	}
 }
 

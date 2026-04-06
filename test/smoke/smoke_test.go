@@ -765,6 +765,33 @@ func TestSmoke(t *testing.T) {
 		t.Logf("keyword search: %d results", len(result.Data))
 	})
 
+	t.Run("search_visual", func(t *testing.T) {
+		visualURL := fmt.Sprintf("%s/search/visual?query=%s", baseURL, url.QueryEscape("HTTP server orders JSON"))
+		resp := getJSON(t, visualURL)
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		var result struct {
+			Data []json.RawMessage `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		// The gist repo may not have rasterisable documents, so zero results
+		// is acceptable — the key assertion is that the endpoint returns 200.
+		t.Logf("visual search: %d results", len(result.Data))
+	})
+
+	t.Run("search_visual_missing_query", func(t *testing.T) {
+		visualURL := fmt.Sprintf("%s/search/visual", baseURL)
+		resp := getJSON(t, visualURL)
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", resp.StatusCode)
+		}
+	})
+
 	// MCP tool smoke tests — initialize a session once and reuse it.
 	mcpSessionID := initMCPSession(t)
 
@@ -788,8 +815,17 @@ func TestSmoke(t *testing.T) {
 		validateMCPFileResults(t, results, "keyword_search")
 	})
 
+	t.Run("mcp_visual_search", func(t *testing.T) {
+		// The gist repo may not have rasterisable documents, so zero results
+		// is acceptable — the key assertion is that the tool executes without error.
+		results := callMCPTool(t, mcpSessionID, "kodit_visual_search", 4, map[string]any{
+			"query": "HTTP server orders JSON",
+		})
+		t.Logf("mcp visual search: %d results", len(results))
+	})
+
 	t.Run("mcp_ls", func(t *testing.T) {
-		results := callMCPLs(t, mcpSessionID, 4, map[string]any{
+		results := callMCPLs(t, mcpSessionID, 5, map[string]any{
 			"repo_url": targetURI,
 			"pattern":  "**/*.py",
 		})
@@ -809,7 +845,7 @@ func TestSmoke(t *testing.T) {
 
 	t.Run("mcp_read_resource", func(t *testing.T) {
 		// First get a URI from semantic_search, then read it via read_resource.
-		results := callMCPTool(t, mcpSessionID, "kodit_semantic_search", 5, map[string]any{
+		results := callMCPTool(t, mcpSessionID, "kodit_semantic_search", 6, map[string]any{
 			"query": "HTTP server orders JSON",
 			"limit": 1,
 		})
@@ -819,7 +855,7 @@ func TestSmoke(t *testing.T) {
 		uri := results[0].URI
 		t.Logf("reading resource: %s", uri)
 
-		text := callMCPToolText(t, mcpSessionID, "kodit_read_resource", 6, map[string]any{
+		text := callMCPToolText(t, mcpSessionID, "kodit_read_resource", 7, map[string]any{
 			"uri": uri,
 		})
 		if text == "" {
@@ -1170,6 +1206,25 @@ func TestSmoke(t *testing.T) {
 		if !found {
 			t.Fatal("expected a result containing 'Parental Leave' and '16 weeks' from the PDF")
 		}
+	})
+
+	t.Run("doc_visual_search_parental_leave_pdf", func(t *testing.T) {
+		visualURL := fmt.Sprintf("%s/search/visual?query=%s&repository_id=%d",
+			baseURL, url.QueryEscape("parental leave policy"), docRepoID)
+		resp := getJSON(t, visualURL)
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		var result struct {
+			Data []json.RawMessage `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		// Vision embeddings require the SigLIP2 model; if not available the
+		// pipeline step is skipped and zero results is acceptable.
+		t.Logf("visual search (parental leave PDF): %d results", len(result.Data))
 	})
 
 	t.Run("doc_search_meeting_notes_docx", func(t *testing.T) {

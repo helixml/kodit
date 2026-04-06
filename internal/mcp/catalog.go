@@ -134,6 +134,15 @@ func tools() []ToolDefinition {
 			},
 		},
 		{
+			name:        "kodit_visual_search",
+			description: "Search indexed document pages (PDFs, etc.) using visual similarity. Embeds a text query and matches against page image embeddings to find visually relevant pages.",
+			params: []ParamDefinition{
+				{name: "query", description: "Natural language description of what you are looking for in document pages", typ: "string", required: true},
+				{name: "source_repo", description: "Filter by source repository URL", typ: "string"},
+				{name: "limit", description: "Maximum number of results (default 10)", typ: "number"},
+			},
+		},
+		{
 			name:        "kodit_grep",
 			description: "Search file contents in a repository using git grep with regex patterns. Returns matching file URIs with line numbers. Use for exact/regex matching; use kodit_keyword_search for fuzzy/semantic matching.",
 			params: []ParamDefinition{
