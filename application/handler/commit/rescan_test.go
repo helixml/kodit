@@ -46,7 +46,7 @@ func newRescanHandler(t *testing.T) (*Rescan, rescanStores) {
 		repos:        persistence.NewRepositoryStore(db),
 	}
 
-	enrichmentSvc := service.NewEnrichment(stores.enrichments, stores.associations, nil, nil, nil, nil)
+	enrichmentSvc := service.NewEnrichment(stores.enrichments, stores.associations, nil, nil, nil, nil, nil)
 	h := NewRescan(enrichmentSvc, stores.associations, stores.commits, stores.files, stores.statuses, &fakeTrackerFactory{}, logger)
 
 	return h, stores

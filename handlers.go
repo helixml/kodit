@@ -63,6 +63,27 @@ func (c *Client) registerHandlers() error {
 			enrichment.TypeDevelopment, enrichment.SubtypePageImage),
 	))
 
+	// Page image embedding handler — only if vision model is available
+	if c.visionIndex.Store != nil && c.visionEmbedding != nil {
+		visionEmbedder := &embeddingAdapter{inner: c.visionEmbedding.VisionEmbedder()}
+		h, err := indexinghandler.NewCreatePageImageEmbeddings(
+			c.repoStores.Repositories,
+			c.enrichCtx.Enrichments,
+			c.enrichCtx.Associations,
+			c.lineRangeStore,
+			c.repoStores.Files,
+			c.rasterizers,
+			visionEmbedder,
+			c.visionIndex.Store,
+			c.enrichCtx.Tracker,
+			c.logger,
+		)
+		if err != nil {
+			return fmt.Errorf("create page image embeddings handler: %w", err)
+		}
+		c.registry.Register(task.OperationCreatePageImageEmbeddingsForCommit, h)
+	}
+
 	subtype := enrichment.SubtypeChunk
 
 	// BM25 index handler — cascade-deletes when parent enrichments are deleted

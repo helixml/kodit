@@ -41,6 +41,7 @@ const (
 	OperationCreateExampleSummaryEmbeddingsForCommit Operation = "kodit.commit.create_example_summary_embeddings"
 	OperationGenerateWikiForCommit                   Operation = "kodit.commit.generate_wiki"
 	OperationExtractPageImagesForCommit              Operation = "kodit.commit.extract_page_images"
+	OperationCreatePageImageEmbeddingsForCommit      Operation = "kodit.commit.create_page_image_embeddings"
 	OperationScanCommit                              Operation = "kodit.commit.scan"
 	OperationRescanCommit                            Operation = "kodit.commit.rescan"
 )
@@ -64,6 +65,7 @@ func (o Operation) IsCommitOperation() bool {
 type PrescribedOperations struct {
 	examples    bool
 	enrichments bool
+	vision      bool
 }
 
 // DefaultPrescribedOperations returns the standard operation set.
@@ -85,6 +87,12 @@ func RAGOnlyPrescribedOperations() PrescribedOperations {
 // LLM enrichments. The caller must ensure a text provider is configured.
 func FullPrescribedOperations() PrescribedOperations {
 	return PrescribedOperations{enrichments: true}
+}
+
+// WithVision returns a copy with vision-model operations enabled or disabled.
+func (p PrescribedOperations) WithVision(vision bool) PrescribedOperations {
+	p.vision = vision
+	return p
 }
 
 // RequiresTextProvider reports whether this operation set needs a text
@@ -139,6 +147,9 @@ func (p PrescribedOperations) ScanAndIndexCommit() []Operation {
 		OperationExtractSnippetsForCommit,
 		OperationExtractPageImagesForCommit,
 	}
+	if p.vision {
+		ops = append(ops, OperationCreatePageImageEmbeddingsForCommit)
+	}
 	if p.examples {
 		ops = append(ops, OperationExtractExamplesForCommit)
 	}
@@ -179,9 +190,14 @@ func (p PrescribedOperations) IndexCommit() []Operation {
 	ops := []Operation{
 		OperationExtractSnippetsForCommit,
 		OperationExtractPageImagesForCommit,
+	}
+	if p.vision {
+		ops = append(ops, OperationCreatePageImageEmbeddingsForCommit)
+	}
+	ops = append(ops,
 		OperationCreateBM25IndexForCommit,
 		OperationCreateCodeEmbeddingsForCommit,
-	}
+	)
 	if p.enrichments && p.examples {
 		ops = append(ops, OperationCreateSummaryEnrichmentForCommit)
 	}
@@ -208,6 +224,9 @@ func (p PrescribedOperations) RescanCommit() []Operation {
 		OperationScanCommit,
 		OperationExtractSnippetsForCommit,
 		OperationExtractPageImagesForCommit,
+	}
+	if p.vision {
+		ops = append(ops, OperationCreatePageImageEmbeddingsForCommit)
 	}
 	if p.examples {
 		ops = append(ops, OperationExtractExamplesForCommit)

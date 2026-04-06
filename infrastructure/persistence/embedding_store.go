@@ -27,8 +27,9 @@ type TaskName string
 
 // TaskName values.
 var (
-	TaskNameCode = TaskName("code")
-	TaskNameText = TaskName("text")
+	TaskNameCode   = TaskName("code")
+	TaskNameText   = TaskName("text")
+	TaskNameVision = TaskName("vision")
 )
 
 // PgEmbeddingModel is a GORM model for PostgreSQL vector embedding tables.

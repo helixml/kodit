@@ -73,7 +73,7 @@ func TestEnrichment_SourceLocations(t *testing.T) {
 		t.Fatalf("save line range: %v", err)
 	}
 
-	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, stores.lineRanges)
+	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, nil, stores.lineRanges)
 
 	result, err := svc.SourceLocations(ctx, []int64{saved.ID()})
 	if err != nil {
@@ -94,7 +94,7 @@ func TestEnrichment_SourceLocations(t *testing.T) {
 }
 
 func TestEnrichment_SourceLocations_EmptyIDs(t *testing.T) {
-	svc := NewEnrichment(nil, nil, nil, nil, nil, nil)
+	svc := NewEnrichment(nil, nil, nil, nil, nil, nil, nil)
 
 	result, err := svc.SourceLocations(context.Background(), nil)
 	if err != nil {
@@ -118,7 +118,7 @@ func TestEnrichment_List_WithTypeFilter(t *testing.T) {
 		t.Fatalf("save e2: %v", err)
 	}
 
-	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, nil)
+	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, nil, nil)
 	typ := enrichment.TypeDevelopment
 	results, err := svc.List(ctx, &EnrichmentListParams{Type: &typ})
 	if err != nil {
@@ -143,7 +143,7 @@ func TestEnrichment_List_WithPagination(t *testing.T) {
 		}
 	}
 
-	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, nil)
+	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, nil, nil)
 	results, err := svc.List(ctx, &EnrichmentListParams{Limit: 2})
 	if err != nil {
 		t.Fatalf("List: %v", err)
@@ -154,7 +154,7 @@ func TestEnrichment_List_WithPagination(t *testing.T) {
 }
 
 func TestEnrichment_List_NilParams(t *testing.T) {
-	svc := NewEnrichment(nil, nil, nil, nil, nil, nil)
+	svc := NewEnrichment(nil, nil, nil, nil, nil, nil, nil)
 
 	results, err := svc.List(context.Background(), nil)
 	if err != nil {
@@ -178,7 +178,7 @@ func TestEnrichment_Count_WithFilter(t *testing.T) {
 		}
 	}
 
-	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, nil)
+	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, nil, nil)
 	typ := enrichment.TypeDevelopment
 	count, err := svc.Count(ctx, &EnrichmentListParams{Type: &typ})
 	if err != nil {
@@ -203,7 +203,7 @@ func TestEnrichment_DeleteBy_CleansUpSearchIndexes(t *testing.T) {
 	codeEmb := &recordingEmbeddingStore{}
 	textEmb := &recordingEmbeddingStore{}
 
-	svc := NewEnrichment(stores.enrichments, nil, bm25, codeEmb, textEmb, nil)
+	svc := NewEnrichment(stores.enrichments, nil, bm25, codeEmb, textEmb, nil, nil)
 	if err := svc.DeleteBy(ctx, repository.WithID(saved.ID())); err != nil {
 		t.Fatalf("DeleteBy: %v", err)
 	}
@@ -237,7 +237,7 @@ func TestEnrichment_DeleteBy_NilStores(t *testing.T) {
 		t.Fatalf("save: %v", err)
 	}
 
-	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, nil)
+	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, nil, nil)
 	if err := svc.DeleteBy(ctx, repository.WithID(saved.ID())); err != nil {
 		t.Fatalf("DeleteBy: %v", err)
 	}
@@ -273,7 +273,7 @@ func TestEnrichment_RelatedEnrichments(t *testing.T) {
 		t.Fatalf("save association: %v", err)
 	}
 
-	svc := NewEnrichment(stores.enrichments, stores.associations, nil, nil, nil, nil)
+	svc := NewEnrichment(stores.enrichments, stores.associations, nil, nil, nil, nil, nil)
 	result, err := svc.RelatedEnrichments(ctx, []int64{savedParent.ID()})
 	if err != nil {
 		t.Fatalf("RelatedEnrichments: %v", err)
@@ -292,7 +292,7 @@ func TestEnrichment_RelatedEnrichments(t *testing.T) {
 }
 
 func TestEnrichment_RelatedEnrichments_EmptyIDs(t *testing.T) {
-	svc := NewEnrichment(nil, nil, nil, nil, nil, nil)
+	svc := NewEnrichment(nil, nil, nil, nil, nil, nil, nil)
 
 	result, err := svc.RelatedEnrichments(context.Background(), nil)
 	if err != nil {
@@ -322,7 +322,7 @@ func TestEnrichment_SourceFiles(t *testing.T) {
 		t.Fatalf("save assoc2: %v", err)
 	}
 
-	svc := NewEnrichment(stores.enrichments, stores.associations, nil, nil, nil, nil)
+	svc := NewEnrichment(stores.enrichments, stores.associations, nil, nil, nil, nil, nil)
 	result, err := svc.SourceFiles(ctx, []int64{saved.ID()})
 	if err != nil {
 		t.Fatalf("SourceFiles: %v", err)
@@ -339,7 +339,7 @@ func TestEnrichment_SourceFiles(t *testing.T) {
 }
 
 func TestEnrichment_SourceFiles_EmptyIDs(t *testing.T) {
-	svc := NewEnrichment(nil, nil, nil, nil, nil, nil)
+	svc := NewEnrichment(nil, nil, nil, nil, nil, nil, nil)
 
 	result, err := svc.SourceFiles(context.Background(), nil)
 	if err != nil {
@@ -365,7 +365,7 @@ func TestEnrichment_RepositoryIDs(t *testing.T) {
 		t.Fatalf("save association: %v", err)
 	}
 
-	svc := NewEnrichment(stores.enrichments, stores.associations, nil, nil, nil, nil)
+	svc := NewEnrichment(stores.enrichments, stores.associations, nil, nil, nil, nil, nil)
 	result, err := svc.RepositoryIDs(ctx, []int64{saved.ID()})
 	if err != nil {
 		t.Fatalf("RepositoryIDs: %v", err)
@@ -382,7 +382,7 @@ func TestEnrichment_RepositoryIDs(t *testing.T) {
 }
 
 func TestEnrichment_RepositoryIDs_EmptyIDs(t *testing.T) {
-	svc := NewEnrichment(nil, nil, nil, nil, nil, nil)
+	svc := NewEnrichment(nil, nil, nil, nil, nil, nil, nil)
 
 	result, err := svc.RepositoryIDs(context.Background(), nil)
 	if err != nil {

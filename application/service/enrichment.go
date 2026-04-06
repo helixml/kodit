@@ -25,12 +25,13 @@ type EnrichmentListParams struct {
 // Embeds Collection for Find/Get/Count; bespoke methods handle complex queries.
 type Enrichment struct {
 	repository.Collection[enrichment.Enrichment]
-	enrichmentStore    enrichment.EnrichmentStore
-	associationStore   enrichment.AssociationStore
-	bm25Store          search.BM25Store
-	codeEmbeddingStore search.EmbeddingStore
-	textEmbeddingStore search.EmbeddingStore
-	lineRangeStore     sourcelocation.Store
+	enrichmentStore      enrichment.EnrichmentStore
+	associationStore     enrichment.AssociationStore
+	bm25Store            search.BM25Store
+	codeEmbeddingStore   search.EmbeddingStore
+	textEmbeddingStore   search.EmbeddingStore
+	visionEmbeddingStore search.EmbeddingStore
+	lineRangeStore       sourcelocation.Store
 }
 
 // NewEnrichment creates a new Enrichment service.
@@ -40,16 +41,18 @@ func NewEnrichment(
 	bm25Store search.BM25Store,
 	codeEmbeddingStore search.EmbeddingStore,
 	textEmbeddingStore search.EmbeddingStore,
+	visionEmbeddingStore search.EmbeddingStore,
 	lineRangeStore sourcelocation.Store,
 ) *Enrichment {
 	return &Enrichment{
-		Collection:         repository.NewCollection[enrichment.Enrichment](enrichmentStore),
-		enrichmentStore:    enrichmentStore,
-		associationStore:   associationStore,
-		bm25Store:          bm25Store,
-		codeEmbeddingStore: codeEmbeddingStore,
-		textEmbeddingStore: textEmbeddingStore,
-		lineRangeStore:     lineRangeStore,
+		Collection:           repository.NewCollection[enrichment.Enrichment](enrichmentStore),
+		enrichmentStore:      enrichmentStore,
+		associationStore:     associationStore,
+		bm25Store:            bm25Store,
+		codeEmbeddingStore:   codeEmbeddingStore,
+		textEmbeddingStore:   textEmbeddingStore,
+		visionEmbeddingStore: visionEmbeddingStore,
+		lineRangeStore:       lineRangeStore,
 	}
 }
 
@@ -142,6 +145,11 @@ func (s *Enrichment) DeleteBy(ctx context.Context, opts ...repository.Option) er
 		if s.textEmbeddingStore != nil {
 			if err := s.textEmbeddingStore.DeleteBy(ctx, searchOpts...); err != nil {
 				return fmt.Errorf("delete text embeddings: %w", err)
+			}
+		}
+		if s.visionEmbeddingStore != nil {
+			if err := s.visionEmbeddingStore.DeleteBy(ctx, searchOpts...); err != nil {
+				return fmt.Errorf("delete vision embeddings: %w", err)
 			}
 		}
 	}
