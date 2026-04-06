@@ -109,6 +109,16 @@ func (h *Sync) Execute(ctx context.Context, payload map[string]any) error {
 		}
 	}
 
+	if !repo.HasTrackingConfig() {
+		if tc, ok := defaultTrackingConfig(branches); ok {
+			repo = repo.WithTrackingConfig(tc)
+			if _, err := h.repoStore.Save(ctx, repo); err != nil {
+				return fmt.Errorf("save default tracking config: %w", err)
+			}
+			h.logger.Info().Int64("repo_id", repoID).Str("branch", tc.Branch()).Msg("set default tracking config")
+		}
+	}
+
 	tracker.SetCurrent(ctx, 2, "Queueing commit scans")
 
 	if err := h.enqueueCommitScans(ctx, repo, branches); err != nil {
@@ -171,4 +181,15 @@ func (h *Sync) enqueueCommitScans(ctx context.Context, repo repository.Repositor
 	}
 
 	return h.queue.EnqueueOperations(ctx, operations, task.PriorityNormal, payload)
+}
+
+// defaultTrackingConfig returns a branch tracking config derived from the
+// scanned branches. It picks the branch marked as default.
+func defaultTrackingConfig(branches []repository.Branch) (repository.TrackingConfig, bool) {
+	for _, b := range branches {
+		if b.IsDefault() {
+			return repository.NewTrackingConfigForBranch(b.Name()), true
+		}
+	}
+	return repository.TrackingConfig{}, false
 }
