@@ -114,10 +114,11 @@ type Client struct {
 	lineRangeStore persistence.SourceLocationStore
 
 	// Aggregate dependencies
-	enrichCtx handler.EnrichmentContext
-	codeIndex handler.VectorIndex
-	textIndex handler.VectorIndex
-	gitInfra  handler.GitInfrastructure
+	enrichCtx   handler.EnrichmentContext
+	codeIndex   handler.VectorIndex
+	textIndex   handler.VectorIndex
+	visionIndex handler.VectorIndex
+	gitInfra    handler.GitInfrastructure
 
 	// Application services (internal only)
 	bm25Service  *domainservice.BM25
@@ -139,8 +140,9 @@ type Client struct {
 	cookbookContext  *enricher.CookbookContextService
 	wikiContext      *enricher.WikiContextService
 
-	hugotEmbedding *provider.HugotEmbedding
-	closers        []io.Closer
+	hugotEmbedding  *provider.HugotEmbedding
+	visionEmbedding *provider.LocalVisionEmbedding
+	closers         []io.Closer
 
 	logger      zerolog.Logger
 	dataDir     string
@@ -202,6 +204,16 @@ func New(opts ...Option) (*Client, error) {
 		} else {
 			return nil, fmt.Errorf("no embedding model found in %s — run 'make download-model' or configure an external embedding provider", modelDir)
 		}
+	}
+
+	// Create vision embedding model (SigLIP2).
+	modelDir := cfg.modelDir
+	if modelDir == "" {
+		modelDir = filepath.Join(dataDir, "models")
+	}
+	visionEmbedding := provider.NewLocalVisionEmbedding(provider.SigLIP2BaseConfig, modelDir)
+	if visionEmbedding.Available() {
+		logger.Info().Msg("vision embedding model (SigLIP2) available")
 	}
 
 	// Build database URL
@@ -317,11 +329,36 @@ func New(opts ...Option) (*Client, error) {
 		}
 	}
 
+	// Create vision embedding store and index (only if vision model is available)
+	var visionEmbeddingStore search.EmbeddingStore
+	var visionIndex handler.VectorIndex
+	if visionEmbedding.Available() {
+		switch cfg.database {
+		case databaseSQLite:
+			vs, vsErr := persistence.NewSQLiteEmbeddingStore(db, persistence.TaskNameVision, logger)
+			if vsErr != nil {
+				return nil, fmt.Errorf("vision embedding store: %w", vsErr)
+			}
+			visionEmbeddingStore = vs
+		case databasePostgresVectorchord:
+			vs, _, vsErr := persistence.NewVectorChordEmbeddingStore(ctx, db, persistence.TaskNameVision, 768, logger)
+			if vsErr != nil {
+				return nil, fmt.Errorf("vision embedding store: %w", vsErr)
+			}
+			visionEmbeddingStore = vs
+		}
+		if visionEmbeddingStore != nil {
+			visionIndex = handler.VectorIndex{
+				Store: visionEmbeddingStore,
+			}
+		}
+	}
+
 	// Create application services
 	registry := service.NewRegistry()
 	queue := service.NewQueue(taskStore, logger)
 
-	enrichQSvc := service.NewEnrichment(enrichmentStore, associationStore, bm25Store, codeEmbeddingStore, textEmbeddingStore, lineRangeStore)
+	enrichQSvc := service.NewEnrichment(enrichmentStore, associationStore, bm25Store, codeEmbeddingStore, textEmbeddingStore, visionEmbeddingStore, lineRangeStore)
 	trackingSvc := service.NewTracking(statusStore, taskStore)
 
 	// Create BM25 service for keyword search (always available)
@@ -364,7 +401,8 @@ func New(opts ...Option) (*Client, error) {
 			logger.Warn().Msg("enrichment endpoint not configured — LLM-based enrichments (summaries, architecture docs, commit descriptions, cookbooks, wiki) will be disabled; set ENRICHMENT_ENDPOINT_* environment variables to enable them")
 		}
 	}
-	prescribedOps := cfg.prescribedOpsFactory(cfg.textProvider != nil)
+	prescribedOps := cfg.prescribedOpsFactory(cfg.textProvider != nil).
+		WithVision(visionEmbedding.Available() && visionEmbeddingStore != nil)
 	if prescribedOps.RequiresTextProvider() && cfg.textProvider == nil {
 		return nil, fmt.Errorf("WithFullPipeline requires a text provider (WithOpenAI, WithAnthropic, or WithTextProvider)")
 	}
@@ -423,6 +461,7 @@ func New(opts ...Option) (*Client, error) {
 		enrichCtx:        enrichCtx,
 		codeIndex:        codeIndex,
 		textIndex:        textIndex,
+		visionIndex:      visionIndex,
 		gitInfra:         gitInfra,
 		bm25Service:      bm25Svc,
 		queue:            queue,
@@ -437,6 +476,7 @@ func New(opts ...Option) (*Client, error) {
 		cookbookContext:  cookbookCtx,
 		wikiContext:      wikiCtx,
 		hugotEmbedding:   hugotEmbedding,
+		visionEmbedding:  visionEmbedding,
 		closers:          cfg.closers,
 		logger:           logger,
 		dataDir:          dataDir,
