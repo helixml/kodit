@@ -9,4 +9,9 @@ infrastructure/provider/models/*
 !test/smoke/testdata/kodit_dump.sql
 *.tar.gz
 test-data/
+
+# Generated API specs and clients (regenerate with `make docs`)
+docs/swagger/
+docs/reference/api/
+clients/go/*.gen.go
 test/smoke/testdata/smoke-plain-dir/

@@ -184,49 +184,38 @@ tools: ## Install development tools
 
 ##@ Documentation
 
-# Swagger/OpenAPI paths
-DOCS_DIR=./docs
-SWAGGER_DIR=$(DOCS_DIR)/swagger
-OPENAPI_EMBED=./infrastructure/api/openapi.json
-
-.PHONY: swag
-swag: ## Generate Swagger 2.0 spec from annotations
-	swag init -g ./cmd/kodit/main.go -o $(SWAGGER_DIR) --parseInternal -d ./,./infrastructure/api/v1/dto
+# Swagger/OpenAPI paths — intermediate files go to docs/swagger/ (gitignored).
+# Only infrastructure/api/openapi.json is tracked in git.
+SWAGGER_DIR=./docs/swagger
+OPENAPI_SPEC=./infrastructure/api/openapi.json
 
 .PHONY: swag-fmt
 swag-fmt: ## Format swag comments
 	swag fmt
 
-.PHONY: swag-check
-swag-check: ## Check swagger docs are up to date (fails if stale)
-	$(GOCMD) install github.com/swaggo/swag/cmd/swag@latest
-	swag init -g ./cmd/kodit/main.go -o $(SWAGGER_DIR) --parseInternal -d ./,./infrastructure/api/v1/dto
-	git diff --exit-code $(SWAGGER_DIR)/
-
 .PHONY: openapi
-openapi: swag ## Generate Swagger 2.0 and convert to OpenAPI 3.0
+openapi: ## Generate OpenAPI 3.0 spec from annotations
+	@mkdir -p $(SWAGGER_DIR)
+	swag init -g ./cmd/kodit/main.go -o $(SWAGGER_DIR) --parseInternal -d ./,./infrastructure/api/v1/dto
 	@echo "Converting Swagger 2.0 to OpenAPI 3.0..."
-	openapi-spec-converter -t 3.0 -f json -o $(SWAGGER_DIR)/openapi.json $(SWAGGER_DIR)/swagger.json
-	sed 's|"url":"https://[^/]*/|"url":"/|' $(SWAGGER_DIR)/openapi.json > $(SWAGGER_DIR)/openapi.json.tmp && mv $(SWAGGER_DIR)/openapi.json.tmp $(SWAGGER_DIR)/openapi.json
-	python3 -m json.tool $(SWAGGER_DIR)/openapi.json $(SWAGGER_DIR)/openapi.json.tmp && mv $(SWAGGER_DIR)/openapi.json.tmp $(SWAGGER_DIR)/openapi.json
-	cp $(SWAGGER_DIR)/openapi.json $(OPENAPI_EMBED)
-	@echo "OpenAPI 3.0 spec generated at $(OPENAPI_EMBED)"
+	openapi-spec-converter -t 3.0 -f json -o $(OPENAPI_SPEC) $(SWAGGER_DIR)/swagger.json
+	sed 's|"url":"https://[^/]*/|"url":"/|' $(OPENAPI_SPEC) > $(OPENAPI_SPEC).tmp && mv $(OPENAPI_SPEC).tmp $(OPENAPI_SPEC)
+	python3 -m json.tool $(OPENAPI_SPEC) $(OPENAPI_SPEC).tmp && mv $(OPENAPI_SPEC).tmp $(OPENAPI_SPEC)
+	@echo "OpenAPI 3.0 spec generated at $(OPENAPI_SPEC)"
 
-.PHONY: openapi-convert
-openapi-convert: ## Convert existing swagger.json to OpenAPI 3.0 (skip swag generation)
-	@echo "Converting existing Swagger 2.0 to OpenAPI 3.0..."
-	openapi-spec-converter -t 3.0 -f json -o $(OPENAPI_EMBED) $(SWAGGER_DIR)/swagger.json
-	sed 's|"url":"https://[^/]*/|"url":"/|' $(OPENAPI_EMBED) > $(OPENAPI_EMBED).tmp && mv $(OPENAPI_EMBED).tmp $(OPENAPI_EMBED)
-	python3 -m json.tool $(OPENAPI_EMBED) $(OPENAPI_EMBED).tmp && mv $(OPENAPI_EMBED).tmp $(OPENAPI_EMBED)
-	@echo "OpenAPI 3.0 spec generated at $(OPENAPI_EMBED)"
+.PHONY: openapi-check
+openapi-check: openapi ## Check OpenAPI spec is up to date (fails if stale)
+	git diff --exit-code $(OPENAPI_SPEC)
 
-generate-go-client: openapi
+.PHONY: generate-go-client
+generate-go-client: openapi ## Generate Go client from OpenAPI spec
 	./scripts/generate-go-client.sh
 
+.PHONY: generate-clients
 generate-clients: generate-go-client
 
 .PHONY: docs
-docs: openapi generate-clients
+docs: openapi generate-clients ## Generate all docs and clients
 	uv run --script tools/dump-openapi.py
 	uv run --script tools/dump-config.py
 
