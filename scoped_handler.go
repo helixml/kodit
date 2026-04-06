@@ -33,6 +33,7 @@ func NewScopedMCPHandler(client *Client, repoIDs []int64) http.Handler {
 		fileContent,
 		semanticSearch,
 		keywordSearch,
+		client.Search,
 		client.Enrichments,
 		fileLister,
 		client.Files,

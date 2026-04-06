@@ -206,14 +206,16 @@ func (r MultiSearchResult) Count() int {
 
 // Search orchestrates hybrid code search across text and code vector indexes.
 type Search struct {
-	embedder        search.Embedder
-	textVectorStore search.EmbeddingStore
-	codeVectorStore search.EmbeddingStore
-	bm25Store       search.BM25Store
-	enrichmentStore enrichment.EnrichmentStore
-	fusion          search.Fusion
-	closed          *atomic.Bool
-	logger          zerolog.Logger
+	embedder          search.Embedder
+	textVectorStore   search.EmbeddingStore
+	codeVectorStore   search.EmbeddingStore
+	bm25Store         search.BM25Store
+	visionEmbedder    search.Embedder
+	visionVectorStore search.EmbeddingStore
+	enrichmentStore   enrichment.EnrichmentStore
+	fusion            search.Fusion
+	closed            *atomic.Bool
+	logger            zerolog.Logger
 }
 
 // NewSearch creates a new Search service.
@@ -222,19 +224,23 @@ func NewSearch(
 	textVectorStore search.EmbeddingStore,
 	codeVectorStore search.EmbeddingStore,
 	bm25Store search.BM25Store,
+	visionEmbedder search.Embedder,
+	visionVectorStore search.EmbeddingStore,
 	enrichmentStore enrichment.EnrichmentStore,
 	closed *atomic.Bool,
 	logger zerolog.Logger,
 ) *Search {
 	return &Search{
-		embedder:        embedder,
-		textVectorStore: textVectorStore,
-		codeVectorStore: codeVectorStore,
-		bm25Store:       bm25Store,
-		enrichmentStore: enrichmentStore,
-		fusion:          search.NewFusion(),
-		closed:          closed,
-		logger:          logger,
+		embedder:          embedder,
+		textVectorStore:   textVectorStore,
+		codeVectorStore:   codeVectorStore,
+		bm25Store:         bm25Store,
+		visionEmbedder:    visionEmbedder,
+		visionVectorStore: visionVectorStore,
+		enrichmentStore:   enrichmentStore,
+		fusion:            search.NewFusion(),
+		closed:            closed,
+		logger:            logger,
 	}
 }
 
@@ -598,6 +604,54 @@ func (s Search) SearchKeywordsWithScores(ctx context.Context, query string, limi
 	ordered := orderByScore(enrichments, scores)
 
 	return ordered, scores, nil
+}
+
+// SearchVisualWithScores performs cross-modal visual search: it embeds the text
+// query using the vision model's text encoder and searches the vision embedding
+// store, returning page-image enrichments with their similarity scores.
+func (s Search) SearchVisualWithScores(ctx context.Context, query string, topK int, filters search.Filters) ([]enrichment.Enrichment, map[string]float64, error) {
+	if s.visionVectorStore == nil || s.visionEmbedder == nil {
+		return nil, nil, nil
+	}
+
+	if topK <= 0 {
+		topK = 10
+	}
+
+	embeddings, err := s.visionEmbedder.Embed(ctx, [][]byte{[]byte(query)})
+	if err != nil {
+		return nil, nil, fmt.Errorf("embed visual query: %w", err)
+	}
+	if len(embeddings) == 0 || len(embeddings[0]) == 0 {
+		return nil, nil, nil
+	}
+
+	results, err := s.visionVectorStore.Search(ctx,
+		search.WithEmbedding(embeddings[0]),
+		search.WithFilters(filters),
+		repository.WithLimit(topK),
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	scores := make(map[string]float64, len(results))
+	ids := make([]int64, 0, len(results))
+	for _, r := range results {
+		id, parseErr := strconv.ParseInt(r.SnippetID(), 10, 64)
+		if parseErr != nil {
+			continue
+		}
+		ids = append(ids, id)
+		scores[r.SnippetID()] = r.Score()
+	}
+
+	enrichments, err := s.enrichmentStore.Find(ctx, repository.WithIDIn(ids))
+	if err != nil {
+		return nil, nil, fmt.Errorf("fetch enrichments: %w", err)
+	}
+
+	return orderByScore(enrichments, scores), scores, nil
 }
 
 // toFusionRequests converts search results to fusion requests.

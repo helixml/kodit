@@ -2648,6 +2648,43 @@ paths:
       summary: Semantic code search
       tags:
       - search
+  /search/visual:
+    get:
+      description: Search document pages (PDFs, etc.) using cross-modal visual similarity
+      parameters:
+      - description: Natural language search query
+        in: query
+        name: query
+        required: true
+        type: string
+      - description: Repository ID filter
+        in: query
+        name: repository_id
+        type: integer
+      - description: Maximum results (default 10)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SearchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: Visual document search
+      tags:
+      - search
   /steps:
     get:
       consumes:

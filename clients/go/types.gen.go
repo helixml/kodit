@@ -877,6 +877,18 @@ type GetSearchSemanticParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// GetSearchVisualParams defines parameters for GetSearchVisual.
+type GetSearchVisualParams struct {
+	// Query Natural language search query
+	Query string `form:"query" json:"query"`
+
+	// RepositoryId Repository ID filter
+	RepositoryId *int `form:"repository_id,omitempty" json:"repository_id,omitempty"`
+
+	// Limit Maximum results (default 10)
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // GetStepsParams defines parameters for GetSteps.
 type GetStepsParams struct {
 	// Page Page number (default: 1)

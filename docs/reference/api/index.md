@@ -1353,6 +1353,34 @@ Search code snippets using semantic similarity
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+### GET /search/visual
+
+Search document pages (PDFs, etc.) using cross-modal visual similarity
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| query | string | True | Natural language search query |
+| repository_id | integer |  | Repository ID filter |
+| limit | integer |  | Maximum results (default 10) |
+
+
+#### Responses
+
+- 200: OK
+
+[dto.SearchResponse](#dto.searchresponse)
+
+- 400: Bad Request
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 ### GET /steps
 
 List all steps with pagination

@@ -265,6 +265,7 @@ func testServer() *Server {
 		&fakeFileContentReader{content: []byte("alpha\nbeta\ngamma\ndelta\nepsilon\nzeta\neta"), commitSHA: "abc1234567890"},
 		&fakeSemanticSearcher{},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -415,6 +416,7 @@ func TestServer_ListRepositories_DisplaysUpstreamURL(t *testing.T) {
 		&fakeFileContentReader{},
 		&fakeSemanticSearcher{},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -468,6 +470,7 @@ func TestServer_ListRepositories_FallsBackToSanitizedURL(t *testing.T) {
 		&fakeFileContentReader{},
 		&fakeSemanticSearcher{},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -692,6 +695,7 @@ func semanticSearchServer() *Server {
 			scores:      map[string]float64{"99": 0.87},
 		},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"99": {10}},
 			lineRanges:    map[string]sourcelocation.SourceLocation{"99": sourcelocation.Reconstruct(1, 99, 0, 10, 25)},
@@ -812,6 +816,7 @@ func TestServer_SemanticSearch_AbsolutePathNormalized(t *testing.T) {
 			scores:      map[string]float64{"77": 0.91},
 		},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"77": {20}},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -891,6 +896,7 @@ func TestServer_SemanticSearch_LanguageFilterDotPrefix(t *testing.T) {
 			scores:      map[string]float64{"55": 0.90},
 		},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"55": {30}},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -1045,6 +1051,7 @@ func TestServer_SemanticSearch_LimitCapsResults(t *testing.T) {
 			scores:      map[string]float64{"61": 0.9, "62": 0.8, "63": 0.7},
 		},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"61": {101}, "62": {102}, "63": {103}},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -1142,6 +1149,7 @@ func TestServer_SemanticSearchThenReadFile(t *testing.T) {
 			scores:      map[string]float64{"42": 0.95},
 		},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"42": {10}},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -1226,6 +1234,7 @@ func TestServer_SemanticSearchThenReadFile_AbsolutePath(t *testing.T) {
 			scores:      map[string]float64{"77": 0.91},
 		},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"77": {20}},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -1306,6 +1315,7 @@ func TestServer_SemanticSearchThenReadFile_WithLineRange(t *testing.T) {
 			scores:      map[string]float64{"88": 0.80},
 		},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"88": {15}},
 			lineRanges:    map[string]sourcelocation.SourceLocation{"88": sourcelocation.Reconstruct(1, 88, 0, 3, 5)},
@@ -1368,6 +1378,7 @@ func TestServer_SemanticSearchNoResults(t *testing.T) {
 		&fakeFileContentReader{},
 		&fakeSemanticSearcher{},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -1426,6 +1437,7 @@ func keywordSearchServer() *Server {
 			enrichments: []enrichment.Enrichment{e},
 			scores:      map[string]float64{"99": 0.87},
 		},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"99": {10}},
 			lineRanges:    map[string]sourcelocation.SourceLocation{"99": sourcelocation.Reconstruct(1, 99, 0, 10, 25)},
@@ -1643,6 +1655,7 @@ func TestServer_KeywordSearch_NoResults(t *testing.T) {
 		&fakeFileContentReader{},
 		&fakeSemanticSearcher{},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -1757,6 +1770,7 @@ func TestServer_KeywordSearchThenReadFile(t *testing.T) {
 			enrichments: []enrichment.Enrichment{e},
 			scores:      map[string]float64{"99": 0.95},
 		},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{"99": {10}},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -1875,6 +1889,7 @@ func wikiServer() *Server {
 		&fakeFileContentReader{content: []byte("placeholder"), commitSHA: "abc1234567890"},
 		&fakeSemanticSearcher{},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -1953,6 +1968,7 @@ func TestServer_GetWiki_NoWiki(t *testing.T) {
 		&fakeFileContentReader{},
 		&fakeSemanticSearcher{},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -2071,6 +2087,7 @@ func lsServer(files []service.FileEntry) *Server {
 		&fakeFileContentReader{},
 		&fakeSemanticSearcher{},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -2251,6 +2268,7 @@ func TestServer_Ls_RepoNotFound(t *testing.T) {
 		&fakeFileContentReader{},
 		&fakeSemanticSearcher{},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -2313,6 +2331,7 @@ func credentialServer() *Server {
 		&fakeFileContentReader{content: []byte("placeholder"), commitSHA: "abc1234567890"},
 		&fakeSemanticSearcher{},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -2388,6 +2407,7 @@ func TestServer_GetWiki_SanitizesCredentials(t *testing.T) {
 		&fakeFileContentReader{content: []byte("placeholder"), commitSHA: "abc1234567890"},
 		&fakeSemanticSearcher{},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -2433,6 +2453,7 @@ func TestServer_GetWikiPage_SanitizesCredentials(t *testing.T) {
 		&fakeFileContentReader{content: []byte("placeholder"), commitSHA: "abc1234567890"},
 		&fakeSemanticSearcher{},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -2479,6 +2500,7 @@ func TestServer_Grep_SanitizesCredentials(t *testing.T) {
 		&fakeFileContentReader{content: []byte("placeholder"), commitSHA: "abc1234567890"},
 		&fakeSemanticSearcher{},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -2537,6 +2559,7 @@ func TestServer_Ls_SanitizesCredentials(t *testing.T) {
 		&fakeFileContentReader{},
 		&fakeSemanticSearcher{},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -2687,6 +2710,7 @@ func grepServer() *Server {
 		&fakeFileContentReader{content: []byte("placeholder"), commitSHA: "abc1234567890"},
 		&fakeSemanticSearcher{},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
@@ -2832,6 +2856,7 @@ func TestServer_Grep_NoResults(t *testing.T) {
 		&fakeFileContentReader{content: []byte("placeholder"), commitSHA: "abc1234567890"},
 		&fakeSemanticSearcher{},
 		&fakeKeywordSearcher{},
+		nil,
 		&fakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},

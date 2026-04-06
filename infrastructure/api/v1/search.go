@@ -44,6 +44,7 @@ func (r *SearchRouter) Routes() chi.Router {
 	router.Post("/", r.Search)
 	router.Get("/semantic", r.SemanticSearch)
 	router.Get("/keyword", r.KeywordSearch)
+	router.Get("/visual", r.VisualSearch)
 	router.Get("/ls", r.Ls)
 	router.Get("/grep", r.Grep)
 
@@ -275,6 +276,90 @@ func (r *SearchRouter) handleKeywordSearch(w http.ResponseWriter, req *http.Requ
 
 	if len(enrichments) > limit {
 		enrichments = enrichments[:limit]
+	}
+
+	scoreMap := enrichmentScoreMap(enrichments, scores)
+	response, err := r.resolveAndBuildResponse(ctx, enrichments, scoreMap)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+	middleware.WriteJSON(w, http.StatusOK, response)
+}
+
+// VisualSearch handles GET /api/v1/search/visual.
+//
+//	@Summary		Visual document search
+//	@Description	Search document pages (PDFs, etc.) using cross-modal visual similarity
+//	@Tags			search
+//	@Produce		json
+//	@Param			query			query		string	true	"Natural language search query"
+//	@Param			repository_id	query		int		false	"Repository ID filter"
+//	@Param			limit			query		int		false	"Maximum results (default 10)"
+//	@Success		200				{object}	dto.SearchResponse
+//	@Failure		400				{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500				{object}	middleware.JSONAPIErrorResponse
+//	@Security		APIKeyAuth
+//	@Router			/search/visual [get]
+func (r *SearchRouter) VisualSearch(w http.ResponseWriter, req *http.Request) {
+	query := strings.TrimSpace(req.URL.Query().Get("query"))
+	if query == "" {
+		middleware.WriteError(w, req, fmt.Errorf("query is required: %w", middleware.ErrValidation), r.logger)
+		return
+	}
+
+	var repositoryID *int64
+	if s := req.URL.Query().Get("repository_id"); s != "" {
+		parsed, parseErr := strconv.ParseInt(s, 10, 64)
+		if parseErr != nil || parsed < 1 {
+			middleware.WriteError(w, req, fmt.Errorf("invalid repository_id: %w", middleware.ErrValidation), r.logger)
+			return
+		}
+		repositoryID = &parsed
+	}
+
+	var limit *int
+	if limitStr := req.URL.Query().Get("limit"); limitStr != "" {
+		parsed, parseErr := strconv.Atoi(limitStr)
+		if parseErr != nil || parsed < 1 {
+			middleware.WriteError(w, req, fmt.Errorf("limit must be at least 1: %w", middleware.ErrValidation), r.logger)
+			return
+		}
+		limit = &parsed
+	}
+
+	r.handleVisualSearch(w, req, query, repositoryID, limit)
+}
+
+func (r *SearchRouter) handleVisualSearch(w http.ResponseWriter, req *http.Request, query string, repositoryID *int64, limitPtr *int) {
+	ctx := req.Context()
+
+	topK := 10
+	if limitPtr != nil && *limitPtr > 0 {
+		topK = *limitPtr
+	}
+
+	if repositoryID != nil {
+		if _, err := r.client.Repositories.Get(ctx, repository.WithID(*repositoryID)); err != nil {
+			middleware.WriteError(w, req, err, r.logger)
+			return
+		}
+	}
+
+	var filterOpts []search.FiltersOption
+	if repositoryID != nil {
+		filterOpts = append(filterOpts, search.WithSourceRepos([]int64{*repositoryID}))
+	}
+	filters := search.NewFilters(filterOpts...)
+
+	enrichments, scores, err := r.client.Search.SearchVisualWithScores(ctx, query, topK, filters)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	if len(enrichments) > topK {
+		enrichments = enrichments[:topK]
 	}
 
 	scoreMap := enrichmentScoreMap(enrichments, scores)
