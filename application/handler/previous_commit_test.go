@@ -13,9 +13,25 @@ import (
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/infrastructure/persistence"
 	"github.com/helixml/kodit/internal/testdb"
 )
+
+// noopEmbeddingStore satisfies search.EmbeddingStore with no-op methods.
+type noopEmbeddingStore struct{}
+
+func (noopEmbeddingStore) SaveAll(_ context.Context, _ []search.Embedding) error          { return nil }
+func (noopEmbeddingStore) Find(_ context.Context, _ ...repository.Option) ([]search.Embedding, error) {
+	return nil, nil
+}
+func (noopEmbeddingStore) Search(_ context.Context, _ ...repository.Option) ([]search.Result, error) {
+	return nil, nil
+}
+func (noopEmbeddingStore) Exists(_ context.Context, _ ...repository.Option) (bool, error) {
+	return false, nil
+}
+func (noopEmbeddingStore) DeleteBy(_ context.Context, _ ...repository.Option) error { return nil }
 
 // fakeHandler records whether Execute was called and can return an error.
 type fakeHandler struct {
@@ -68,7 +84,7 @@ func newTestStores(t *testing.T) testStores {
 	commitStore := persistence.NewCommitStore(db)
 	fileStore := persistence.NewFileStore(db)
 
-	enrichSvc := service.NewEnrichment(enrichmentStore, associationStore, nil, nil, nil, nil, nil)
+	enrichSvc := service.NewEnrichment(enrichmentStore, associationStore, nil, nil, nil, noopEmbeddingStore{}, nil)
 
 	return testStores{
 		enrichments:  enrichmentStore,

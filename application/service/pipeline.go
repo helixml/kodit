@@ -93,16 +93,49 @@ func NewPipeline(
 // pipeline name with the step params that should be present. This is the
 // single source of truth for both initial seeding and ongoing reconciliation.
 func (s *Pipeline) builtinSpecs() []CreatePipelineParams {
-	repoSteps := repositoryStepParams()
 	return []CreatePipelineParams{
-		{
-			Name:  repository.PipelineNameDefault,
-			Steps: append(repoSteps, operationsToStepParams(s.prescribedOps.ScanAndIndexCommit())...),
-		},
-		{
-			Name:  repository.PipelineNameRAG,
-			Steps: append(repoSteps, operationsToStepParams(task.RAGOnlyPrescribedOperations().ScanAndIndexCommit())...),
-		},
+		{Name: repository.PipelineNameDefault, Steps: s.defaultSteps()},
+		{Name: repository.PipelineNameRAG, Steps: ragSteps()},
+	}
+}
+
+// defaultSteps returns every step for the full pipeline. Enrichment steps
+// are included only when the prescribed operations enable them.
+func (s *Pipeline) defaultSteps() []StepParams {
+	steps := ragSteps()
+	if s.prescribedOps.Enrichments() {
+		op := func(o task.Operation) string { return string(o) }
+		steps = append(steps,
+			StepParams{Name: op(task.OperationCreateSummaryEmbeddingsForCommit), Kind: "internal", DependsOn: []string{op(task.OperationCreateCodeEmbeddingsForCommit)}},
+			StepParams{Name: op(task.OperationCreatePublicAPIDocsForCommit), Kind: "internal", DependsOn: []string{op(task.OperationCreateSummaryEmbeddingsForCommit)}},
+			StepParams{Name: op(task.OperationCreateArchitectureEnrichmentForCommit), Kind: "internal", DependsOn: []string{op(task.OperationCreatePublicAPIDocsForCommit)}},
+			StepParams{Name: op(task.OperationCreateCommitDescriptionForCommit), Kind: "internal", DependsOn: []string{op(task.OperationCreateArchitectureEnrichmentForCommit)}},
+			StepParams{Name: op(task.OperationCreateDatabaseSchemaForCommit), Kind: "internal", DependsOn: []string{op(task.OperationCreateCommitDescriptionForCommit)}},
+			StepParams{Name: op(task.OperationCreateCookbookForCommit), Kind: "internal", DependsOn: []string{op(task.OperationCreateDatabaseSchemaForCommit)}},
+			StepParams{Name: op(task.OperationGenerateWikiForCommit), Kind: "internal", DependsOn: []string{op(task.OperationCreateCookbookForCommit)}},
+		)
+	}
+	return steps
+}
+
+// ragSteps returns the step list for the RAG-only pipeline: repository
+// lifecycle, snippet extraction, BM25/code indexing, and vision.
+func ragSteps() []StepParams {
+	op := func(o task.Operation) string { return string(o) }
+	return []StepParams{
+		// Repository lifecycle
+		{Name: op(task.OperationCreateRepository), Kind: "internal"},
+		{Name: op(task.OperationCloneRepository), Kind: "internal", DependsOn: []string{op(task.OperationCreateRepository)}},
+		{Name: op(task.OperationSyncRepository), Kind: "internal", DependsOn: []string{op(task.OperationCloneRepository)}},
+		{Name: op(task.OperationDeleteRepository), Kind: "internal"},
+		// Commit scanning and indexing
+		{Name: op(task.OperationScanCommit), Kind: "internal"},
+		{Name: op(task.OperationExtractSnippetsForCommit), Kind: "internal", DependsOn: []string{op(task.OperationScanCommit)}},
+		{Name: op(task.OperationCreateBM25IndexForCommit), Kind: "internal", DependsOn: []string{op(task.OperationExtractSnippetsForCommit)}},
+		{Name: op(task.OperationCreateCodeEmbeddingsForCommit), Kind: "internal", DependsOn: []string{op(task.OperationCreateBM25IndexForCommit)}},
+		// Vision
+		{Name: op(task.OperationExtractPageImagesForCommit), Kind: "internal", DependsOn: []string{op(task.OperationExtractSnippetsForCommit)}},
+		{Name: op(task.OperationCreatePageImageEmbeddingsForCommit), Kind: "internal", DependsOn: []string{op(task.OperationExtractPageImagesForCommit)}},
 	}
 }
 
@@ -168,37 +201,6 @@ func stepsMatch(current []repository.Step, expected []StepParams) bool {
 		}
 	}
 	return true
-}
-
-// repositoryStepParams returns step params for the four repository-level
-// operations. Create, clone, and sync form a dependency chain; delete is
-// independent.
-func repositoryStepParams() []StepParams {
-	return []StepParams{
-		{Name: string(task.OperationCreateRepository), Kind: "internal"},
-		{Name: string(task.OperationCloneRepository), Kind: "internal", DependsOn: []string{string(task.OperationCreateRepository)}},
-		{Name: string(task.OperationSyncRepository), Kind: "internal", DependsOn: []string{string(task.OperationCloneRepository)}},
-		{Name: string(task.OperationDeleteRepository), Kind: "internal"},
-	}
-}
-
-// operationsToStepParams converts an ordered slice of operations into step
-// params with a linear dependency chain. Each step is named by the full
-// operation string and given kind "internal".
-func operationsToStepParams(ops []task.Operation) []StepParams {
-	steps := make([]StepParams, len(ops))
-	for i, op := range ops {
-		var dependsOn []string
-		if i > 0 {
-			dependsOn = []string{string(ops[i-1])}
-		}
-		steps[i] = StepParams{
-			Name:      string(op),
-			Kind:      "internal",
-			DependsOn: dependsOn,
-		}
-	}
-	return steps
 }
 
 // RequiredOperations returns all operations that handlers must support.

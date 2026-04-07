@@ -610,10 +610,6 @@ func (s Search) SearchKeywordsWithScores(ctx context.Context, query string, limi
 // query using the vision model's text encoder and searches the vision embedding
 // store, returning page-image enrichments with their similarity scores.
 func (s Search) SearchVisualWithScores(ctx context.Context, query string, topK int, filters search.Filters) ([]enrichment.Enrichment, map[string]float64, error) {
-	if s.visionVectorStore == nil || s.visionEmbedder == nil {
-		return nil, nil, nil
-	}
-
 	if topK <= 0 {
 		topK = 10
 	}

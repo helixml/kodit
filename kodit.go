@@ -212,9 +212,6 @@ func New(opts ...Option) (*Client, error) {
 		modelDir = filepath.Join(dataDir, "models")
 	}
 	visionEmbedding := provider.NewLocalVisionEmbedding(provider.SigLIP2BaseConfig, modelDir)
-	if visionEmbedding.Available() {
-		logger.Info().Msg("vision embedding model (SigLIP2) available")
-	}
 
 	// Build database URL
 	ctx := context.Background()
@@ -329,31 +326,25 @@ func New(opts ...Option) (*Client, error) {
 		}
 	}
 
-	// Create vision embedding store and index (only if vision model is available)
+	// Create vision embedding store and index.
 	var visionEmbeddingStore search.EmbeddingStore
-	var visionTextEmbedder search.Embedder
-	var visionIndex handler.VectorIndex
-	if visionEmbedding.Available() {
-		switch cfg.database {
-		case databaseSQLite:
-			vs, vsErr := persistence.NewSQLiteEmbeddingStore(db, persistence.TaskNameVision, logger)
-			if vsErr != nil {
-				return nil, fmt.Errorf("vision embedding store: %w", vsErr)
-			}
-			visionEmbeddingStore = vs
-		case databasePostgresVectorchord:
-			vs, _, vsErr := persistence.NewVectorChordEmbeddingStore(ctx, db, persistence.TaskNameVision, 768, logger)
-			if vsErr != nil {
-				return nil, fmt.Errorf("vision embedding store: %w", vsErr)
-			}
-			visionEmbeddingStore = vs
+	switch cfg.database {
+	case databaseSQLite:
+		vs, vsErr := persistence.NewSQLiteEmbeddingStore(db, persistence.TaskNameVision, logger)
+		if vsErr != nil {
+			return nil, fmt.Errorf("vision embedding store: %w", vsErr)
 		}
-		if visionEmbeddingStore != nil {
-			visionTextEmbedder = &embeddingAdapter{inner: visionEmbedding.TextEmbedder()}
-			visionIndex = handler.VectorIndex{
-				Store: visionEmbeddingStore,
-			}
+		visionEmbeddingStore = vs
+	case databasePostgresVectorchord:
+		vs, _, vsErr := persistence.NewVectorChordEmbeddingStore(ctx, db, persistence.TaskNameVision, 768, logger)
+		if vsErr != nil {
+			return nil, fmt.Errorf("vision embedding store: %w", vsErr)
 		}
+		visionEmbeddingStore = vs
+	}
+	visionTextEmbedder := &embeddingAdapter{inner: visionEmbedding.TextEmbedder()}
+	visionIndex := handler.VectorIndex{
+		Store: visionEmbeddingStore,
 	}
 
 	// Create application services
@@ -403,8 +394,7 @@ func New(opts ...Option) (*Client, error) {
 			logger.Warn().Msg("enrichment endpoint not configured — LLM-based enrichments (summaries, architecture docs, commit descriptions, cookbooks, wiki) will be disabled; set ENRICHMENT_ENDPOINT_* environment variables to enable them")
 		}
 	}
-	prescribedOps := cfg.prescribedOpsFactory(cfg.textProvider != nil).
-		WithVision(visionEmbedding.Available() && visionEmbeddingStore != nil)
+	prescribedOps := cfg.prescribedOpsFactory(cfg.textProvider != nil)
 	if prescribedOps.RequiresTextProvider() && cfg.textProvider == nil {
 		return nil, fmt.Errorf("WithFullPipeline requires a text provider (WithOpenAI, WithAnthropic, or WithTextProvider)")
 	}

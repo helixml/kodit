@@ -147,10 +147,8 @@ func (s *Enrichment) DeleteBy(ctx context.Context, opts ...repository.Option) er
 				return fmt.Errorf("delete text embeddings: %w", err)
 			}
 		}
-		if s.visionEmbeddingStore != nil {
-			if err := s.visionEmbeddingStore.DeleteBy(ctx, searchOpts...); err != nil {
-				return fmt.Errorf("delete vision embeddings: %w", err)
-			}
+		if err := s.visionEmbeddingStore.DeleteBy(ctx, searchOpts...); err != nil {
+			return fmt.Errorf("delete vision embeddings: %w", err)
 		}
 	}
 

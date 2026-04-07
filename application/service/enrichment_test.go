@@ -202,8 +202,9 @@ func TestEnrichment_DeleteBy_CleansUpSearchIndexes(t *testing.T) {
 	bm25 := &recordingBM25Store{}
 	codeEmb := &recordingEmbeddingStore{}
 	textEmb := &recordingEmbeddingStore{}
+	visionEmb := &recordingEmbeddingStore{}
 
-	svc := NewEnrichment(stores.enrichments, nil, bm25, codeEmb, textEmb, nil, nil)
+	svc := NewEnrichment(stores.enrichments, nil, bm25, codeEmb, textEmb, visionEmb, nil)
 	if err := svc.DeleteBy(ctx, repository.WithID(saved.ID())); err != nil {
 		t.Fatalf("DeleteBy: %v", err)
 	}
@@ -216,6 +217,9 @@ func TestEnrichment_DeleteBy_CleansUpSearchIndexes(t *testing.T) {
 	}
 	if !textEmb.deleteCalled {
 		t.Error("expected textEmbeddingStore.DeleteBy to be called")
+	}
+	if !visionEmb.deleteCalled {
+		t.Error("expected visionEmbeddingStore.DeleteBy to be called")
 	}
 
 	remaining, err := stores.enrichments.Find(ctx, repository.WithID(saved.ID()))
@@ -237,7 +241,9 @@ func TestEnrichment_DeleteBy_NilStores(t *testing.T) {
 		t.Fatalf("save: %v", err)
 	}
 
-	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, nil, nil)
+	// Vision store is always required; BM25, code, and text stores may be nil.
+	visionEmb := &recordingEmbeddingStore{}
+	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, visionEmb, nil)
 	if err := svc.DeleteBy(ctx, repository.WithID(saved.ID())); err != nil {
 		t.Fatalf("DeleteBy: %v", err)
 	}

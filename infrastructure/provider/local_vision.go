@@ -49,22 +49,6 @@ func (l *LocalVisionEmbedding) TextEmbedder() Embedder {
 	return &localTextEmbedder{parent: l}
 }
 
-// Available reports whether the model files exist on disk or are embedded
-// in the binary.
-func (l *LocalVisionEmbedding) Available() bool {
-	if hasEmbeddedModel {
-		modelDir := filepath.Join(l.cacheDir, l.config.ModelDir)
-		if l.hasModelFiles(modelDir) {
-			return true
-		}
-		visionPath := filepath.Join("models", l.config.ModelDir, "onnx", l.config.VisionOnnx)
-		if _, err := embeddedModelFS.Open(visionPath); err == nil {
-			return true
-		}
-	}
-	return l.hasModelFiles(filepath.Join(l.cacheDir, l.config.ModelDir))
-}
-
 // Close is a no-op. The ORT session is process-global.
 func (l *LocalVisionEmbedding) Close() error {
 	return nil
