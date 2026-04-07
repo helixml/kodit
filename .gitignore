@@ -10,8 +10,7 @@ infrastructure/provider/models/*
 *.tar.gz
 test-data/
 
-# Generated API specs and clients (regenerate with `make docs`)
+# Generated API specs (regenerate with `make docs`)
 docs/swagger/
 docs/reference/api/
-clients/go/*.gen.go
 test/smoke/testdata/smoke-plain-dir/
