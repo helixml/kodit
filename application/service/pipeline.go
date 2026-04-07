@@ -225,10 +225,7 @@ func operationsToStepParams(ops []task.Operation) []StepParams {
 
 // RequiredOperations returns all operations that handlers must support.
 func (s *Pipeline) RequiredOperations() []task.Operation {
-	return append(s.prescribedOps.All(),
-		task.OperationExtractPageImagesForCommit,
-		task.OperationCreatePageImageEmbeddingsForCommit,
-	)
+	return s.prescribedOps.All()
 }
 
 // FindSteps delegates to the step store for top-level step queries.

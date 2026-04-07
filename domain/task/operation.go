@@ -107,6 +107,7 @@ func (p PrescribedOperations) All() []Operation {
 		p.ScanAndIndexCommit(),
 		p.IndexCommit(),
 		p.RescanCommit(),
+		{OperationExtractPageImagesForCommit, OperationCreatePageImageEmbeddingsForCommit},
 	} {
 		for _, op := range ops {
 			if _, ok := seen[op]; !ok {
