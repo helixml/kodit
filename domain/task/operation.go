@@ -138,7 +138,6 @@ func (p PrescribedOperations) ScanAndIndexCommit() []Operation {
 	ops := []Operation{
 		OperationScanCommit,
 		OperationExtractSnippetsForCommit,
-		OperationExtractPageImagesForCommit,
 	}
 	if p.examples {
 		ops = append(ops, OperationExtractExamplesForCommit)
@@ -179,7 +178,6 @@ func (p PrescribedOperations) ScanAndIndexCommit() []Operation {
 func (p PrescribedOperations) IndexCommit() []Operation {
 	ops := []Operation{
 		OperationExtractSnippetsForCommit,
-		OperationExtractPageImagesForCommit,
 	}
 	ops = append(ops,
 		OperationCreateBM25IndexForCommit,
@@ -210,7 +208,6 @@ func (p PrescribedOperations) RescanCommit() []Operation {
 		OperationRescanCommit,
 		OperationScanCommit,
 		OperationExtractSnippetsForCommit,
-		OperationExtractPageImagesForCommit,
 	}
 	if p.examples {
 		ops = append(ops, OperationExtractExamplesForCommit)

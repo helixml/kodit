@@ -107,11 +107,16 @@ func (s *Pipeline) builtinSpecs() []CreatePipelineParams {
 	}
 }
 
-// visionStepParams returns the vision embedding step. The step depends on
-// the page-image extraction step so it slots into any pipeline's
-// commit-level chain at the right point.
+// visionStepParams returns the page-image extraction and vision embedding
+// steps. ExtractPageImages depends on ExtractSnippets (the last common
+// commit-level step), and CreatePageImageEmbeddings follows it.
 func visionStepParams() []StepParams {
 	return []StepParams{
+		{
+			Name:      string(task.OperationExtractPageImagesForCommit),
+			Kind:      "internal",
+			DependsOn: []string{string(task.OperationExtractSnippetsForCommit)},
+		},
 		{
 			Name:      string(task.OperationCreatePageImageEmbeddingsForCommit),
 			Kind:      "internal",
@@ -225,7 +230,10 @@ func operationsToStepParams(ops []task.Operation) []StepParams {
 
 // RequiredOperations returns all operations that handlers must support.
 func (s *Pipeline) RequiredOperations() []task.Operation {
-	return append(s.prescribedOps.All(), task.OperationCreatePageImageEmbeddingsForCommit)
+	return append(s.prescribedOps.All(),
+		task.OperationExtractPageImagesForCommit,
+		task.OperationCreatePageImageEmbeddingsForCommit,
+	)
 }
 
 // FindSteps delegates to the step store for top-level step queries.
