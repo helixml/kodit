@@ -105,7 +105,6 @@ func (p PrescribedOperations) Enrichments() bool {
 func (p PrescribedOperations) All() []Operation {
 	ops := []Operation{
 		// Repository lifecycle
-		OperationCreateRepository,
 		OperationCloneRepository,
 		OperationSyncRepository,
 		OperationDeleteRepository,

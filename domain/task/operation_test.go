@@ -18,7 +18,6 @@ func TestAll(t *testing.T) {
 	t.Run("always present", func(t *testing.T) {
 		ops := set(RAGOnlyPrescribedOperations().All())
 		always := []Operation{
-			OperationCreateRepository,
 			OperationCloneRepository,
 			OperationSyncRepository,
 			OperationDeleteRepository,
