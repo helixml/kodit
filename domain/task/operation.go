@@ -95,6 +95,11 @@ func (p PrescribedOperations) RequiresTextProvider() bool {
 	return p.enrichments
 }
 
+// Enrichments reports whether LLM enrichment operations are enabled.
+func (p PrescribedOperations) Enrichments() bool {
+	return p.enrichments
+}
+
 // All returns every operation that appears in any prescribed workflow.
 // Used at startup to validate that all required handlers are registered.
 func (p PrescribedOperations) All() []Operation {
@@ -136,132 +141,6 @@ func (p PrescribedOperations) All() []Operation {
 			OperationCreateSummaryEnrichmentForCommit,
 			OperationCreateExampleSummaryForCommit,
 			OperationCreateExampleSummaryEmbeddingsForCommit,
-		)
-	}
-	return ops
-}
-
-// CreateNewRepository returns the operations needed to create a new repository.
-func (p PrescribedOperations) CreateNewRepository() []Operation {
-	return []Operation{
-		OperationCloneRepository,
-	}
-}
-
-// SyncRepository returns the operations needed to sync a repository.
-func (p PrescribedOperations) SyncRepository() []Operation {
-	return []Operation{
-		OperationCloneRepository,
-		OperationSyncRepository,
-	}
-}
-
-// ScanAndIndexCommit returns the full operation sequence for scanning and indexing a commit.
-func (p PrescribedOperations) ScanAndIndexCommit() []Operation {
-	ops := []Operation{
-		OperationScanCommit,
-		OperationExtractSnippetsForCommit,
-	}
-	if p.examples {
-		ops = append(ops, OperationExtractExamplesForCommit)
-	}
-	ops = append(ops,
-		OperationCreateBM25IndexForCommit,
-		OperationCreateCodeEmbeddingsForCommit,
-	)
-	if p.examples {
-		ops = append(ops, OperationCreateExampleCodeEmbeddingsForCommit)
-	}
-	if p.enrichments && p.examples {
-		ops = append(ops, OperationCreateSummaryEnrichmentForCommit)
-	}
-	if p.enrichments && p.examples {
-		ops = append(ops, OperationCreateExampleSummaryForCommit)
-	}
-	if p.enrichments {
-		ops = append(ops, OperationCreateSummaryEmbeddingsForCommit)
-	}
-	if p.enrichments && p.examples {
-		ops = append(ops, OperationCreateExampleSummaryEmbeddingsForCommit)
-	}
-	if p.enrichments {
-		ops = append(ops,
-			OperationCreatePublicAPIDocsForCommit,
-			OperationCreateArchitectureEnrichmentForCommit,
-			OperationCreateCommitDescriptionForCommit,
-			OperationCreateDatabaseSchemaForCommit,
-			OperationCreateCookbookForCommit,
-			OperationGenerateWikiForCommit,
-		)
-	}
-	return ops
-}
-
-// IndexCommit returns the operation sequence for indexing an already-scanned commit.
-func (p PrescribedOperations) IndexCommit() []Operation {
-	ops := []Operation{
-		OperationExtractSnippetsForCommit,
-	}
-	ops = append(ops,
-		OperationCreateBM25IndexForCommit,
-		OperationCreateCodeEmbeddingsForCommit,
-	)
-	if p.enrichments && p.examples {
-		ops = append(ops, OperationCreateSummaryEnrichmentForCommit)
-	}
-	if p.enrichments {
-		ops = append(ops, OperationCreateSummaryEmbeddingsForCommit)
-	}
-	if p.enrichments {
-		ops = append(ops,
-			OperationCreatePublicAPIDocsForCommit,
-			OperationCreateArchitectureEnrichmentForCommit,
-			OperationCreateCommitDescriptionForCommit,
-			OperationCreateDatabaseSchemaForCommit,
-			OperationCreateCookbookForCommit,
-			OperationGenerateWikiForCommit,
-		)
-	}
-	return ops
-}
-
-// RescanCommit returns the operation sequence for rescanning a commit (full re-scan and re-index).
-func (p PrescribedOperations) RescanCommit() []Operation {
-	ops := []Operation{
-		OperationRescanCommit,
-		OperationScanCommit,
-		OperationExtractSnippetsForCommit,
-	}
-	if p.examples {
-		ops = append(ops, OperationExtractExamplesForCommit)
-	}
-	ops = append(ops,
-		OperationCreateBM25IndexForCommit,
-		OperationCreateCodeEmbeddingsForCommit,
-	)
-	if p.examples {
-		ops = append(ops, OperationCreateExampleCodeEmbeddingsForCommit)
-	}
-	if p.enrichments && p.examples {
-		ops = append(ops, OperationCreateSummaryEnrichmentForCommit)
-	}
-	if p.enrichments && p.examples {
-		ops = append(ops, OperationCreateExampleSummaryForCommit)
-	}
-	if p.enrichments {
-		ops = append(ops, OperationCreateSummaryEmbeddingsForCommit)
-	}
-	if p.enrichments && p.examples {
-		ops = append(ops, OperationCreateExampleSummaryEmbeddingsForCommit)
-	}
-	if p.enrichments {
-		ops = append(ops,
-			OperationCreatePublicAPIDocsForCommit,
-			OperationCreateArchitectureEnrichmentForCommit,
-			OperationCreateCommitDescriptionForCommit,
-			OperationCreateDatabaseSchemaForCommit,
-			OperationCreateCookbookForCommit,
-			OperationGenerateWikiForCommit,
 		)
 	}
 	return ops

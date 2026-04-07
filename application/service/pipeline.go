@@ -103,10 +103,17 @@ func (s *Pipeline) builtinSpecs() []CreatePipelineParams {
 // are included only when the prescribed operations enable them.
 func (s *Pipeline) defaultSteps() []StepParams {
 	steps := ragSteps()
-	for _, sp := range operationsToStepParams(s.prescribedOps.ScanAndIndexCommit()) {
-		if !containsStep(steps, sp.Name) {
-			steps = append(steps, sp)
-		}
+	if s.prescribedOps.Enrichments() {
+		op := func(o task.Operation) string { return string(o) }
+		steps = append(steps,
+			StepParams{Name: op(task.OperationCreateSummaryEmbeddingsForCommit), Kind: "internal", DependsOn: []string{op(task.OperationCreateCodeEmbeddingsForCommit)}},
+			StepParams{Name: op(task.OperationCreatePublicAPIDocsForCommit), Kind: "internal", DependsOn: []string{op(task.OperationCreateSummaryEmbeddingsForCommit)}},
+			StepParams{Name: op(task.OperationCreateArchitectureEnrichmentForCommit), Kind: "internal", DependsOn: []string{op(task.OperationCreatePublicAPIDocsForCommit)}},
+			StepParams{Name: op(task.OperationCreateCommitDescriptionForCommit), Kind: "internal", DependsOn: []string{op(task.OperationCreateArchitectureEnrichmentForCommit)}},
+			StepParams{Name: op(task.OperationCreateDatabaseSchemaForCommit), Kind: "internal", DependsOn: []string{op(task.OperationCreateCommitDescriptionForCommit)}},
+			StepParams{Name: op(task.OperationCreateCookbookForCommit), Kind: "internal", DependsOn: []string{op(task.OperationCreateDatabaseSchemaForCommit)}},
+			StepParams{Name: op(task.OperationGenerateWikiForCommit), Kind: "internal", DependsOn: []string{op(task.OperationCreateCookbookForCommit)}},
+		)
 	}
 	return steps
 }
@@ -130,15 +137,6 @@ func ragSteps() []StepParams {
 		{Name: op(task.OperationExtractPageImagesForCommit), Kind: "internal", DependsOn: []string{op(task.OperationExtractSnippetsForCommit)}},
 		{Name: op(task.OperationCreatePageImageEmbeddingsForCommit), Kind: "internal", DependsOn: []string{op(task.OperationExtractPageImagesForCommit)}},
 	}
-}
-
-func containsStep(steps []StepParams, name string) bool {
-	for _, s := range steps {
-		if s.Name == name {
-			return true
-		}
-	}
-	return false
 }
 
 // Initialise seeds built-in pipelines on first run and reconciles them on
@@ -203,24 +201,6 @@ func stepsMatch(current []repository.Step, expected []StepParams) bool {
 		}
 	}
 	return true
-}
-
-// operationsToStepParams converts an ordered slice of operations into step
-// params with a linear dependency chain.
-func operationsToStepParams(ops []task.Operation) []StepParams {
-	steps := make([]StepParams, len(ops))
-	for i, op := range ops {
-		var dependsOn []string
-		if i > 0 {
-			dependsOn = []string{string(ops[i-1])}
-		}
-		steps[i] = StepParams{
-			Name:      string(op),
-			Kind:      "internal",
-			DependsOn: dependsOn,
-		}
-	}
-	return steps
 }
 
 // RequiredOperations returns all operations that handlers must support.
