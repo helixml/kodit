@@ -115,4 +115,4 @@ jobs:
 
       - name: API doc check
         if: matrix.name == 'linux-amd64' && !startsWith(github.ref, 'refs/tags/')
-        run: make swag-check
+        run: make tools openapi-check

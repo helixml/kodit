@@ -19,7 +19,7 @@ parser = argparse.ArgumentParser(prog="dump-openapi.py")
 parser.add_argument(
     "--spec",
     help="Path to OpenAPI 3.0 JSON spec",
-    default="docs/swagger/openapi.json",
+    default="infrastructure/api/openapi.json",
 )
 parser.add_argument("--out-dir", help="Output directory", default="docs/reference/api")
 
