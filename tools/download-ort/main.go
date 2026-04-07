@@ -4,7 +4,7 @@
 // Required env: ORT_VERSION       (e.g. "1.23.2")
 // Optional env: ORT_LIB_DIR       (default "./lib")
 //
-//	TOKENIZERS_VERSION (default "1.24.0")
+//	TOKENIZERS_VERSION (default "1.26.0")
 //
 // Usage: ORT_VERSION=1.23.2 go run ./tools/download-ort
 package main
@@ -31,7 +31,7 @@ func main() {
 
 	tokVersion := os.Getenv("TOKENIZERS_VERSION")
 	if tokVersion == "" {
-		tokVersion = "1.24.0"
+		tokVersion = "1.26.0"
 	}
 
 	destDir := os.Getenv("ORT_LIB_DIR")
