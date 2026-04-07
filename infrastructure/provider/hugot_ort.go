@@ -1,5 +1,3 @@
-//go:build ORT
-
 package provider
 
 import (
