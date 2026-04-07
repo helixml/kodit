@@ -98,25 +98,47 @@ func (p PrescribedOperations) RequiresTextProvider() bool {
 // All returns every operation that appears in any prescribed workflow.
 // Used at startup to validate that all required handlers are registered.
 func (p PrescribedOperations) All() []Operation {
-	seen := make(map[Operation]struct{})
-	var all []Operation
-
-	for _, ops := range [][]Operation{
-		p.CreateNewRepository(),
-		p.SyncRepository(),
-		p.ScanAndIndexCommit(),
-		p.IndexCommit(),
-		p.RescanCommit(),
-		{OperationExtractPageImagesForCommit, OperationCreatePageImageEmbeddingsForCommit},
-	} {
-		for _, op := range ops {
-			if _, ok := seen[op]; !ok {
-				seen[op] = struct{}{}
-				all = append(all, op)
-			}
-		}
+	ops := []Operation{
+		// Repository lifecycle
+		OperationCreateRepository,
+		OperationCloneRepository,
+		OperationSyncRepository,
+		OperationDeleteRepository,
+		// Commit scanning and indexing
+		OperationRescanCommit,
+		OperationScanCommit,
+		OperationExtractSnippetsForCommit,
+		OperationCreateBM25IndexForCommit,
+		OperationCreateCodeEmbeddingsForCommit,
+		// Vision
+		OperationExtractPageImagesForCommit,
+		OperationCreatePageImageEmbeddingsForCommit,
 	}
-	return all
+	if p.examples {
+		ops = append(ops,
+			OperationExtractExamplesForCommit,
+			OperationCreateExampleCodeEmbeddingsForCommit,
+		)
+	}
+	if p.enrichments {
+		ops = append(ops,
+			OperationCreateSummaryEmbeddingsForCommit,
+			OperationCreatePublicAPIDocsForCommit,
+			OperationCreateArchitectureEnrichmentForCommit,
+			OperationCreateCommitDescriptionForCommit,
+			OperationCreateDatabaseSchemaForCommit,
+			OperationCreateCookbookForCommit,
+			OperationGenerateWikiForCommit,
+		)
+	}
+	if p.enrichments && p.examples {
+		ops = append(ops,
+			OperationCreateSummaryEnrichmentForCommit,
+			OperationCreateExampleSummaryForCommit,
+			OperationCreateExampleSummaryEmbeddingsForCommit,
+		)
+	}
+	return ops
 }
 
 // CreateNewRepository returns the operations needed to create a new repository.
