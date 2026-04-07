@@ -94,16 +94,38 @@ func NewPipeline(
 // single source of truth for both initial seeding and ongoing reconciliation.
 func (s *Pipeline) builtinSpecs() []CreatePipelineParams {
 	repoSteps := repositoryStepParams()
+	visionSteps := visionStepParams()
 	return []CreatePipelineParams{
 		{
 			Name:  repository.PipelineNameDefault,
-			Steps: append(repoSteps, operationsToStepParams(s.prescribedOps.ScanAndIndexCommit())...),
+			Steps: concat(repoSteps, operationsToStepParams(s.prescribedOps.ScanAndIndexCommit()), visionSteps),
 		},
 		{
 			Name:  repository.PipelineNameRAG,
-			Steps: append(repoSteps, operationsToStepParams(task.RAGOnlyPrescribedOperations().ScanAndIndexCommit())...),
+			Steps: concat(repoSteps, operationsToStepParams(task.RAGOnlyPrescribedOperations().ScanAndIndexCommit()), visionSteps),
 		},
 	}
+}
+
+// visionStepParams returns the vision embedding step. The step depends on
+// the page-image extraction step so it slots into any pipeline's
+// commit-level chain at the right point.
+func visionStepParams() []StepParams {
+	return []StepParams{
+		{
+			Name:      string(task.OperationCreatePageImageEmbeddingsForCommit),
+			Kind:      "internal",
+			DependsOn: []string{string(task.OperationExtractPageImagesForCommit)},
+		},
+	}
+}
+
+func concat(slices ...[]StepParams) []StepParams {
+	var result []StepParams
+	for _, s := range slices {
+		result = append(result, s...)
+	}
+	return result
 }
 
 // Initialise seeds built-in pipelines on first run and reconciles them on
@@ -203,7 +225,7 @@ func operationsToStepParams(ops []task.Operation) []StepParams {
 
 // RequiredOperations returns all operations that handlers must support.
 func (s *Pipeline) RequiredOperations() []task.Operation {
-	return s.prescribedOps.All()
+	return append(s.prescribedOps.All(), task.OperationCreatePageImageEmbeddingsForCommit)
 }
 
 // FindSteps delegates to the step store for top-level step queries.

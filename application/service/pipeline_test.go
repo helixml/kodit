@@ -615,8 +615,20 @@ func TestPipeline_RequiredOperations(t *testing.T) {
 		t.Fatal("expected at least one required operation")
 	}
 
-	expected := task.FullPrescribedOperations().All()
-	if len(ops) != len(expected) {
-		t.Errorf("expected %d operations, got %d", len(expected), len(ops))
+	set := make(map[task.Operation]struct{}, len(ops))
+	for _, op := range ops {
+		set[op] = struct{}{}
+	}
+
+	// Vision embedding operation is always included.
+	if _, ok := set[task.OperationCreatePageImageEmbeddingsForCommit]; !ok {
+		t.Error("expected OperationCreatePageImageEmbeddingsForCommit to be present")
+	}
+
+	// All prescribed operations must be present.
+	for _, op := range task.FullPrescribedOperations().All() {
+		if _, ok := set[op]; !ok {
+			t.Errorf("expected %s to be present", op)
+		}
 	}
 }

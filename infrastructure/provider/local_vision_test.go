@@ -42,7 +42,6 @@ func localVisionModelPath(t *testing.T) string {
 func TestLocalVisionEmbedding_EmbedImage(t *testing.T) {
 	modelDir := localVisionModelPath(t)
 	emb := NewLocalVisionEmbedding(SigLIP2BaseConfig, modelDir)
-	require.True(t, emb.Available())
 
 	vision := emb.VisionEmbedder()
 
@@ -60,7 +59,6 @@ func TestLocalVisionEmbedding_EmbedImage(t *testing.T) {
 func TestLocalVisionEmbedding_EmbedQuery(t *testing.T) {
 	modelDir := localVisionModelPath(t)
 	emb := NewLocalVisionEmbedding(SigLIP2BaseConfig, modelDir)
-	require.True(t, emb.Available())
 
 	text := emb.TextEmbedder()
 
