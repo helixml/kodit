@@ -93,7 +93,14 @@ func (r *PdfiumRasterizer) Render(path string, page int) (image.Image, error) {
 	}
 	defer resp.Cleanup()
 
-	return resp.Result.Image, nil
+	src := resp.Result.Image
+	pix := make([]uint8, len(src.Pix))
+	copy(pix, src.Pix)
+	return &image.RGBA{
+		Pix:    pix,
+		Stride: src.Stride,
+		Rect:   src.Rect,
+	}, nil
 }
 
 // Close releases all PDFium resources.
