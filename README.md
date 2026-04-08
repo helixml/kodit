@@ -3,11 +3,11 @@
 </p>
 
 <h1 align="center">
-Kodit: A Code Indexing MCP Server
+Kodit: Code Understanding MCP Server
 </h1>
 
 <p align="center">
-Kodit connects your AI coding assistant to external codebases to provide accurate and up-to-date snippets of code.
+Kodit indexes Git repositories and connects your AI coding assistant to accurate, up-to-date code and documentation.
 </p>
 
 <div align="center">
@@ -20,78 +20,112 @@ Kodit connects your AI coding assistant to external codebases to provide accurat
 
 :star: _Help us reach more developers and grow the Helix community. Star this repo!_
 
-**Helix Kodit** is an **MCP server** that connects your AI coding assistant to external codebases. It can:
+**Helix Kodit** is a code understanding platform that indexes Git repositories and
+provides hybrid search with LLM-powered enrichments via MCP and a REST API. It can:
 
-- Improve your AI-assisted code by providing canonical examples direct from the source
-- Index local and public codebases
-- Integrates with any AI coding assistant via MCP
-- Search using keyword and semantic search
-- Integrate with any OpenAI-compatible or custom API/model
+- Index public and private Git repositories
+- Generate AI-powered documentation (architecture docs, API docs, database schemas, cookbooks, wikis)
+- Search using BM25 keyword, semantic similarity, and hybrid search
+- Expose code intelligence via MCP for any AI coding assistant
+- Browse repository files with grep, ls, and raw file access
+- Integrate with any OpenAI-compatible API or run fully local
 
-If you're an engineer working with AI-powered coding assistants, Kodit helps by
-providing relevant and up-to-date examples of your task so that LLMs make fewer mistakes
-and produce fewer hallucinations.
+If you're an engineer working with AI-powered coding assistants, Kodit helps by providing
+relevant and up-to-date examples and documentation so that LLMs make fewer mistakes and
+produce fewer hallucinations.
 
 ## Features
 
 ### Codebase Indexing
 
-Kodit connects to a variety of local and remote codebases to build an index of your
-code. This index is used to build a snippet library, ready for ingestion into an LLM.
+Kodit clones Git repositories and runs a multi-stage indexing pipeline:
 
-- Index local directories and public Git repositories
-- Build comprehensive snippet libraries for LLM ingestion
+- **Clone and scan** Git metadata (commits, branches, tags)
+- **Chunk source files** into fixed-size, overlapping text segments
+- **Build search indexes** for BM25 keyword search, code embeddings, and text embeddings
+- **AI enrichment** (with an LLM provider): architecture docs, API docs, database schemas, cookbook entries, commit summaries, and a full wiki
 - Support for 20+ programming languages including Python, JavaScript/TypeScript, Java, Go, Rust, C/C++, C#, HTML/CSS, and more
-- Advanced code analysis with dependency tracking and call graph generation
-- Intelligent snippet extraction with context-aware dependencies
-- Efficient indexing with selective reindexing (only processes modified files)
-- Privacy first: respects .gitignore and .noindex files
-- Auto-indexing configuration for shared server deployments
-- Enhanced Git provider support including Azure DevOps
-- Index private repositories via a PAT
-- Improved progress monitoring and reporting during indexing
-- Advanced code slicing infrastructure with Tree-sitter parsing
+- Efficient incremental indexing (only processes new/modified commits)
 - Automatic periodic sync to keep indexes up-to-date
+- Configurable pipeline presets: full pipeline with LLM enrichments, or RAG-only for lightweight search
 
 ### MCP Server
 
-Relevant snippets are exposed to an AI coding assistant via an MCP server. This allows
-the assistant to request relevant snippets by providing keywords, code, and semantic
-intent. Kodit has been tested to work well with:
+Kodit exposes 14 MCP tools to AI coding assistants:
 
-- Seamless integration with popular AI coding assistants
-- Tested and verified with:
-  - [Cursor](https://docs.helix.ml/kodit/getting-started/integration/#integration-with-cursor)
-  - [Cline](https://docs.helix.ml/kodit/getting-started/integration/#integration-with-cline)
-  - [Claude Code](https://docs.helix.ml/kodit/reference/mcp/)
-- Please contribute more instructions! ... any other assistant is likely to work ...
-- Advanced search filters by source, language, author, date range, and file path
-- Hybrid search combining BM25 keyword search with semantic search
-- Enhanced MCP tools with rich context parameters and metadata
+| Tool | Description |
+|------|-------------|
+| `kodit_repositories` | List all indexed repositories |
+| `kodit_version` | Get the server version |
+| `kodit_architecture_docs` | High-level architecture documentation |
+| `kodit_api_docs` | API/interface documentation |
+| `kodit_database_schema` | Database schema documentation |
+| `kodit_cookbook` | Usage examples and cookbook entries |
+| `kodit_commit_description` | Commit description and summary |
+| `kodit_wiki` | Table of contents for a repository's wiki |
+| `kodit_wiki_page` | Content of a specific wiki page |
+| `kodit_semantic_search` | Semantic similarity search with file URIs |
+| `kodit_keyword_search` | BM25 keyword search with file URIs |
+| `kodit_grep` | Regex search via git grep |
+| `kodit_ls` | List files matching a glob pattern |
+| `kodit_read_resource` | Read file contents from a resource URI |
+
+Tested and verified with [Cursor](https://docs.helix.ml/kodit/reference/mcp/),
+[Cline](https://docs.helix.ml/kodit/reference/mcp/),
+[Claude Code](https://docs.helix.ml/kodit/reference/mcp/), and
+[Kilo Code](https://docs.helix.ml/kodit/reference/mcp/).
+Any MCP-compatible assistant should work.
+
+### Go SDK
+
+Kodit can be embedded directly into Go applications as a library:
+
+```go
+client, err := kodit.New(
+    kodit.WithSQLite("/path/to/data.db"),
+    kodit.WithOpenAI(os.Getenv("OPENAI_API_KEY")),
+)
+defer client.Close()
+
+// Index a repository
+repo, _, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{
+    URL: "https://github.com/example/repo",
+})
+
+// Search
+results, err := client.Search.Query(ctx, "create a deployment",
+    service.WithSemanticWeight(0.7),
+    service.WithLimit(10),
+)
+```
+
+A generated HTTP client (`clients/go`) is also available for calling a remote Kodit server.
+See the [Go SDK reference](https://docs.helix.ml/kodit/reference/go-sdk/) for details.
 
 ### Enterprise Ready
 
-Out of the box, Kodit works with a local SQLite database and very small, local models.
-But enterprises can scale out with performant databases and dedicated models. Everything
-can even run securely, privately, with on-premise LLM platforms like
-[Helix](https://helix.ml).
+Out of the box, Kodit works with a local SQLite database and a built-in CPU-only embedding
+model. Enterprises can scale out with performant databases and dedicated models. Everything
+can run securely and privately with on-premise LLM platforms like [Helix](https://helix.ml).
 
 Supported databases:
 
-- SQLite
-- [Vectorchord](https://github.com/tensorchord/VectorChord)
+- SQLite (with FTS5 for BM25)
+- [VectorChord](https://github.com/tensorchord/VectorChord) (PostgreSQL extension for BM25 and vector search)
 
 Supported providers:
 
-- Local (which uses tiny CPU-only open-source models)
+- Built-in local embedding model (CPU-only, no external dependencies)
 - OpenAI
-- Secure, private LLM enclave with [Helix](https://helix.ml).
-- Any other OpenAI compatible API
+- Anthropic (text generation only; requires a separate embedding provider)
+- Any OpenAI-compatible API (via LiteLLM)
+- Secure, private LLM enclave with [Helix](https://helix.ml)
 
-Enhanced deployment options:
+Deployment options:
 
-- Docker Compose configurations with VectorChord
-- Kubernetes manifests for production deployments
+- Docker and Docker Compose
+- Kubernetes manifests
+- Pre-built binaries for Linux and macOS
 
 ## Quick Start
 
@@ -103,13 +137,14 @@ Enhanced deployment options:
 
 - [Getting Started Guide](https://docs.helix.ml/kodit/getting-started/)
 - [Reference Guide](https://docs.helix.ml/kodit/reference/)
+- [Demos](https://docs.helix.ml/kodit/demos/)
 - [Contribution Guidelines](.github/CONTRIBUTING.md)
 
 ## Roadmap
 
 The roadmap is currently maintained as a [Github Project](https://github.com/orgs/helixml/projects/4).
 
-## 💬 Support
+## Support
 
 For commercial support, please contact [Helix.ML](founders@helix.ml). To ask a question,
 please [open a discussion](https://github.com/helixml/kodit/discussions).
