@@ -41,36 +41,140 @@ Once `mode=text` extracts a page's text, the existing `lines` and `line_numbers`
   - **PPTX**: `pptxReader.TextWithOptions(ExtractOptions{SlideNumbers: []int{N}})` — 0-indexed
   - **DOCX/ODT**: No per-page support — `PageCount()` returns 1, entire document is one "page"
   - **EPUB**: `PageCount()` returns chapter count, no per-chapter text extraction via reader
-- **Note**: The top-level `Extractor.Pages()` method only applies to PDFs. For XLSX/PPTX, the per-page options must be passed through the format-specific reader options. A clean approach is to call `tabula.Open(path).Pages(N).Text()` and let tabula handle the format dispatch — but this only works for PDF. For other formats, we need to open the reader directly.
+- **Note**: The top-level `Extractor.Pages()` method only applies to PDFs. For XLSX/PPTX, the per-page options must be passed through the format-specific reader options.
 - **Existing infrastructure**: `extraction.DocumentText` currently extracts entire documents. `rasterization.Cache` demonstrates the filesystem caching pattern (SHA256 hash-based).
 - **Existing code paths**: Both `repositories.go:GetBlob()` (HTTP) and `server.go:handleReadFile()` (MCP) already parse `mode` and `page` query params and validate them. Adding `mode=text` means extending the validation and adding a new handler branch.
 - **`Blobs.DiskPath()`** resolves repo+blob+path to an absolute filesystem path — already used by `mode=raster`.
 
 ## Architecture
 
-### New Component: `extraction.PageText`
+### Interface + Registry Pattern (Mirroring Rasterization)
 
-A new struct in `infrastructure/extraction/` that extracts text from a specific page of a document file. This is distinct from `DocumentText` which extracts entire documents for indexing.
+The existing rasterization layer follows a clean pattern:
 
-```go
-// PageText extracts text from individual document pages using tabula.
-type PageText struct{}
-
-func (p *PageText) PageCount(path string) (int, error)
-func (p *PageText) Text(path string, page int) (string, error)
+```
+rasterization.Rasterizer (interface)     → PageCount, Render, Close
+rasterization.PdfiumRasterizer (impl)    → PDF-specific implementation
+rasterization.Registry                   → maps extensions to Rasterizer impls
 ```
 
-**Why a new type instead of extending `DocumentText`?** `DocumentText.Text()` returns the full document as a single string (designed for indexing/chunking). Per-page extraction has different semantics — it must open format-specific readers and pass page selection options. Keeping them separate follows the single-responsibility principle and avoids booleans switching behaviour.
+The text extraction layer mirrors this exactly, in a new `extraction` subpackage:
 
-**Implementation of `Text(path, page)`:**
-1. Validate extension is a supported document format (`IsDocument(ext)`)
-2. Validate file size <= 100 MB
-3. Validate page >= 1
-4. Dispatch by format:
-   - **PDF**: `tabula.Open(path).Pages(page).ExcludeHeadersAndFooters().JoinParagraphs().Text()`
-   - **XLSX**: Open `xlsx.Reader`, call `TextWithOptions(ExtractOptions{Sheets: []int{page - 1}})`
-   - **PPTX**: Open `pptx.Reader`, call `TextWithOptions(ExtractOptions{SlideNumbers: []int{page - 1}, IncludeNotes: true, IncludeTitles: true})`
-   - **DOCX/ODT/EPUB**: Only `page=1` is valid. Extract full text via `tabula.Open(path).ExcludeHeadersAndFooters().JoinParagraphs().Text()`
+```
+extraction.TextRenderer (interface)      → PageCount, Render, Close
+extraction.PDFTextRenderer (impl)        → PDF via tabula Pages()
+extraction.XLSXTextRenderer (impl)       → XLSX via tabula Sheet()
+extraction.PPTXTextRenderer (impl)       → PPTX via tabula Slide()
+extraction.SinglePageTextRenderer (impl) → DOCX/ODT/EPUB (always 1 page)
+extraction.Registry                      → maps extensions to TextRenderer impls
+```
+
+#### Interface: `TextRenderer`
+
+```go
+// TextRenderer extracts text from individual document pages.
+// For PDFs this means pages; for spreadsheets, sheets; for presentations, slides.
+type TextRenderer interface {
+    io.Closer
+
+    // PageCount returns the number of extractable pages in the document.
+    PageCount(path string) (int, error)
+
+    // Render returns the text content of the given 1-based page.
+    Render(path string, page int) (string, error)
+}
+```
+
+This mirrors `rasterization.Rasterizer` exactly — same method names (`PageCount`, `Render`, `Close`), same 1-based page convention — but returns `string` instead of `image.Image`.
+
+#### Registry: `extraction.Registry`
+
+```go
+// Registry maps file extensions to TextRenderer implementations.
+type Registry struct {
+    renderers map[string]TextRenderer
+}
+
+func NewRegistry() *Registry
+func (r *Registry) Register(ext string, renderer TextRenderer)
+func (r *Registry) For(ext string) (TextRenderer, bool)
+func (r *Registry) Supports(ext string) bool
+func (r *Registry) Close() error
+```
+
+Identical structure to `rasterization.Registry`.
+
+#### Implementations
+
+**`PDFTextRenderer`** — Extracts text from a specific PDF page:
+```go
+func (r *PDFTextRenderer) Render(path string, page int) (string, error) {
+    text, _, err := tabula.Open(path).
+        Pages(page).
+        ExcludeHeadersAndFooters().
+        JoinParagraphs().
+        Text()
+    return text, err
+}
+```
+
+**`XLSXTextRenderer`** — Extracts text from a specific sheet (0-indexed internally, 1-indexed API):
+```go
+func (r *XLSXTextRenderer) Render(path string, page int) (string, error) {
+    xr, err := xlsx.Open(path)
+    // ...
+    return xr.TextWithOptions(xlsx.ExtractOptions{Sheets: []int{page - 1}})
+}
+```
+
+**`PPTXTextRenderer`** — Extracts text from a specific slide:
+```go
+func (r *PPTXTextRenderer) Render(path string, page int) (string, error) {
+    pr, err := pptx.Open(path)
+    // ...
+    return pr.TextWithOptions(pptx.ExtractOptions{
+        SlideNumbers: []int{page - 1},
+        IncludeNotes: true,
+        IncludeTitles: true,
+    })
+}
+```
+
+**`SinglePageTextRenderer`** — For DOCX, ODT, EPUB (entire document as page 1):
+```go
+func (r *SinglePageTextRenderer) PageCount(path string) (int, error) { return 1, nil }
+func (r *SinglePageTextRenderer) Render(path string, page int) (string, error) {
+    if page != 1 {
+        return "", fmt.Errorf("page %d out of range (1-1)", page)
+    }
+    text, _, err := tabula.Open(path).
+        ExcludeHeadersAndFooters().
+        JoinParagraphs().
+        Text()
+    return text, err
+}
+```
+
+#### Wiring in `kodit.go`
+
+Mirrors how `rasterization.Registry` is set up today:
+
+```go
+// Existing (rasterization)
+rasterizers := rasterization.NewRegistry()
+rasterizers.Register(".pdf", pdfRast)
+
+// New (text extraction)
+textRenderers := extraction.NewRegistry()
+textRenderers.Register(".pdf", extraction.NewPDFTextRenderer())
+textRenderers.Register(".xlsx", extraction.NewXLSXTextRenderer())
+textRenderers.Register(".pptx", extraction.NewPPTXTextRenderer())
+textRenderers.Register(".docx", extraction.NewSinglePageTextRenderer())
+textRenderers.Register(".odt", extraction.NewSinglePageTextRenderer())
+textRenderers.Register(".epub", extraction.NewSinglePageTextRenderer())
+```
+
+The registry is passed to the HTTP router and MCP server alongside the rasterizer registry.
 
 ### No Caching
 
@@ -84,25 +188,22 @@ Extend `GetBlob()`:
 - Update mode validation: `mode != "" && mode != "raster" && mode != "text"` → error
 - When `mode == "text"`, call new `renderTextPage()` method
 - `renderTextPage()` follows the same pattern as `renderRasterPage()`:
-  1. Resolve disk path via `Blobs.DiskPath()`
-  2. If no `page` param: return JSON `{"page_count": N}` via `PageText.PageCount()`
-  3. If `page` param: extract text via `PageText.Text()`, apply line filter if requested, write `text/plain` response
+  1. Look up `TextRenderer` from registry by file extension
+  2. Resolve disk path via `Blobs.DiskPath()`
+  3. If no `page` param: return JSON `{"page_count": N}` via `renderer.PageCount()`
+  4. If `page` param: extract text via `renderer.Render()`, apply line filter if requested, write `text/plain` response
 
 **MCP Server** (`internal/mcp/server.go`):
 
 Extend `handleReadFile()`:
 - Update mode validation to accept `"text"`
 - When `mode == "text"`, call new `handleTextRead()` method
-- `handleTextRead()` returns `TextResourceContents` with extracted text
+- `handleTextRead()` looks up `TextRenderer` from registry, returns `TextResourceContents`
 - Page count returned as text: `"Page count: N"`
 
 **MCP FileURI** (`internal/mcp/file_uri.go`):
 
-No changes needed to `FileURI` itself. The existing `WithPage()` method builds `?page=N&mode=raster` URIs for search results, which is correct — search results should continue pointing to the raster view by default (vision embeddings are the primary use case for document pages). MCP clients that want text can replace `mode=raster` with `mode=text` in the URI.
-
-### Wiring
-
-`PageText` is constructed in `kodit.go` (or wherever `Client` is assembled) and passed to both the HTTP router and MCP server. It has no dependencies beyond the tabula library.
+No changes needed. The existing `WithPage()` builds `?page=N&mode=raster` for search results. MCP clients that want text can replace `mode=raster` with `mode=text`.
 
 ### Swagger Annotations
 
@@ -112,10 +213,12 @@ Update the `GetBlob` handler's `@Param mode` annotation to document `text` as a 
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| New type vs extend `DocumentText` | New `PageText` type | Different responsibility (per-page vs whole-doc), avoids boolean params |
+| Architecture pattern | Interface + Registry, mirroring `rasterization.Rasterizer` | Consistent with existing codebase; extensible for new formats |
+| Interface name | `TextRenderer` with `Render()` returning `string` | Mirrors `Rasterizer.Render()` returning `image.Image` |
+| Package location | `infrastructure/extraction/` | Alongside existing `DocumentText`; extraction is the domain |
+| Implementations | 4 types: PDF, XLSX, PPTX, SinglePage | Format-specific tabula APIs require separate implementations |
 | Caching | None | Text extraction is fast; add later if needed |
 | Page count endpoint | `mode=text` without `page` | Consistent with raster mode's requirement for `page`; reuses same param space |
 | Line numbers/filtering | Reuse existing `LineFilter` | Already works on `[]byte` content, no changes needed |
-| EPUB support | Page = chapter | Tabula treats chapters as pages via `ChapterCount()` |
 | Search result links | Keep pointing to `mode=raster` | Vision embeddings are the primary indexing path for documents; text is opt-in |
 | Page parameter semantics | 1-based, same as `mode=raster` | Consistent with `SourceLocation.Page()`, search result DTOs, and `FileURI` |
