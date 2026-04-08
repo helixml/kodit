@@ -4,7 +4,6 @@
 # Go parameters
 GOCMD=go
 TAGS=fts5 ORT
-ORT_VERSION?=$(shell cat .ort-version)
 BUILD_TAGS=$(TAGS)
 EMBED_TAGS=$(TAGS) embed_model
 CGO_ENABLED?=1
@@ -154,7 +153,7 @@ download-siglip2: ## Download the SigLIP2 vision-language ONNX model (requires u
 
 .PHONY: download-ort
 download-ort: ## Download the ONNX Runtime shared library for the current platform
-	ORT_VERSION=$(ORT_VERSION) $(GOCMD) run ./tools/download-ort
+	$(GOCMD) run ./tools/download-ort
 
 ##@ Dependencies
 
