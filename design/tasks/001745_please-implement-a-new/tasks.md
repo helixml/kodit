@@ -1,6 +1,6 @@
 # Implementation Tasks
 
-- [ ] Create `infrastructure/rasterization/office.go` implementing the `Rasterizer` interface with `OfficeImageExtractor` struct
+- [~] Create `infrastructure/rasterization/office.go` implementing the `Rasterizer` interface with `OfficeImageExtractor` struct
   - `PageCount(path)`: open ZIP, count entries matching `word/media/*`, `ppt/media/*`, `xl/media/*` with supported image extensions (.png, .jpg, .jpeg, .gif, .bmp, .tiff, .tif), sorted by path
   - `Render(path, page)`: open ZIP, find Nth matching entry (1-based), decode with `image.Decode()`, return `image.Image`
   - `Close()`: no-op (no persistent state)
