@@ -21,13 +21,13 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 
 # Download ORT and tokenizers to /usr/lib so they survive the volume mount
-COPY .ort-version ./
+COPY .ort-version .tokenizers-version ./
 COPY tools/download-ort/ ./tools/download-ort/
-RUN ORT_VERSION=$(cat .ort-version) go run ./tools/download-ort \
+RUN go run ./tools/download-ort \
     && cp ./lib/libonnxruntime.so /usr/lib/ \
     && cp ./lib/libtokenizers.a /usr/lib/ \
     && ldconfig \
-    && rm -rf ./lib ./tools .ort-version
+    && rm -rf ./lib ./tools .ort-version .tokenizers-version
 
 ENV CGO_ENABLED=1
 ENV CGO_LDFLAGS="-L/usr/lib"
@@ -66,14 +66,14 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 
 # Download ORT and tokenizers
-COPY .ort-version ./
+COPY .ort-version .tokenizers-version ./
 COPY tools/download-ort/ ./tools/download-ort/
 RUN --mount=type=cache,target=/go/pkg/mod \
-    ORT_VERSION=$(cat .ort-version) go run ./tools/download-ort \
+    go run ./tools/download-ort \
     && cp ./lib/libonnxruntime.so /usr/lib/ \
     && cp ./lib/libtokenizers.a /usr/lib/ \
     && ldconfig \
-    && rm -rf ./lib ./tools .ort-version
+    && rm -rf ./lib ./tools .ort-version .tokenizers-version
 
 ENV CGO_ENABLED=1
 ENV CGO_LDFLAGS="-L/usr/lib"
