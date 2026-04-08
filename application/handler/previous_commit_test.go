@@ -21,7 +21,7 @@ import (
 // noopEmbeddingStore satisfies search.EmbeddingStore with no-op methods.
 type noopEmbeddingStore struct{}
 
-func (noopEmbeddingStore) SaveAll(_ context.Context, _ []search.Embedding) error          { return nil }
+func (noopEmbeddingStore) SaveAll(_ context.Context, _ []search.Embedding) error { return nil }
 func (noopEmbeddingStore) Find(_ context.Context, _ ...repository.Option) ([]search.Embedding, error) {
 	return nil, nil
 }

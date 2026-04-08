@@ -1,12 +1,12 @@
 // Build-time tool that downloads the ONNX Runtime shared library and the
 // HuggingFace tokenizers static library for the current platform.
 //
-// Required env: ORT_VERSION       (e.g. "1.23.2")
-// Optional env: ORT_LIB_DIR       (default "./lib")
+// Optional env: ORT_VERSION        (defaults to the version pinned in .ort-version)
 //
-//	TOKENIZERS_VERSION (default "1.26.0")
+//	TOKENIZERS_VERSION (defaults to the version pinned in .tokenizers-version)
+//	ORT_LIB_DIR        (default "./lib")
 //
-// Usage: ORT_VERSION=1.23.2 go run ./tools/download-ort
+// Usage: go run github.com/helixml/kodit/tools/download-ort
 package main
 
 import (
@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"time"
 )
@@ -25,13 +26,22 @@ import (
 func main() {
 	ortVersion := os.Getenv("ORT_VERSION")
 	if ortVersion == "" {
-		fmt.Fprintln(os.Stderr, "ORT_VERSION env var is required")
-		os.Exit(1)
+		v, err := readVersionFile(".ort-version")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "ORT_VERSION not set and could not read .ort-version: %v\n", err)
+			os.Exit(1)
+		}
+		ortVersion = v
 	}
 
 	tokVersion := os.Getenv("TOKENIZERS_VERSION")
 	if tokVersion == "" {
-		tokVersion = "1.26.0"
+		v, err := readVersionFile(".tokenizers-version")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "TOKENIZERS_VERSION not set and could not read .tokenizers-version: %v\n", err)
+			os.Exit(1)
+		}
+		tokVersion = v
 	}
 
 	destDir := os.Getenv("ORT_LIB_DIR")
@@ -247,4 +257,69 @@ func writeFile(path string, src io.Reader) error {
 	}
 
 	return nil
+}
+
+const modulePath = "github.com/helixml/kodit"
+
+// readVersionFile locates a version file (e.g. ".ort-version") shipped with the
+// kodit module. It first checks the working directory (covers local development),
+// then falls back to the Go module cache (covers go run ...@version).
+func readVersionFile(name string) (string, error) {
+	// Local repo: version file in the current working directory.
+	if b, err := os.ReadFile(name); err == nil {
+		if v := strings.TrimSpace(string(b)); v != "" {
+			return v, nil
+		}
+	}
+
+	// Module cache: find the kodit module directory via build info.
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "", fmt.Errorf("%s not found in working directory and build info unavailable", name)
+	}
+
+	modDir := moduleDir(info)
+	if modDir == "" {
+		return "", fmt.Errorf("%s not found in working directory and could not locate module cache path", name)
+	}
+
+	b, err := os.ReadFile(filepath.Join(modDir, name))
+	if err != nil {
+		return "", fmt.Errorf("read %s/%s: %w", modDir, name, err)
+	}
+
+	if v := strings.TrimSpace(string(b)); v != "" {
+		return v, nil
+	}
+
+	return "", fmt.Errorf("%s is empty", name)
+}
+
+// moduleDir returns the on-disk directory for the kodit module. When the tool
+// is the main module (local dev), it returns "" so the caller falls through to
+// the working-directory check. When kodit appears as a dependency (go run ...@v),
+// it constructs the module cache path.
+func moduleDir(info *debug.BuildInfo) string {
+	if info.Main.Path == modulePath && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return filepath.Join(goModCache(), info.Main.Path+"@"+info.Main.Version)
+	}
+
+	for _, dep := range info.Deps {
+		if dep.Path == modulePath {
+			return filepath.Join(goModCache(), dep.Path+"@"+dep.Version)
+		}
+	}
+
+	return ""
+}
+
+func goModCache() string {
+	if v := os.Getenv("GOMODCACHE"); v != "" {
+		return v
+	}
+	if v := os.Getenv("GOPATH"); v != "" {
+		return filepath.Join(v, "pkg", "mod")
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, "go", "pkg", "mod")
 }
