@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"image/png"
+	"image/jpeg"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -1857,11 +1857,11 @@ func repoToDTO(repo repository.Repository, numCommits, numBranches, numTags int6
 // GetBlob handles GET /api/v1/repositories/{id}/blob/{blob_name}/*.
 //
 //	@Summary		Get raw file content
-//	@Description	Returns raw file content from a Git repository at a given blob reference (commit SHA, tag, or branch). Use mode=raster&page=N to get a rasterized PNG of a document page.
+//	@Description	Returns raw file content from a Git repository at a given blob reference (commit SHA, tag, or branch). Use mode=raster&page=N to get a rasterized JPEG of a document page.
 //	@Tags			repositories
 //	@Produce		octet-stream
 //	@Produce		plain
-//	@Produce		png
+//	@Produce		jpeg
 //	@Param			id			path	int		true	"Repository ID"
 //	@Param			blob_name	path	string	true	"Commit SHA, tag name, or branch name"
 //	@Param			path		path	string	true	"File path within the repository"
@@ -1988,12 +1988,12 @@ func (r *RepositoriesRouter) renderRasterPage(w http.ResponseWriter, req *http.R
 	}
 
 	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
-		middleware.WriteError(w, req, fmt.Errorf("encode png: %w", err), r.logger)
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 80}); err != nil {
+		middleware.WriteError(w, req, fmt.Errorf("encode jpeg: %w", err), r.logger)
 		return
 	}
 
-	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("X-Commit-SHA", commitSHA)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(buf.Bytes())
