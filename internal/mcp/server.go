@@ -7,7 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"image/png"
+	"image/jpeg"
 	"net/url"
 	"path/filepath"
 	"strconv"
@@ -1196,14 +1196,14 @@ func (s *Server) handleRasterRead(ctx context.Context, uri string, repoID int64,
 	}
 
 	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
-		return nil, fmt.Errorf("encode png: %w", err)
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 80}); err != nil {
+		return nil, fmt.Errorf("encode jpeg: %w", err)
 	}
 
 	return []mcp.ResourceContents{
 		mcp.BlobResourceContents{
 			URI:      uri,
-			MIMEType: "image/png",
+			MIMEType: "image/jpeg",
 			Blob:     base64.StdEncoding.EncodeToString(buf.Bytes()),
 		},
 	}, nil

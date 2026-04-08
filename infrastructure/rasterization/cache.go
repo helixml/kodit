@@ -3,13 +3,15 @@ package rasterization
 import (
 	"crypto/sha256"
 	"fmt"
-	"image/png"
+	"image/jpeg"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
-// Cache renders document pages on demand and caches the resulting PNGs
+const jpegQuality = 80
+
+// Cache renders document pages on demand and caches the resulting JPEGs
 // on the filesystem. The cache is ephemeral — lost on container restart,
 // recomputed when accessed again.
 type Cache struct {
@@ -31,7 +33,7 @@ func (c *Cache) Supports(ext string) bool {
 	return c.registry.Supports(ext)
 }
 
-// Image returns PNG bytes for the given page of the document at path.
+// Image returns JPEG bytes for the given page of the document at path.
 // Results are cached on disk; a cache miss triggers rendering.
 func (c *Cache) Image(path string, page int) ([]byte, error) {
 	cachePath := c.cachePath(path, page)
@@ -56,9 +58,9 @@ func (c *Cache) Image(path string, page int) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create cache file: %w", err)
 	}
-	if err := png.Encode(f, img); err != nil {
+	if err := jpeg.Encode(f, img, &jpeg.Options{Quality: jpegQuality}); err != nil {
 		_ = f.Close()
-		return nil, fmt.Errorf("encode png: %w", err)
+		return nil, fmt.Errorf("encode jpeg: %w", err)
 	}
 
 	if err := f.Close(); err != nil {
@@ -71,6 +73,6 @@ func (c *Cache) Image(path string, page int) ([]byte, error) {
 // cachePath returns the filesystem path for a cached page image.
 func (c *Cache) cachePath(path string, page int) string {
 	h := sha256.Sum256([]byte(path))
-	name := fmt.Sprintf("%x-page%d.png", h[:8], page)
+	name := fmt.Sprintf("%x-page%d.jpg", h[:8], page)
 	return filepath.Join(c.cacheDir, name)
 }

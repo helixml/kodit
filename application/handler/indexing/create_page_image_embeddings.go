@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"image/png"
+	"image/jpeg"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -175,8 +175,8 @@ func (h *CreatePageImageEmbeddings) Execute(ctx context.Context, payload map[str
 		}
 
 		var buf bytes.Buffer
-		if encErr := png.Encode(&buf, img); encErr != nil {
-			h.logger.Warn().Str("path", f.Path()).Int("page", sl.Page()).Err(encErr).Msg("failed to encode page as PNG")
+		if encErr := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 80}); encErr != nil {
+			h.logger.Warn().Str("path", f.Path()).Int("page", sl.Page()).Err(encErr).Msg("failed to encode page as JPEG")
 			continue
 		}
 
