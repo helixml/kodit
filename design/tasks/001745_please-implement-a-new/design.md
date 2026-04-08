@@ -89,3 +89,12 @@ The MCP `handleRasterRead()` already handles this — looks up rasterizer by ext
 - **Handler reuse**: `ExtractPageImages` and `CreatePageImageEmbeddings` are extension-agnostic — they delegate to the registry. Adding formats is purely a registry operation.
 - **JPEG quality 80**: Hardcoded in both `create_page_image_embeddings.go:178` and `server.go:1199`. The new extractor doesn't encode to JPEG — it returns raw `image.Image` and lets callers encode.
 - **Pipeline specs** (`application/service/pipeline.go`): `ragSteps()` already includes `OperationExtractPageImagesForCommit` and `OperationCreatePageImageEmbeddingsForCommit`. Both pipelines already have these steps.
+
+## Implementation Notes
+
+- **ZIP reader lifecycle gotcha:** `archive/zip.ReadCloser` invalidates `*zip.File` entries after `Close()`. The initial approach returned `[]*zip.File` from a helper that closed the reader — broken. Fixed by having `mediaImageNames()` return only string names, and `Render()` opens its own reader to find the target entry.
+- **`gofmt` auto-fixed** alignment in test map literals (added padding spaces). No functional change.
+- **Pre-existing test failures:** Many tests in `application/handler/indexing/`, `kodit_test.go`, etc. fail with "Binary was compiled with 'CGO_ENABLED=0', go-sqlite3 requires cgo" — these are environment limitations, not caused by this change. The rasterization package tests all pass.
+- **No new dependencies needed:** `archive/zip`, `image/*` are stdlib. `golang.org/x/image/bmp` and `golang.org/x/image/tiff` are already in go.mod (transitive).
+- **Registration is unconditional:** Unlike PDFium (which may fail to initialize WASM), the office extractor is pure Go with no runtime deps, so no error path needed.
+- **Files changed:** `infrastructure/rasterization/office.go` (new), `infrastructure/rasterization/office_test.go` (new), `kodit.go` (4 lines added at ~line 436).

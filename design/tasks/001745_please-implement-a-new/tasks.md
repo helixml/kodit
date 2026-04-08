@@ -13,4 +13,4 @@
   - Test page out-of-range returns error
   - Test non-ZIP file returns error
   - Create minimal test fixtures (small ZIP files with embedded images) in a `testdata/` directory
-- [~] Verify end-to-end: run `make check` to confirm all existing tests pass with the new registration
+- [x] Verify end-to-end: run `make check` to confirm all existing tests pass with the new registration
