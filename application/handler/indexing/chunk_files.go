@@ -150,7 +150,12 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 				processed++
 				continue
 			}
-			diskPath := filepath.Join(clonedPath, relPath)
+			diskPath, safe := safeDiskPath(clonedPath, relPath)
+			if !safe {
+				h.logger.Warn().Str("path", f.Path()).Msg("file path escapes clone directory, skipping")
+				processed++
+				continue
+			}
 			var extractErr error
 			text, extractErr = h.documentText.Text(diskPath)
 			if extractErr != nil {
@@ -259,6 +264,18 @@ func relativeFilePath(filePath, clonedPath string) string {
 	}
 
 	return filePath
+}
+
+// safeDiskPath joins clonedPath and relPath and verifies the result stays
+// inside clonedPath. Returns ("", false) if the resolved path escapes.
+func safeDiskPath(clonedPath, relPath string) (string, bool) {
+	diskPath := filepath.Join(clonedPath, relPath)
+	clean := filepath.Clean(diskPath)
+	base := filepath.Clean(clonedPath) + string(filepath.Separator)
+	if !strings.HasPrefix(clean, base) && clean != filepath.Clean(clonedPath) {
+		return "", false
+	}
+	return clean, true
 }
 
 // indexableExtensions lists file extensions that contain human-written source

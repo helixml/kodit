@@ -361,6 +361,56 @@ func TestRelativeFilePath(t *testing.T) {
 	}
 }
 
+func TestSafeDiskPath(t *testing.T) {
+	tests := []struct {
+		name      string
+		clonePath string
+		relPath   string
+		wantSafe  bool
+	}{
+		{
+			name:      "normal relative path",
+			clonePath: "/data/repos/myrepo",
+			relPath:   "src/main.go",
+			wantSafe:  true,
+		},
+		{
+			name:      "traversal escapes clone dir",
+			clonePath: "/data/repos/myrepo",
+			relPath:   "../../etc/passwd",
+			wantSafe:  false,
+		},
+		{
+			name:      "dot-dot in middle that stays inside",
+			clonePath: "/data/repos/myrepo",
+			relPath:   "src/../lib/util.go",
+			wantSafe:  true,
+		},
+		{
+			name:      "dot-dot that escapes via nested traversal",
+			clonePath: "/data/repos/myrepo",
+			relPath:   "src/../../../../etc/shadow",
+			wantSafe:  false,
+		},
+		{
+			name:      "single dot stays inside",
+			clonePath: "/data/repos/myrepo",
+			relPath:   ".",
+			wantSafe:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path, safe := safeDiskPath(tt.clonePath, tt.relPath)
+			assert.Equal(t, tt.wantSafe, safe)
+			if safe {
+				assert.NotEmpty(t, path)
+			}
+		})
+	}
+}
+
 func TestChunkFiles_HandlesAbsoluteFilePaths(t *testing.T) {
 	ctx := context.Background()
 	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
