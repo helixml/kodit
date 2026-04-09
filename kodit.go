@@ -130,6 +130,9 @@ type Client struct {
 	// Document text extraction (internal)
 	documentText *extraction.DocumentText
 
+	// Document text rendering (internal)
+	textRenderers *extraction.TextRendererRegistry
+
 	// Document rasterization (internal)
 	rasterizers *rasterization.Registry
 
@@ -444,6 +447,15 @@ func New(opts ...Option) (*Client, error) {
 		rasterizers.Register(ext, imageRast)
 	}
 
+	// Create text renderer registry for document-to-text conversion.
+	textRenderers := extraction.NewTextRendererRegistry()
+	textRenderers.Register(".pdf", extraction.NewPDFTextRenderer())
+	textRenderers.Register(".xlsx", extraction.NewXLSXTextRenderer())
+	textRenderers.Register(".pptx", extraction.NewPPTXTextRenderer())
+	textRenderers.Register(".docx", extraction.NewSinglePageTextRenderer())
+	textRenderers.Register(".odt", extraction.NewSinglePageTextRenderer())
+	textRenderers.Register(".epub", extraction.NewSinglePageTextRenderer())
+
 	// Create enrichment infrastructure (always available)
 	archDiscoverer := enricher.NewPhysicalArchitectureService()
 	schemaDiscoverer := enricher.NewDatabaseSchemaService()
@@ -471,6 +483,7 @@ func New(opts ...Option) (*Client, error) {
 		periodicSync:     periodicSync,
 		registry:         registry,
 		documentText:     documentText,
+		textRenderers:    textRenderers,
 		rasterizers:      rasterizers,
 		archDiscoverer:   archDiscoverer,
 		schemaDiscoverer: schemaDiscoverer,
@@ -601,6 +614,11 @@ func (c *Client) WorkerIdle() bool {
 // Logger returns the client's logger.
 func (c *Client) Logger() zerolog.Logger {
 	return c.logger
+}
+
+// TextRenderers returns the document text rendering registry.
+func (c *Client) TextRenderers() *extraction.TextRendererRegistry {
+	return c.textRenderers
 }
 
 // Rasterizers returns the document rasterization registry, or nil if unavailable.

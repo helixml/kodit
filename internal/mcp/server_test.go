@@ -21,6 +21,7 @@ import (
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
+	"github.com/helixml/kodit/infrastructure/extraction"
 	"github.com/helixml/kodit/infrastructure/git"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -3006,5 +3007,171 @@ func TestServer_Grep_RepoNotFound(t *testing.T) {
 	text := textFromContent(t, result)
 	if !containsStr(text, "repository not found") {
 		t.Errorf("expected 'repository not found' error, got: %s", text)
+	}
+}
+
+// --- Text mode tests ---
+
+// fakeTextRenderer implements extraction.TextRenderer for testing.
+type fakeTextRenderer struct {
+	pageCount int
+	text      string
+}
+
+func (f *fakeTextRenderer) PageCount(_ string) (int, error) { return f.pageCount, nil }
+func (f *fakeTextRenderer) Render(_ string, _ int) (string, error) {
+	return f.text, nil
+}
+func (f *fakeTextRenderer) Close() error { return nil }
+
+// fakeDiskPathResolver implements DiskPathResolver for testing.
+type fakeDiskPathResolver struct{}
+
+func (f *fakeDiskPathResolver) DiskPath(_ context.Context, _ int64, _ string, _ string) (string, string, error) {
+	return "/tmp/fake/doc.pdf", "abc123", nil
+}
+
+func textServerWithTextRenderers() *Server {
+	reg := extraction.NewTextRendererRegistry()
+	reg.Register(".pdf", &fakeTextRenderer{pageCount: 5, text: "Hello from page"})
+	reg.Register(".docx", &fakeTextRenderer{pageCount: 1, text: "Full document text"})
+
+	return NewServer(
+		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{enrichments: []enrichment.Enrichment{testArchEnrichment()}},
+		&fakeFileContentReader{content: []byte("placeholder"), commitSHA: "abc1234567890"},
+		&fakeSemanticSearcher{},
+		&fakeKeywordSearcher{},
+		nil,
+		&fakeEnrichmentResolver{
+			sourceFiles:   map[string][]int64{},
+			lineRanges:    map[string]sourcelocation.SourceLocation{},
+			repositoryIDs: map[string]int64{},
+		},
+		&fakeFileLister{},
+		&fakeFileFinder{},
+		&fakeGrepper{},
+		"1.0.0-test",
+		zerolog.Nop(),
+		WithTextRendering(&fakeDiskPathResolver{}, reg),
+	)
+}
+
+func TestServer_ReadResource_TextMode_PageCount(t *testing.T) {
+	srv := textServerWithTextRenderers()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "kodit_read_resource",
+		"arguments": map[string]any{
+			"uri": "file://1/main/report.pdf?mode=text",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+	if text != "Page count: 5" {
+		t.Errorf("expected page count, got %q", text)
+	}
+}
+
+func TestServer_ReadResource_TextMode_Page(t *testing.T) {
+	srv := textServerWithTextRenderers()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "kodit_read_resource",
+		"arguments": map[string]any{
+			"uri": "file://1/main/report.pdf?mode=text&page=1",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+	if text != "Hello from page" {
+		t.Errorf("expected page text, got %q", text)
+	}
+}
+
+func TestServer_ReadResource_TextMode_WithLineNumbers(t *testing.T) {
+	srv := textServerWithTextRenderers()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "kodit_read_resource",
+		"arguments": map[string]any{
+			"uri": "file://1/main/report.pdf?mode=text&page=1&line_numbers=true",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+	if text != "1\tHello from page" {
+		t.Errorf("expected line-numbered text, got %q", text)
+	}
+}
+
+func TestServer_ReadResource_TextMode_UnsupportedExtension(t *testing.T) {
+	srv := textServerWithTextRenderers()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "kodit_read_resource",
+		"arguments": map[string]any{
+			"uri": "file://1/main/README.md?mode=text&page=1",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if !result.IsError {
+		t.Fatal("expected error for unsupported extension")
+	}
+	text := textFromContent(t, result)
+	if !containsStr(text, "text extraction not supported") {
+		t.Errorf("expected unsupported extension error, got: %s", text)
+	}
+}
+
+func TestServer_ReadResource_TextMode_InvalidMode(t *testing.T) {
+	srv := textServerWithTextRenderers()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "kodit_read_resource",
+		"arguments": map[string]any{
+			"uri": "file://1/main/report.pdf?mode=invalid",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if !result.IsError {
+		t.Fatal("expected error for invalid mode")
+	}
+	text := textFromContent(t, result)
+	if !containsStr(text, "unsupported mode") {
+		t.Errorf("expected unsupported mode error, got: %s", text)
 	}
 }

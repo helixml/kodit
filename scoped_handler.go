@@ -30,6 +30,9 @@ func NewScopedMCPHandler(client *Client, repoIDs []int64) http.Handler {
 	if client.Rasterizers() != nil {
 		mcpOpts = append(mcpOpts, mcpinternal.WithRasterization(client.Blobs, client.Rasterizers()))
 	}
+	if client.TextRenderers() != nil {
+		mcpOpts = append(mcpOpts, mcpinternal.WithTextRendering(client.Blobs, client.TextRenderers()))
+	}
 	srv := mcpinternal.NewServer(
 		repositories,
 		client.Commits,
