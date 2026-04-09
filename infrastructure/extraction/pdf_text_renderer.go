@@ -22,7 +22,7 @@ func (r *PDFTextRenderer) PageCount(path string) (int, error) {
 		return 0, err
 	}
 	ext := tabula.Open(path)
-	defer ext.Close()
+	defer func() { _ = ext.Close() }()
 	return ext.PageCount()
 }
 
@@ -32,7 +32,7 @@ func (r *PDFTextRenderer) Render(path string, page int) (string, error) {
 		return "", err
 	}
 	ext := tabula.Open(path)
-	defer ext.Close()
+	defer func() { _ = ext.Close() }()
 
 	count, err := ext.PageCount()
 	if err != nil {
