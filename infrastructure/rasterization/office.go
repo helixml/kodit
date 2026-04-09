@@ -72,7 +72,7 @@ func (o *OfficeImageExtractor) Render(path string, page int) (image.Image, error
 	if err != nil {
 		return nil, fmt.Errorf("open zip %s: %w", path, err)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	for _, f := range r.File {
 		if f.Name != target {
@@ -82,7 +82,7 @@ func (o *OfficeImageExtractor) Render(path string, page int) (image.Image, error
 		if openErr != nil {
 			return nil, fmt.Errorf("open %s: %w", f.Name, openErr)
 		}
-		defer rc.Close()
+		defer func() { _ = rc.Close() }()
 
 		img, _, decodeErr := image.Decode(rc)
 		if decodeErr != nil {
@@ -104,7 +104,7 @@ func mediaImageNames(path string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open zip %s: %w", path, err)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	var names []string
 	for _, f := range r.File {
