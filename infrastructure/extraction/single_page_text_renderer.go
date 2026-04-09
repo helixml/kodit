@@ -27,13 +27,15 @@ func (r *SinglePageTextRenderer) PageCount(path string) (int, error) {
 
 // Render returns the full document text. Only page 1 is valid.
 func (r *SinglePageTextRenderer) Render(path string, page int) (string, error) {
-	if err := validateDocumentPath(path); err != nil {
-		return "", err
-	}
 	if page != 1 {
 		return "", fmt.Errorf("page %d out of range (1-1)", page)
 	}
-	text, _, err := tabula.Open(path).
+	if err := validateDocumentPath(path); err != nil {
+		return "", err
+	}
+	ext := tabula.Open(path)
+	defer ext.Close()
+	text, _, err := ext.
 		ExcludeHeadersAndFooters().
 		JoinParagraphs().
 		Text()

@@ -45,10 +45,15 @@ func (r *TextRendererRegistry) Supports(ext string) bool {
 	return ok
 }
 
-// Close closes all registered text renderers.
+// Close closes all registered text renderers, deduplicating shared instances.
 func (r *TextRendererRegistry) Close() error {
+	seen := make(map[TextRenderer]bool)
 	var errs []error
 	for ext, renderer := range r.renderers {
+		if seen[renderer] {
+			continue
+		}
+		seen[renderer] = true
 		if err := renderer.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("close %s text renderer: %w", ext, err))
 		}
