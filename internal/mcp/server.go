@@ -142,7 +142,7 @@ const instructions = "This server provides access to code knowledge through mult
 	"and path is the file path within the repository.\n" +
 	"Optional query parameters: ?lines=L17-L26,L45 and ?line_numbers=true\n" +
 	"For document pages (PDFs, DOCX, XLSX, PPTX): ?page=N&mode=raster returns a rendered image, " +
-		"?page=N&mode=text returns extracted text, ?mode=text returns the page count\n\n" +
+	"?page=N&mode=text returns extracted text, ?mode=text returns the page count\n\n" +
 	"Choose the most appropriate tool based on what information you need. " +
 	"Often starting with architecture or API docs provides better context than " +
 	"immediately searching for code snippets."
@@ -1251,8 +1251,8 @@ func (s *Server) handleTextRead(ctx context.Context, uri string, repoID int64, b
 		return []mcp.ResourceContents{
 			mcp.TextResourceContents{
 				URI:      uri,
-				MIMEType: "text/plain",
-				Text:     fmt.Sprintf("Page count: %d", count),
+				MIMEType: "application/json",
+				Text:     fmt.Sprintf(`{"page_count":%d}`, count),
 			},
 		}, nil
 	}

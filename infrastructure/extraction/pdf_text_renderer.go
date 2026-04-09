@@ -31,7 +31,18 @@ func (r *PDFTextRenderer) Render(path string, page int) (string, error) {
 	if err := validateDocumentPath(path); err != nil {
 		return "", err
 	}
-	text, _, err := tabula.Open(path).
+	ext := tabula.Open(path)
+	defer ext.Close()
+
+	count, err := ext.PageCount()
+	if err != nil {
+		return "", fmt.Errorf("get page count for %s: %w", filepath.Base(path), err)
+	}
+	if page < 1 || page > count {
+		return "", fmt.Errorf("page %d out of range (1-%d)", page, count)
+	}
+
+	text, _, err := ext.
 		Pages(page).
 		ExcludeHeadersAndFooters().
 		JoinParagraphs().

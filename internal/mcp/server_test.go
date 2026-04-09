@@ -3077,8 +3077,8 @@ func TestServer_ReadResource_TextMode_PageCount(t *testing.T) {
 	}
 
 	text := textFromContent(t, result)
-	if text != "Page count: 5" {
-		t.Errorf("expected page count, got %q", text)
+	if text != `{"page_count":5}` {
+		t.Errorf("expected JSON page count, got %q", text)
 	}
 }
 

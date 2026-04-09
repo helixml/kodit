@@ -50,6 +50,16 @@ func TestTextRendererRegistry_Close(t *testing.T) {
 	assert.NoError(t, reg.Close())
 }
 
+func TestTextRendererRegistry_CloseDeduplicatesSharedInstances(t *testing.T) {
+	shared := NewSinglePageTextRenderer()
+	reg := NewTextRendererRegistry()
+	reg.Register(".docx", shared)
+	reg.Register(".odt", shared)
+	reg.Register(".epub", shared)
+	// Close should only call Close() once on the shared instance.
+	assert.NoError(t, reg.Close())
+}
+
 // --- PDFTextRenderer ---
 
 func TestPDFTextRenderer_ErrorOnMissingFile(t *testing.T) {
