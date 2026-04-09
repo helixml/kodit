@@ -24,7 +24,7 @@ func (r *PPTXTextRenderer) PageCount(path string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("open pptx %s: %w", filepath.Base(path), err)
 	}
-	defer pr.Close()
+	defer func() { _ = pr.Close() }()
 	return pr.PageCount()
 }
 
@@ -37,7 +37,7 @@ func (r *PPTXTextRenderer) Render(path string, page int) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("open pptx %s: %w", filepath.Base(path), err)
 	}
-	defer pr.Close()
+	defer func() { _ = pr.Close() }()
 
 	count, err := pr.PageCount()
 	if err != nil {

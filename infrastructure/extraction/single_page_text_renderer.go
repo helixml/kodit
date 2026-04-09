@@ -34,7 +34,7 @@ func (r *SinglePageTextRenderer) Render(path string, page int) (string, error) {
 		return "", err
 	}
 	ext := tabula.Open(path)
-	defer ext.Close()
+	defer func() { _ = ext.Close() }()
 	text, _, err := ext.
 		ExcludeHeadersAndFooters().
 		JoinParagraphs().

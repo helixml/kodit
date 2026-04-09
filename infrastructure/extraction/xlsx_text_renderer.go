@@ -24,7 +24,7 @@ func (r *XLSXTextRenderer) PageCount(path string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("open xlsx %s: %w", filepath.Base(path), err)
 	}
-	defer xr.Close()
+	defer func() { _ = xr.Close() }()
 	return xr.PageCount()
 }
 
@@ -37,7 +37,7 @@ func (r *XLSXTextRenderer) Render(path string, page int) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("open xlsx %s: %w", filepath.Base(path), err)
 	}
-	defer xr.Close()
+	defer func() { _ = xr.Close() }()
 
 	count, err := xr.PageCount()
 	if err != nil {
