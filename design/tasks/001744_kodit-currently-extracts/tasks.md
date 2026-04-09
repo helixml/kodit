@@ -7,9 +7,9 @@
 - [x] Implement `PPTXTextRenderer` using `pptx.Reader.TextWithOptions(ExtractOptions{SlideNumbers: []int{page - 1}})`
 - [x] Implement `SinglePageTextRenderer` for DOCX/ODT/EPUB (always 1 page, full document text)
 - [x] Write tests for all `TextRenderer` implementations covering page extraction, page count, out-of-range pages, and error cases
-- [~] Wire up `extraction.TextRendererRegistry` in `kodit.go` — register all implementations by extension, pass to HTTP router and MCP server
-- [ ] Add `renderTextPage()` method to `RepositoriesRouter` in `infrastructure/api/v1/repositories.go` — look up renderer from registry, handle page count and text extraction with line filtering
-- [ ] Update `GetBlob()` in `repositories.go` to accept `mode=text`, route to `renderTextPage()`, and allow `page` param with `mode=text`
+- [x] Wire up `extraction.TextRendererRegistry` in `kodit.go` — register all implementations by extension, pass to HTTP router and MCP server
+- [~] Add `renderTextPage()` method to `RepositoriesRouter` in `infrastructure/api/v1/repositories.go` — look up renderer from registry, handle page count and text extraction with line filtering
+- [~] Update `GetBlob()` in `repositories.go` to accept `mode=text`, route to `renderTextPage()`, and allow `page` param with `mode=text`
 - [ ] Update swagger annotations on `GetBlob` for the new mode and page count response
 - [ ] Add `handleTextRead()` method to MCP `Server` in `internal/mcp/server.go` — look up renderer from registry, handle page count and text extraction
 - [ ] Update `handleReadFile()` in `server.go` to accept `mode=text` and route to `handleTextRead()`
