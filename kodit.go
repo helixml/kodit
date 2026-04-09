@@ -434,6 +434,11 @@ func New(opts ...Option) (*Client, error) {
 		logger.Warn().Msg("PDF rasterizer not available — page image extraction will skip PDF files")
 	}
 
+	officeRast := rasterization.NewOfficeImageExtractor()
+	for _, ext := range []string{".docx", ".pptx", ".xlsx"} {
+		rasterizers.Register(ext, officeRast)
+	}
+
 	// Create enrichment infrastructure (always available)
 	archDiscoverer := enricher.NewPhysicalArchitectureService()
 	schemaDiscoverer := enricher.NewDatabaseSchemaService()
