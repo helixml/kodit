@@ -2,9 +2,17 @@
 
 **Current year: 2026** — include "2026" in web searches for documentation and browser APIs.
 
+## Setup
+
+Install required development tools before doing anything else:
+
+```bash
+make tools    # Install golangci-lint, goimports, swag, oapi-codegen, openapi-spec-converter
+```
+
 ## Build, Test, and Check
 
-**IMPORTANT: Always use `make` commands. Never run `go test`, `go vet`, or `golangci-lint` directly.** The Makefile sets required build tags, CGO flags, and environment variables that raw `go` commands miss.
+Always use `make` commands — never run `go test`, `go vet`, or `golangci-lint` directly. The Makefile sets required build tags, CGO flags, and environment variables that raw `go` commands miss.
 
 ```bash
 make build                       # Build the binary
@@ -15,23 +23,38 @@ make check PKG=./internal/foo/... # Check a specific package
 make test-smoke                  # Run smoke tests (needs running Docker env)
 ```
 
+## Shipping Code
+
+Before committing:
+
+1. Run `make check` and confirm it passes (or at minimum `make test` for affected packages). Do not commit code that has not been validated.
+2. Fix any failures before committing — do not skip or work around them.
+
+Commits and PRs use **Conventional Commits**:
+
+- Prefix: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`, etc.
+- Example commit: `feat: add webhook retry logic`
+- PR titles follow the same format: `feat: add webhook retry logic`
+
+When pushing additional commits to an existing PR, update the PR title and description to reflect the full set of changes in the branch.
+
 ## Go
 
 - Fail fast: `return fmt.Errorf("failed: %w", err)` — never log and continue
-- **Error on missing configuration** — fail with an error, don't log a warning and continue
+- Error on missing configuration — fail with an error, don't log a warning and continue
 - Use structs, not `map[string]interface{}`
 - GORM AutoMigrate only — no SQL migration files
 - Use gomock, not testify/mock
-- **NO FALLBACKS** — one approach, no fallback code paths
-- **NO TYPE ALIASES** — update all references when moving or renaming types
-- **NO PANICS** — return errors; rewrite methods to support error returns if needed
-- **Log errors once at the top level** — domain code returns errors, only handlers/workers log them
+- No fallbacks — one approach, no fallback code paths
+- No type aliases — update all references when moving or renaming types
+- No panics — return errors; rewrite methods to support error returns if needed
+- Log errors once at the top level — domain code returns errors, only handlers/workers log them
 
 ## Repositories and Database Stores
 
 Every store embeds `database.Repository[D, E]` (`internal/database/repository.go`) and implements `repository.Store[T]` (`domain/repository/store.go`).
 
-**Prefer the generic methods from `Repository` and `Store`** — do not add custom query methods to stores. The base types already provide:
+Prefer the generic methods from `Repository` and `Store` — do not add custom query methods to stores. The base types already provide:
 
 | Method | Source | Purpose |
 |---|---|---|
@@ -45,7 +68,7 @@ Every store embeds `database.Repository[D, E]` (`internal/database/repository.go
 | `DB(ctx)` | Repository | Raw GORM session (last resort) |
 | `Mapper()` | Repository | Access the entity mapper |
 
-**Use options to express queries** — not one-off methods. Define options in `domain/<domain>/options.go` using `repository.WithCondition`:
+Use options to express queries — not one-off methods. Define options in `domain/<domain>/options.go` using `repository.WithCondition`:
 
 ```go
 func WithSHA(sha string) Option { return WithCondition("commit_sha", sha) }
@@ -72,7 +95,7 @@ func NewCommitStore(db database.Database) CommitStore {
 
 For JOINs, use `repository.WithParam` and override `Find` in the store. See `EnrichmentStore`.
 
-**Do not:** add `Get`/`GetBy`/`FindBy`/`DeleteByX` methods, store separate `db`/`mapper` fields, write raw `WHERE` clauses for equality filters, or rewrite `Find`/`FindOne`/`Count`/`Save`/`Delete`/`Exists`/`DeleteBy` unless JOINs are needed. If a query can be expressed with options, use the generic methods.
+Do not add `Get`/`GetBy`/`FindBy`/`DeleteByX` methods, store separate `db`/`mapper` fields, write raw `WHERE` clauses for equality filters, or rewrite `Find`/`FindOne`/`Count`/`Save`/`Delete`/`Exists`/`DeleteBy` unless JOINs are needed. If a query can be expressed with options, use the generic methods.
 
 ## Testing
 
@@ -102,7 +125,7 @@ docker exec kodit-vectorchord psql -U postgres -d kodit -c "SELECT * FROM reposi
 
 ## API Handlers
 
-Every handler function registered in a chi router **must** have a complete swag annotation block before merging. Required fields:
+Every handler function registered in a chi router must have a complete swag annotation block before merging. Required fields:
 
 - `@Summary` — short one-line description
 - `@Description` — longer description (include deprecation notice and replacement endpoint if applicable)
