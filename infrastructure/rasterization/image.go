@@ -6,7 +6,7 @@ import (
 	// Decoders registered in office.go cover gif, jpeg, png, bmp, tiff, webp.
 	"os"
 	"path/filepath"
-	"strings"
+	"strings" // used for traversal check in Render
 )
 
 // StandaloneImage is a Rasterizer for plain image files.
@@ -28,25 +28,30 @@ func (s *StandaloneImage) PageCount(_ string) (int, error) {
 }
 
 // Render decodes the image file and returns it.
+// The path is validated against the base directory to prevent traversal.
 func (s *StandaloneImage) Render(path string, page int) (image.Image, error) {
 	if page != 1 {
 		return nil, fmt.Errorf("page %d out of range [1, 1]", page)
 	}
 
-	clean := filepath.Clean(path)
-	if !strings.HasPrefix(clean, s.baseDir+string(filepath.Separator)) && clean != s.baseDir {
+	// Compute a relative path from the base directory and reject traversal.
+	rel, err := filepath.Rel(s.baseDir, path)
+	if err != nil || strings.HasPrefix(rel, "..") {
 		return nil, fmt.Errorf("path %s is outside base directory", path)
 	}
 
-	f, err := os.Open(clean)
+	// Re-join to produce a clean, verified absolute path.
+	safe := filepath.Join(s.baseDir, rel)
+
+	f, err := os.Open(safe)
 	if err != nil {
-		return nil, fmt.Errorf("open %s: %w", clean, err)
+		return nil, fmt.Errorf("open %s: %w", safe, err)
 	}
 	defer func() { _ = f.Close() }()
 
 	img, _, err := image.Decode(f)
 	if err != nil {
-		return nil, fmt.Errorf("decode %s: %w", clean, err)
+		return nil, fmt.Errorf("decode %s: %w", safe, err)
 	}
 	return img, nil
 }
