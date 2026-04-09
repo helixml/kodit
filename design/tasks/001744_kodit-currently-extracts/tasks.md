@@ -1,13 +1,13 @@
 # Implementation Tasks
 
-- [~] Create `TextRenderer` interface in `infrastructure/extraction/text_renderer.go` with `PageCount(path) (int, error)`, `Render(path, page) (string, error)`, and `io.Closer` — mirroring `rasterization.Rasterizer`
-- [ ] Create `extraction.TextRendererRegistry` in `infrastructure/extraction/text_renderer.go` mapping extensions to `TextRenderer` implementations — mirroring `rasterization.Registry`
-- [ ] Implement `PDFTextRenderer` using `tabula.Open(path).Pages(page).ExcludeHeadersAndFooters().JoinParagraphs().Text()`
-- [ ] Implement `XLSXTextRenderer` using `xlsx.Reader.TextWithOptions(ExtractOptions{Sheets: []int{page - 1}})`
-- [ ] Implement `PPTXTextRenderer` using `pptx.Reader.TextWithOptions(ExtractOptions{SlideNumbers: []int{page - 1}})`
-- [ ] Implement `SinglePageTextRenderer` for DOCX/ODT/EPUB (always 1 page, full document text)
-- [ ] Write tests for all `TextRenderer` implementations covering page extraction, page count, out-of-range pages, and error cases
-- [ ] Wire up `extraction.Registry` in `kodit.go` — register all implementations by extension, pass to HTTP router and MCP server
+- [x] Create `TextRenderer` interface in `infrastructure/extraction/text_renderer.go` with `PageCount(path) (int, error)`, `Render(path, page) (string, error)`, and `io.Closer` — mirroring `rasterization.Rasterizer`
+- [x] Create `extraction.TextRendererRegistry` in `infrastructure/extraction/text_renderer.go` mapping extensions to `TextRenderer` implementations — mirroring `rasterization.Registry`
+- [x] Implement `PDFTextRenderer` using `tabula.Open(path).Pages(page).ExcludeHeadersAndFooters().JoinParagraphs().Text()`
+- [x] Implement `XLSXTextRenderer` using `xlsx.Reader.TextWithOptions(ExtractOptions{Sheets: []int{page - 1}})`
+- [x] Implement `PPTXTextRenderer` using `pptx.Reader.TextWithOptions(ExtractOptions{SlideNumbers: []int{page - 1}})`
+- [x] Implement `SinglePageTextRenderer` for DOCX/ODT/EPUB (always 1 page, full document text)
+- [~] Write tests for all `TextRenderer` implementations covering page extraction, page count, out-of-range pages, and error cases
+- [ ] Wire up `extraction.TextRendererRegistry` in `kodit.go` — register all implementations by extension, pass to HTTP router and MCP server
 - [ ] Add `renderTextPage()` method to `RepositoriesRouter` in `infrastructure/api/v1/repositories.go` — look up renderer from registry, handle page count and text extraction with line filtering
 - [ ] Update `GetBlob()` in `repositories.go` to accept `mode=text`, route to `renderTextPage()`, and allow `page` param with `mode=text`
 - [ ] Update swagger annotations on `GetBlob` for the new mode and page count response
