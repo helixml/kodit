@@ -439,7 +439,7 @@ func New(opts ...Option) (*Client, error) {
 		rasterizers.Register(ext, officeRast)
 	}
 
-	imageRast := rasterization.NewStandaloneImage()
+	imageRast := rasterization.NewStandaloneImage(cloneDir)
 	for _, ext := range []string{".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".tif", ".webp"} {
 		rasterizers.Register(ext, imageRast)
 	}

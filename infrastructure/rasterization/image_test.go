@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func writeTestImage(t *testing.T, name string, c color.Color) string {
+func writeTestImage(t *testing.T, dir, name string, c color.Color) string {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	for y := range 4 {
@@ -23,22 +23,23 @@ func writeTestImage(t *testing.T, name string, c color.Color) string {
 	var buf bytes.Buffer
 	require.NoError(t, png.Encode(&buf, img))
 
-	path := filepath.Join(t.TempDir(), name)
+	path := filepath.Join(dir, name)
 	require.NoError(t, os.WriteFile(path, buf.Bytes(), 0o644))
 	return path
 }
 
 func TestStandaloneImage_PageCount(t *testing.T) {
-	rast := NewStandaloneImage()
+	rast := NewStandaloneImage("/any")
 	count, err := rast.PageCount("/any/path.png")
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 }
 
 func TestStandaloneImage_Render(t *testing.T) {
-	path := writeTestImage(t, "photo.png", color.RGBA{R: 255, A: 255})
+	dir := t.TempDir()
+	path := writeTestImage(t, dir, "photo.png", color.RGBA{R: 255, A: 255})
 
-	rast := NewStandaloneImage()
+	rast := NewStandaloneImage(dir)
 	img, err := rast.Render(path, 1)
 	require.NoError(t, err)
 	require.NotNil(t, img)
@@ -55,9 +56,10 @@ func TestStandaloneImage_Render(t *testing.T) {
 }
 
 func TestStandaloneImage_Render_OutOfRange(t *testing.T) {
-	path := writeTestImage(t, "photo.png", color.RGBA{R: 255, A: 255})
+	dir := t.TempDir()
+	path := writeTestImage(t, dir, "photo.png", color.RGBA{R: 255, A: 255})
 
-	rast := NewStandaloneImage()
+	rast := NewStandaloneImage(dir)
 
 	_, err := rast.Render(path, 0)
 	require.Error(t, err)
@@ -69,12 +71,22 @@ func TestStandaloneImage_Render_OutOfRange(t *testing.T) {
 }
 
 func TestStandaloneImage_Render_FileNotFound(t *testing.T) {
-	rast := NewStandaloneImage()
-	_, err := rast.Render("/nonexistent/file.png", 1)
+	dir := t.TempDir()
+	rast := NewStandaloneImage(dir)
+	_, err := rast.Render(filepath.Join(dir, "nonexistent.png"), 1)
 	require.Error(t, err)
 }
 
+func TestStandaloneImage_Render_PathTraversal(t *testing.T) {
+	dir := t.TempDir()
+	rast := NewStandaloneImage(dir)
+
+	_, err := rast.Render(filepath.Join(dir, "..", "etc", "passwd"), 1)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "outside base directory")
+}
+
 func TestStandaloneImage_Close(t *testing.T) {
-	rast := NewStandaloneImage()
+	rast := NewStandaloneImage("/any")
 	require.NoError(t, rast.Close())
 }
