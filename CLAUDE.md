@@ -15,6 +15,8 @@ make check PKG=./internal/foo/... # Check a specific package
 make test-smoke                  # Run smoke tests (needs running Docker env)
 ```
 
+**IMPORTANT: Before committing any change, you MUST run `make check` (or at minimum `make test` for the affected packages) and confirm it passes.** Do not commit code that has not been validated. If checks fail, fix the issues before committing.
+
 ## Go
 
 - Fail fast: `return fmt.Errorf("failed: %w", err)` — never log and continue
