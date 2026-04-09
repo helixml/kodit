@@ -439,6 +439,11 @@ func New(opts ...Option) (*Client, error) {
 		rasterizers.Register(ext, officeRast)
 	}
 
+	imageRast := rasterization.NewStandaloneImage()
+	for _, ext := range []string{".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".tif", ".webp"} {
+		rasterizers.Register(ext, imageRast)
+	}
+
 	// Create enrichment infrastructure (always available)
 	archDiscoverer := enricher.NewPhysicalArchitectureService()
 	schemaDiscoverer := enricher.NewDatabaseSchemaService()
