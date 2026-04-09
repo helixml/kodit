@@ -166,7 +166,11 @@ func (h *CreatePageImageEmbeddings) Execute(ctx context.Context, payload map[str
 		}
 
 		relPath := relativeFilePath(f.Path(), clonedPath)
-		diskPath := filepath.Join(clonedPath, relPath)
+		diskPath, safe := safeDiskPath(clonedPath, relPath)
+		if !safe {
+			h.logger.Warn().Str("path", f.Path()).Msg("file path escapes clone directory, skipping")
+			continue
+		}
 
 		img, renderErr := rast.Render(diskPath, sl.Page())
 		if renderErr != nil {

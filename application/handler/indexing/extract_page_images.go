@@ -121,7 +121,12 @@ func (h *ExtractPageImages) Execute(ctx context.Context, payload map[string]any)
 		tracker.SetCurrent(ctx, processed, fmt.Sprintf("Extracting pages from %s", f.Path()))
 
 		relPath := relativeFilePath(f.Path(), clonedPath)
-		diskPath := filepath.Join(clonedPath, relPath)
+		diskPath, safe := safeDiskPath(clonedPath, relPath)
+		if !safe {
+			h.logger.Warn().Str("path", f.Path()).Msg("file path escapes clone directory, skipping")
+			processed++
+			continue
+		}
 
 		rast, _ := h.rasterizers.For(ext)
 		pageCount, countErr := rast.PageCount(diskPath)
