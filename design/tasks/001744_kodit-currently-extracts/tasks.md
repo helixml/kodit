@@ -1,7 +1,7 @@
 # Implementation Tasks
 
-- [ ] Create `TextRenderer` interface in `infrastructure/extraction/text_renderer.go` with `PageCount(path) (int, error)`, `Render(path, page) (string, error)`, and `io.Closer` — mirroring `rasterization.Rasterizer`
-- [ ] Create `extraction.Registry` in `infrastructure/extraction/text_registry.go` mapping extensions to `TextRenderer` implementations — mirroring `rasterization.Registry`
+- [~] Create `TextRenderer` interface in `infrastructure/extraction/text_renderer.go` with `PageCount(path) (int, error)`, `Render(path, page) (string, error)`, and `io.Closer` — mirroring `rasterization.Rasterizer`
+- [ ] Create `extraction.TextRendererRegistry` in `infrastructure/extraction/text_renderer.go` mapping extensions to `TextRenderer` implementations — mirroring `rasterization.Registry`
 - [ ] Implement `PDFTextRenderer` using `tabula.Open(path).Pages(page).ExcludeHeadersAndFooters().JoinParagraphs().Text()`
 - [ ] Implement `XLSXTextRenderer` using `xlsx.Reader.TextWithOptions(ExtractOptions{Sheets: []int{page - 1}})`
 - [ ] Implement `PPTXTextRenderer` using `pptx.Reader.TextWithOptions(ExtractOptions{SlideNumbers: []int{page - 1}})`
