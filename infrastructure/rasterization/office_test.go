@@ -2,6 +2,7 @@ package rasterization
 
 import (
 	"archive/zip"
+	"bytes"
 	"image"
 	"image/color"
 	"image/png"
@@ -32,30 +33,22 @@ func writeTestOffice(t *testing.T, name string, entries map[string][]byte) strin
 	return path
 }
 
-// redPNG returns a 2x2 red PNG image as raw bytes.
-func redPNG(t *testing.T) []byte {
+// solidPNG returns a 2x2 PNG image filled with the given color.
+func solidPNG(t *testing.T, c color.Color) []byte {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
 	for y := 0; y < 2; y++ {
 		for x := 0; x < 2; x++ {
-			img.Set(x, y, color.RGBA{R: 255, A: 255})
+			img.Set(x, y, c)
 		}
 	}
-	var buf []byte
-	w := &sliceWriter{buf: &buf}
-	require.NoError(t, png.Encode(w, img))
-	return buf
-}
-
-type sliceWriter struct{ buf *[]byte }
-
-func (s *sliceWriter) Write(p []byte) (int, error) {
-	*s.buf = append(*s.buf, p...)
-	return len(p), nil
+	var buf bytes.Buffer
+	require.NoError(t, png.Encode(&buf, img))
+	return buf.Bytes()
 }
 
 func TestOfficeImageExtractor_PageCount(t *testing.T) {
-	img := redPNG(t)
+	img := solidPNG(t, color.RGBA{R: 255, A: 255})
 	path := writeTestOffice(t, "slides.pptx", map[string][]byte{
 		"ppt/media/image1.png":  img,
 		"ppt/media/image2.png":  img,
@@ -71,7 +64,7 @@ func TestOfficeImageExtractor_PageCount(t *testing.T) {
 }
 
 func TestOfficeImageExtractor_PageCount_Docx(t *testing.T) {
-	img := redPNG(t)
+	img := solidPNG(t, color.RGBA{R: 255, A: 255})
 	path := writeTestOffice(t, "doc.docx", map[string][]byte{
 		"word/media/photo.png": img,
 		"word/document.xml":    []byte("<xml/>"),
@@ -84,7 +77,7 @@ func TestOfficeImageExtractor_PageCount_Docx(t *testing.T) {
 }
 
 func TestOfficeImageExtractor_PageCount_Xlsx(t *testing.T) {
-	img := redPNG(t)
+	img := solidPNG(t, color.RGBA{R: 255, A: 255})
 	path := writeTestOffice(t, "sheet.xlsx", map[string][]byte{
 		"xl/media/logo.png":   img,
 		"xl/media/chart.jpg":  img,
@@ -109,7 +102,7 @@ func TestOfficeImageExtractor_PageCount_NoImages(t *testing.T) {
 }
 
 func TestOfficeImageExtractor_Render(t *testing.T) {
-	img := redPNG(t)
+	img := solidPNG(t, color.RGBA{R: 255, A: 255})
 	path := writeTestOffice(t, "slides.pptx", map[string][]byte{
 		"ppt/media/image1.png": img,
 		"ppt/media/image2.png": img,
@@ -133,25 +126,29 @@ func TestOfficeImageExtractor_Render(t *testing.T) {
 }
 
 func TestOfficeImageExtractor_Render_Deterministic(t *testing.T) {
-	img := redPNG(t)
+	red := solidPNG(t, color.RGBA{R: 255, A: 255})
+	blue := solidPNG(t, color.RGBA{B: 255, A: 255})
 	path := writeTestOffice(t, "slides.pptx", map[string][]byte{
-		"ppt/media/b_second.png": img,
-		"ppt/media/a_first.png":  img,
+		"ppt/media/b_second.png": blue,
+		"ppt/media/a_first.png":  red,
 	})
 
 	ext := NewOfficeImageExtractor()
 
-	// Pages are sorted by path — a_first comes before b_second.
+	// Pages are sorted by path — a_first (red) comes before b_second (blue).
 	r1, err := ext.Render(path, 1)
 	require.NoError(t, err)
+	r, _, _, _ := r1.At(0, 0).RGBA()
+	require.Equal(t, uint32(0xffff), r, "page 1 should be red (a_first)")
+
 	r2, err := ext.Render(path, 2)
 	require.NoError(t, err)
-	require.NotNil(t, r1)
-	require.NotNil(t, r2)
+	_, _, b, _ := r2.At(0, 0).RGBA()
+	require.Equal(t, uint32(0xffff), b, "page 2 should be blue (b_second)")
 }
 
 func TestOfficeImageExtractor_Render_OutOfRange(t *testing.T) {
-	img := redPNG(t)
+	img := solidPNG(t, color.RGBA{R: 255, A: 255})
 	path := writeTestOffice(t, "slides.pptx", map[string][]byte{
 		"ppt/media/image1.png": img,
 	})
@@ -181,7 +178,7 @@ func TestOfficeImageExtractor_NotAZip(t *testing.T) {
 }
 
 func TestOfficeImageExtractor_EMFExcluded(t *testing.T) {
-	img := redPNG(t)
+	img := solidPNG(t, color.RGBA{R: 255, A: 255})
 	path := writeTestOffice(t, "slides.pptx", map[string][]byte{
 		"ppt/media/image1.png":  img,
 		"ppt/media/vector.emf":  []byte("emf data"),

@@ -14,6 +14,7 @@ import (
 
 	_ "golang.org/x/image/bmp"
 	_ "golang.org/x/image/tiff"
+	_ "golang.org/x/image/webp"
 )
 
 // mediaPrefixes are the ZIP directory prefixes where Office Open XML
@@ -34,6 +35,7 @@ var supportedImageExts = map[string]bool{
 	".bmp":  true,
 	".tiff": true,
 	".tif":  true,
+	".webp": true,
 }
 
 // OfficeImageExtractor extracts embedded images from Office Open XML
@@ -57,22 +59,19 @@ func (o *OfficeImageExtractor) PageCount(path string) (int, error) {
 
 // Render returns the Nth (1-based) embedded image as an image.Image.
 func (o *OfficeImageExtractor) Render(path string, page int) (image.Image, error) {
-	names, err := mediaImageNames(path)
+	r, err := zip.OpenReader(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open zip %s: %w", path, err)
 	}
+	defer func() { _ = r.Close() }()
+
+	names := mediaImageNamesFromReader(r)
 
 	if page < 1 || page > len(names) {
 		return nil, fmt.Errorf("page %d out of range [1, %d]", page, len(names))
 	}
 
 	target := names[page-1]
-
-	r, err := zip.OpenReader(path)
-	if err != nil {
-		return nil, fmt.Errorf("open zip %s: %w", path, err)
-	}
-	defer func() { _ = r.Close() }()
 
 	for _, f := range r.File {
 		if f.Name != target {
@@ -106,15 +105,20 @@ func mediaImageNames(path string) ([]string, error) {
 	}
 	defer func() { _ = r.Close() }()
 
+	return mediaImageNamesFromReader(r), nil
+}
+
+// mediaImageNamesFromReader returns sorted image entry names from an
+// already-opened ZIP reader.
+func mediaImageNamesFromReader(r *zip.ReadCloser) []string {
 	var names []string
 	for _, f := range r.File {
 		if isMediaImage(f.Name) {
 			names = append(names, f.Name)
 		}
 	}
-
 	sort.Strings(names)
-	return names, nil
+	return names
 }
 
 // isMediaImage returns true if the ZIP entry path is an image file
