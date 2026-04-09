@@ -8,10 +8,10 @@
 - [x] Implement `SinglePageTextRenderer` for DOCX/ODT/EPUB (always 1 page, full document text)
 - [x] Write tests for all `TextRenderer` implementations covering page extraction, page count, out-of-range pages, and error cases
 - [x] Wire up `extraction.TextRendererRegistry` in `kodit.go` — register all implementations by extension, pass to HTTP router and MCP server
-- [~] Add `renderTextPage()` method to `RepositoriesRouter` in `infrastructure/api/v1/repositories.go` — look up renderer from registry, handle page count and text extraction with line filtering
-- [~] Update `GetBlob()` in `repositories.go` to accept `mode=text`, route to `renderTextPage()`, and allow `page` param with `mode=text`
-- [ ] Update swagger annotations on `GetBlob` for the new mode and page count response
-- [ ] Add `handleTextRead()` method to MCP `Server` in `internal/mcp/server.go` — look up renderer from registry, handle page count and text extraction
-- [ ] Update `handleReadFile()` in `server.go` to accept `mode=text` and route to `handleTextRead()`
-- [ ] Write integration tests for the HTTP endpoint with `mode=text` (page extraction, page count, line numbers, line filtering, error cases)
-- [ ] Write integration tests for the MCP resource with `mode=text`
+- [x] Add `renderTextPage()` method to `RepositoriesRouter` in `infrastructure/api/v1/repositories.go` — look up renderer from registry, handle page count and text extraction with line filtering
+- [x] Update `GetBlob()` in `repositories.go` to accept `mode=text`, route to `renderTextPage()`, and allow `page` param with `mode=text`
+- [x] Update swagger annotations on `GetBlob` for the new mode and page count response
+- [x] Add `handleTextRead()` method to MCP `Server` in `internal/mcp/server.go` — look up renderer from registry, handle page count and text extraction
+- [x] Update `handleReadFile()` in `server.go` to accept `mode=text` and route to `handleTextRead()`
+- [x] Write integration tests for the HTTP endpoint with `mode=text` (page extraction, page count, line numbers, line filtering, error cases)
+- [x] Write integration tests for the MCP resource with `mode=text`

@@ -222,3 +222,13 @@ Update the `GetBlob` handler's `@Param mode` annotation to document `text` as a 
 | Line numbers/filtering | Reuse existing `LineFilter` | Already works on `[]byte` content, no changes needed |
 | Search result links | Keep pointing to `mode=raster` | Vision embeddings are the primary indexing path for documents; text is opt-in |
 | Page parameter semantics | 1-based, same as `mode=raster` | Consistent with `SourceLocation.Page()`, search result DTOs, and `FileURI` |
+
+## Implementation Notes
+
+- **File layout**: Each TextRenderer implementation is in its own file: `pdf_text_renderer.go`, `xlsx_text_renderer.go`, `pptx_text_renderer.go`, `single_page_text_renderer.go`. The interface and registry are in `text_renderer.go`.
+- **Shared validation**: `validateDocumentPath()` is defined in `pdf_text_renderer.go` and reused by all implementations (checks file exists and size <= 100MB).
+- **Wiring pattern**: Followed the exact same pattern as rasterizers — `TextRendererRegistry` created in `kodit.go:New()`, stored on the `Client` struct, exposed via `TextRenderers()` accessor, and passed to MCP server via `WithTextRendering()` option.
+- **HTTP API**: `renderTextPage()` in `repositories.go` mirrors `renderRasterPage()` — same disk path resolution, same line filter reuse. Without `page` param it returns JSON `{"page_count":N}`; with `page` it returns `text/plain`.
+- **MCP server**: `handleTextRead()` in `server.go` mirrors `handleRasterRead()`. Without `page` it returns `"Page count: N"`; with `page` it returns text content. Both support `lines` and `line_numbers` query params.
+- **CGO limitation**: The CI/test environment lacks `gcc`, so `CGO_ENABLED=0 go build/test` was used. The `infrastructure/api/v1` tests require sqlite (CGO) and were verified to have pre-existing failures unrelated to this change.
+- **No test fixtures for real documents**: Following the existing pattern in `document_test.go`, tests cover error paths (missing file, oversized, invalid page) using fakes. MCP tests use `fakeTextRenderer` and `fakeDiskPathResolver` to test the full request flow.
