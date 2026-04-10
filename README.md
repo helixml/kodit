@@ -116,4 +116,5 @@ please [open a discussion](https://github.com/helixml/kodit/discussions).
 
 ## License
 
-[Apache 2.0 © 2026 HelixML, Inc.](./LICENSE)
+[Apache 2.0 © 2026 HelixML, Inc.](./LICENSE)\
+
