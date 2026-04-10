@@ -58,6 +58,10 @@ type EnvConfig struct {
 	// EnrichmentEndpoint configures the enrichment AI service.
 	EnrichmentEndpoint EndpointEnv `envconfig:"ENRICHMENT_ENDPOINT"`
 
+	// VisionEmbeddingEndpoint configures an optional remote vision embedding service.
+	// When set, replaces the local SigLIP2 model for image/text vision embeddings.
+	VisionEmbeddingEndpoint EndpointEnv `envconfig:"VISION_EMBEDDING_ENDPOINT"`
+
 	// PeriodicSync configures periodic repository syncing.
 	PeriodicSync PeriodicSyncEnv `envconfig:"PERIODIC_SYNC"`
 
@@ -261,6 +265,11 @@ func (e EnvConfig) ToAppConfig() AppConfig {
 	// Enrichment endpoint
 	if e.EnrichmentEndpoint.IsConfigured() {
 		cfg = applyOption(cfg, WithEnrichmentEndpoint(e.EnrichmentEndpoint.ToEndpoint()))
+	}
+
+	// Vision embedding endpoint
+	if e.VisionEmbeddingEndpoint.IsConfigured() {
+		cfg = applyOption(cfg, WithVisionEmbeddingEndpoint(e.VisionEmbeddingEndpoint.ToEndpoint()))
 	}
 
 	// Periodic sync config

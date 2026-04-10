@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/helixml/kodit/domain/search"
 )
 
 // fakeEmbeddingServer returns an httptest.Server that mimics the OpenAI
@@ -77,10 +79,9 @@ func TestOpenAIProvider_EmbedEmpty(t *testing.T) {
 		EmbeddingModel: "test-model",
 	})
 
-	req := NewTextEmbeddingRequest([]string{})
-	resp, err := p.Embed(context.Background(), req)
+	embeddings, err := p.Embed(context.Background(), search.NewTextItems([]string{}))
 	require.NoError(t, err)
-	require.Empty(t, resp.Embeddings())
+	require.Empty(t, embeddings)
 	require.Equal(t, int64(0), counter.Load(), "no HTTP request for empty input")
 }
 
@@ -95,12 +96,11 @@ func TestOpenAIProvider_EmbedSingle(t *testing.T) {
 		EmbeddingModel: "test-model",
 	})
 
-	req := NewTextEmbeddingRequest([]string{"hello"})
-	resp, err := p.Embed(context.Background(), req)
+	embeddings, err := p.Embed(context.Background(), search.NewTextItems([]string{"hello"}))
 	require.NoError(t, err)
-	require.Len(t, resp.Embeddings(), 1)
-	require.Len(t, resp.Embeddings()[0], 3)
-	require.InDelta(t, 0.1, resp.Embeddings()[0][0], 1e-6)
+	require.Len(t, embeddings, 1)
+	require.Len(t, embeddings[0], 3)
+	require.InDelta(t, 0.1, embeddings[0][0], 1e-6)
 	require.Equal(t, int64(1), counter.Load(), "single text should be one request")
 }
 
@@ -120,35 +120,10 @@ func TestOpenAIProvider_EmbedWithinBatchLimit(t *testing.T) {
 		texts[i] = "text"
 	}
 
-	req := NewTextEmbeddingRequest(texts)
-	resp, err := p.Embed(context.Background(), req)
+	embeddings, err := p.Embed(context.Background(), search.NewTextItems(texts))
 	require.NoError(t, err)
-	require.Len(t, resp.Embeddings(), 10)
+	require.Len(t, embeddings, 10)
 	require.Equal(t, int64(1), counter.Load(), "10 texts should be one request")
-}
-
-func TestOpenAIProvider_EmbedAggregatesUsage(t *testing.T) {
-	var counter atomic.Int64
-	srv := fakeEmbeddingServer(t, &counter)
-	defer srv.Close()
-
-	p := NewOpenAIProviderFromConfig(OpenAIConfig{
-		APIKey:         "test-key",
-		BaseURL:        srv.URL,
-		EmbeddingModel: "test-model",
-	})
-
-	texts := make([]string, 10)
-	for i := range texts {
-		texts[i] = "text"
-	}
-
-	req := NewTextEmbeddingRequest(texts)
-	resp, err := p.Embed(context.Background(), req)
-	require.NoError(t, err)
-
-	require.Equal(t, 40, resp.Usage().PromptTokens())
-	require.Equal(t, 40, resp.Usage().TotalTokens())
 }
 
 func TestOpenAIProvider_EmbedCancelledContext(t *testing.T) {
@@ -171,8 +146,7 @@ func TestOpenAIProvider_EmbedCancelledContext(t *testing.T) {
 		texts[i] = "text"
 	}
 
-	req := NewTextEmbeddingRequest(texts)
-	_, err := p.Embed(ctx, req)
+	_, err := p.Embed(ctx, search.NewTextItems(texts))
 	require.Error(t, err)
 }
 
@@ -181,8 +155,7 @@ func TestOpenAIProvider_EmbedUnsupported(t *testing.T) {
 	// Manually disable embedding support.
 	p.supportsEmbedding = false
 
-	req := NewTextEmbeddingRequest([]string{"hello"})
-	_, err := p.Embed(context.Background(), req)
+	_, err := p.Embed(context.Background(), search.NewTextItems([]string{"hello"}))
 	require.ErrorIs(t, err, ErrUnsupportedOperation)
 }
 
@@ -253,8 +226,7 @@ func TestOpenAIProvider_EmbedEmptyResponseReturnsError(t *testing.T) {
 		InitialDelay:   time.Millisecond,
 	})
 
-	req := NewTextEmbeddingRequest([]string{"hello", "world"})
-	_, err := p.Embed(context.Background(), req)
+	_, err := p.Embed(context.Background(), search.NewTextItems([]string{"hello", "world"}))
 	require.Error(t, err)
 	require.ErrorIs(t, err, errEmbeddingCountMismatch)
 }
@@ -273,10 +245,9 @@ func TestOpenAIProvider_EmbedEmptyResponseRetries(t *testing.T) {
 		InitialDelay:   time.Millisecond,
 	})
 
-	req := NewTextEmbeddingRequest([]string{"hello", "world"})
-	resp, err := p.Embed(context.Background(), req)
+	embeddings, err := p.Embed(context.Background(), search.NewTextItems([]string{"hello", "world"}))
 	require.NoError(t, err)
-	require.Len(t, resp.Embeddings(), 2)
+	require.Len(t, embeddings, 2)
 	require.Equal(t, int64(3), counter.Load(), "should have retried twice then succeeded")
 }
 
@@ -352,8 +323,7 @@ func TestOpenAIProvider_EmbedUpstreamErrorExhaustsRetries(t *testing.T) {
 		InitialDelay:   time.Millisecond,
 	})
 
-	req := NewTextEmbeddingRequest([]string{"hello", "world"})
-	_, err := p.Embed(context.Background(), req)
+	_, err := p.Embed(context.Background(), search.NewTextItems([]string{"hello", "world"}))
 	require.Error(t, err)
 	require.ErrorIs(t, err, errUpstreamProviderFailure)
 	require.Equal(t, int64(4), counter.Load(), "should attempt 1 + 3 retries")
@@ -373,9 +343,8 @@ func TestOpenAIProvider_EmbedUpstreamErrorRecovers(t *testing.T) {
 		InitialDelay:   time.Millisecond,
 	})
 
-	req := NewTextEmbeddingRequest([]string{"hello", "world"})
-	resp, err := p.Embed(context.Background(), req)
+	embeddings, err := p.Embed(context.Background(), search.NewTextItems([]string{"hello", "world"}))
 	require.NoError(t, err)
-	require.Len(t, resp.Embeddings(), 2)
+	require.Len(t, embeddings, 2)
 	require.Equal(t, int64(3), counter.Load(), "should have retried twice then succeeded")
 }

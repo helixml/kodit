@@ -45,10 +45,10 @@ type fakeVisionEmbedder struct {
 	called int
 }
 
-func (f *fakeVisionEmbedder) Embed(_ context.Context, inputs [][]byte) ([][]float64, error) {
-	f.called += len(inputs)
-	result := make([][]float64, len(inputs))
-	for i := range inputs {
+func (f *fakeVisionEmbedder) Embed(_ context.Context, items []search.EmbeddingItem) ([][]float64, error) {
+	f.called += len(items)
+	result := make([][]float64, len(items))
+	for i := range items {
 		result[i] = []float64{0.1, 0.2, 0.3}
 	}
 	return result, nil

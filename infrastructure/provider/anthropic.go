@@ -382,8 +382,5 @@ func extractError(err error, target **ProviderError) bool {
 	return false
 }
 
-// Ensure AnthropicProvider implements the interfaces.
-var (
-	_ TextOnlyProvider = (*AnthropicProvider)(nil)
-	_ TextGenerator    = (*AnthropicProvider)(nil)
-)
+// Ensure AnthropicProvider implements the text generation interface.
+var _ TextGenerator = (*AnthropicProvider)(nil)

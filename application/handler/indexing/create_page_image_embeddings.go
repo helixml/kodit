@@ -207,7 +207,12 @@ func (h *CreatePageImageEmbeddings) embedAndSave(ctx context.Context, ids []stri
 		return nil
 	}
 
-	vectors, err := h.embedder.Embed(ctx, images)
+	items := make([]search.EmbeddingItem, len(images))
+	for i, img := range images {
+		items[i] = search.NewImageItem(img)
+	}
+
+	vectors, err := h.embedder.Embed(ctx, items)
 	if err != nil {
 		return fmt.Errorf("embed page images: %w", err)
 	}

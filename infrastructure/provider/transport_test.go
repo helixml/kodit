@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	openai "github.com/sashabaranov/go-openai"
+
+	"github.com/helixml/kodit/domain/search"
 )
 
 func TestCachingTransport_CacheMiss(t *testing.T) {
@@ -313,31 +315,31 @@ func TestCachingTransport_EmbeddingProvider(t *testing.T) {
 	ctx := t.Context()
 
 	// First call — should hit upstream
-	resp1, err := p.Embed(ctx, NewTextEmbeddingRequest(texts))
+	resp1, err := p.Embed(ctx, search.NewTextItems(texts))
 	if err != nil {
 		t.Fatalf("first embed: %v", err)
 	}
-	if len(resp1.Embeddings()) != 2 {
-		t.Fatalf("expected 2 embeddings, got %d", len(resp1.Embeddings()))
+	if len(resp1) != 2 {
+		t.Fatalf("expected 2 embeddings, got %d", len(resp1))
 	}
 	if count.Load() != 1 {
 		t.Fatalf("expected 1 upstream call after first embed, got %d", count.Load())
 	}
 
 	// Second call with identical texts — should come from cache
-	resp2, err := p.Embed(ctx, NewTextEmbeddingRequest(texts))
+	resp2, err := p.Embed(ctx, search.NewTextItems(texts))
 	if err != nil {
 		t.Fatalf("second embed: %v", err)
 	}
-	if len(resp2.Embeddings()) != 2 {
-		t.Fatalf("expected 2 embeddings from cache, got %d", len(resp2.Embeddings()))
+	if len(resp2) != 2 {
+		t.Fatalf("expected 2 embeddings from cache, got %d", len(resp2))
 	}
 	if count.Load() != 1 {
 		t.Errorf("expected 1 upstream call (cached), got %d", count.Load())
 	}
 
 	// Third call with different texts — should hit upstream again
-	_, err = p.Embed(ctx, NewTextEmbeddingRequest([]string{"different text"}))
+	_, err = p.Embed(ctx, search.NewTextItems([]string{"different text"}))
 	if err != nil {
 		t.Fatalf("third embed: %v", err)
 	}

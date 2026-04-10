@@ -32,7 +32,7 @@ type clientConfig struct {
 	cloneDir               string
 	modelDir               string
 	textProvider           provider.TextGenerator
-	embeddingProvider      provider.Embedder
+	embeddingProvider      search.Embedder
 	logger                 zerolog.Logger
 	apiKeys                []string
 	workerCount            int
@@ -46,6 +46,9 @@ type clientConfig struct {
 	periodicSync           config.PeriodicSyncConfig
 	chunkParams            chunking.ChunkParams
 	closers                []io.Closer
+
+	// Vision embedding
+	visionEmbedder search.Embedder
 
 	// Pipeline configuration
 	prescribedOpsFactory func(hasTextProvider bool) task.PrescribedOperations
@@ -132,7 +135,7 @@ func WithTextProvider(p provider.TextGenerator) Option {
 }
 
 // WithEmbeddingProvider sets a custom embedding provider.
-func WithEmbeddingProvider(p provider.Embedder) Option {
+func WithEmbeddingProvider(p search.Embedder) Option {
 	return func(c *clientConfig) {
 		c.embeddingProvider = p
 	}
@@ -258,6 +261,15 @@ func WithModelDir(dir string) Option {
 func WithChunkParams(params chunking.ChunkParams) Option {
 	return func(c *clientConfig) {
 		c.chunkParams = params
+	}
+}
+
+// WithVisionEmbedder sets the vision embedder. The embedder must accept
+// both image items and text items and produce vectors in the same
+// embedding space. When set, replaces the local SigLIP2 model.
+func WithVisionEmbedder(e search.Embedder) Option {
+	return func(c *clientConfig) {
+		c.visionEmbedder = e
 	}
 }
 

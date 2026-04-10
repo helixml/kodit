@@ -32,6 +32,12 @@ func clientOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 	}
 	opts = append(opts, txtOpts...)
 
+	visOpts, err := visionEmbeddingOptions(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("vision embedding config: %w", err)
+	}
+	opts = append(opts, visOpts...)
+
 	return opts, nil
 }
 
@@ -141,6 +147,41 @@ func textOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 		kodit.WithEnrichmentParallelism(endpoint.NumParallelTasks()),
 		kodit.WithEnricherParallelism(endpoint.NumParallelTasks()),
 	)
+
+	return opts, nil
+}
+
+// visionEmbeddingOptions returns kodit.Option values for a remote vision
+// embedding provider when the vision embedding endpoint is fully configured.
+func visionEmbeddingOptions(cfg config.AppConfig) ([]kodit.Option, error) {
+	endpoint := cfg.VisionEmbeddingEndpoint()
+	if endpoint == nil || endpoint.BaseURL() == "" || endpoint.APIKey() == "" {
+		return nil, nil
+	}
+
+	var opts []kodit.Option
+
+	openaiCfg := provider.OpenAIConfig{
+		APIKey:         endpoint.APIKey(),
+		BaseURL:        endpoint.BaseURL(),
+		EmbeddingModel: endpoint.Model(),
+		Timeout:        endpoint.Timeout(),
+		MaxRetries:     endpoint.MaxRetries(),
+	}
+	if cacheDir := cfg.HTTPCacheDir(); cacheDir != "" {
+		transport, err := provider.NewCachingTransport(cacheDir, nil)
+		if err != nil {
+			return nil, fmt.Errorf("http cache: %w", err)
+		}
+		openaiCfg.HTTPClient = &http.Client{
+			Timeout:   endpoint.Timeout(),
+			Transport: transport,
+		}
+		opts = append(opts, kodit.WithCloser(transport))
+	}
+	p := provider.NewOpenAIVisionProvider(openaiCfg)
+
+	opts = append(opts, kodit.WithVisionEmbedder(p))
 
 	return opts, nil
 }

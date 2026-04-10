@@ -9,6 +9,8 @@ import (
 	"time"
 
 	openai "github.com/sashabaranov/go-openai"
+
+	"github.com/helixml/kodit/domain/search"
 )
 
 // errEmbeddingCountMismatch indicates the API returned fewer embedding vectors
@@ -232,20 +234,24 @@ func (p *OpenAIProvider) ChatCompletion(ctx context.Context, req ChatCompletionR
 	), nil
 }
 
-// Embed generates embeddings for the given texts in a single API call.
-func (p *OpenAIProvider) Embed(ctx context.Context, req EmbeddingRequest) (EmbeddingResponse, error) {
+// Embed generates embeddings for the given text items in a single API call.
+// Items without a text payload return an error — OpenAI text embedding
+// endpoints do not accept image inputs.
+func (p *OpenAIProvider) Embed(ctx context.Context, items []search.EmbeddingItem) ([][]float64, error) {
 	if !p.supportsEmbedding {
-		return EmbeddingResponse{}, ErrUnsupportedOperation
+		return nil, ErrUnsupportedOperation
 	}
 
-	inputs := req.Inputs()
-	if len(inputs) == 0 {
-		return NewEmbeddingResponse([][]float64{}, NewUsage(0, 0, 0)), nil
+	if len(items) == 0 {
+		return [][]float64{}, nil
 	}
 
-	texts := make([]string, len(inputs))
-	for i, b := range inputs {
-		texts[i] = string(b)
+	texts := make([]string, len(items))
+	for i, item := range items {
+		if !item.HasText() {
+			return nil, fmt.Errorf("openai embedding requires text, got item %d with no text", i)
+		}
+		texts[i] = string(item.Text())
 	}
 
 	openaiReq := openai.EmbeddingRequest{
@@ -278,7 +284,7 @@ func (p *OpenAIProvider) Embed(ctx context.Context, req EmbeddingRequest) (Embed
 	})
 
 	if err != nil {
-		return EmbeddingResponse{}, p.wrapError("embedding", err)
+		return nil, p.wrapError("embedding", err)
 	}
 
 	embeddings := make([][]float64, len(resp.Data))
@@ -289,8 +295,7 @@ func (p *OpenAIProvider) Embed(ctx context.Context, req EmbeddingRequest) (Embed
 		}
 	}
 
-	usage := NewUsage(resp.Usage.PromptTokens, 0, resp.Usage.TotalTokens)
-	return NewEmbeddingResponse(embeddings, usage), nil
+	return embeddings, nil
 }
 
 // withRetry executes the function with exponential backoff retry.
@@ -384,7 +389,6 @@ func (p *OpenAIProvider) wrapError(operation string, err error) error {
 
 // Ensure OpenAIProvider implements the interfaces.
 var (
-	_ FullProvider  = (*OpenAIProvider)(nil)
-	_ TextGenerator = (*OpenAIProvider)(nil)
-	_ Embedder      = (*OpenAIProvider)(nil)
+	_ TextGenerator   = (*OpenAIProvider)(nil)
+	_ search.Embedder = (*OpenAIProvider)(nil)
 )

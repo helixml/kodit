@@ -64,7 +64,6 @@ func (c *Client) registerHandlers() error {
 	))
 
 	// Page image embedding handler
-	visionEmbedder := &embeddingAdapter{inner: c.visionEmbedding.VisionEmbedder()}
 	pageImageHandler, err := indexinghandler.NewCreatePageImageEmbeddings(
 		c.repoStores.Repositories,
 		c.enrichCtx.Enrichments,
@@ -72,7 +71,7 @@ func (c *Client) registerHandlers() error {
 		c.lineRangeStore,
 		c.repoStores.Files,
 		c.rasterizers,
-		visionEmbedder,
+		c.visionEmbedder,
 		c.visionIndex.Store,
 		c.enrichCtx.Tracker,
 		c.logger,

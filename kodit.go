@@ -142,6 +142,7 @@ type Client struct {
 
 	hugotEmbedding  *provider.HugotEmbedding
 	visionEmbedding *provider.LocalVisionEmbedding
+	visionEmbedder  search.Embedder
 	closers         []io.Closer
 
 	logger      zerolog.Logger
@@ -206,12 +207,20 @@ func New(opts ...Option) (*Client, error) {
 		}
 	}
 
-	// Create vision embedding model (SigLIP2).
-	modelDir := cfg.modelDir
-	if modelDir == "" {
-		modelDir = filepath.Join(dataDir, "models")
+	// Create vision embedding (remote or local SigLIP2). A single embedder
+	// handles both image and text inputs — it routes per item.
+	var visionEmbedding *provider.LocalVisionEmbedding
+	visionEmbedder := cfg.visionEmbedder
+	if visionEmbedder == nil {
+		modelDir := cfg.modelDir
+		if modelDir == "" {
+			modelDir = filepath.Join(dataDir, "models")
+		}
+		visionEmbedding = provider.NewLocalVisionEmbedding(provider.SigLIP2BaseConfig, modelDir)
+		visionEmbedder = visionEmbedding
+	} else {
+		logger.Info().Msg("remote vision embedding provider enabled")
 	}
-	visionEmbedding := provider.NewLocalVisionEmbedding(provider.SigLIP2BaseConfig, modelDir)
 
 	// Build database URL
 	ctx := context.Background()
@@ -276,17 +285,16 @@ func New(opts ...Option) (*Client, error) {
 	needsDimensionProbe := cfg.embeddingProvider != nil &&
 		cfg.database == databasePostgresVectorchord
 	if needsDimensionProbe {
-		resp, err := cfg.embeddingProvider.Embed(ctx, provider.NewTextEmbeddingRequest([]string{"dimension probe"}))
+		probe, err := cfg.embeddingProvider.Embed(ctx, []search.EmbeddingItem{search.NewTextItem("dimension probe")})
 		if err != nil {
 			errClose := db.Close()
 			return nil, errors.Join(fmt.Errorf("probe embedding dimension: %w", err), errClose)
 		}
-		probeEmbeddings := resp.Embeddings()
-		if len(probeEmbeddings) == 0 || len(probeEmbeddings[0]) == 0 {
+		if len(probe) == 0 || len(probe[0]) == 0 {
 			errClose := db.Close()
 			return nil, errors.Join(fmt.Errorf("failed to obtain embedding dimension from provider"), errClose)
 		}
-		dimension = len(probeEmbeddings[0])
+		dimension = len(probe[0])
 	}
 
 	// Create search stores based on storage type
@@ -296,16 +304,10 @@ func New(opts ...Option) (*Client, error) {
 		return nil, errors.Join(fmt.Errorf("search stores: %w", err), errClose)
 	}
 
-	// Create domain embedder from infrastructure provider
-	var domainEmbedder search.Embedder
-	if cfg.embeddingProvider != nil {
-		domainEmbedder = &embeddingAdapter{inner: cfg.embeddingProvider}
-	}
-
 	// Create vector indices (pairing embedding services with their stores)
 	var codeIndex handler.VectorIndex
 	if codeEmbeddingStore != nil {
-		embSvc, err := domainservice.NewEmbedding(codeEmbeddingStore, domainEmbedder, cfg.embeddingBudget, cfg.embeddingParallelism)
+		embSvc, err := domainservice.NewEmbedding(codeEmbeddingStore, cfg.embeddingProvider, cfg.embeddingBudget, cfg.embeddingParallelism)
 		if err != nil {
 			return nil, fmt.Errorf("create code embedding service: %w", err)
 		}
@@ -316,13 +318,26 @@ func New(opts ...Option) (*Client, error) {
 	}
 	var textIndex handler.VectorIndex
 	if textEmbeddingStore != nil {
-		embSvc, err := domainservice.NewEmbedding(textEmbeddingStore, domainEmbedder, cfg.enrichmentBudget, cfg.enrichmentParallelism)
+		embSvc, err := domainservice.NewEmbedding(textEmbeddingStore, cfg.embeddingProvider, cfg.enrichmentBudget, cfg.enrichmentParallelism)
 		if err != nil {
 			return nil, fmt.Errorf("create text embedding service: %w", err)
 		}
 		textIndex = handler.VectorIndex{
 			Embedding: embSvc,
 			Store:     textEmbeddingStore,
+		}
+	}
+
+	// Probe vision embedding dimension for PostgreSQL when using a remote provider.
+	visionDimension := 768 // SigLIP2 default
+	if cfg.visionEmbedder != nil && cfg.database == databasePostgresVectorchord {
+		probe, vErr := cfg.visionEmbedder.Embed(ctx, []search.EmbeddingItem{search.NewTextItem("dimension probe")})
+		if vErr != nil {
+			errClose := db.Close()
+			return nil, errors.Join(fmt.Errorf("probe vision embedding dimension: %w", vErr), errClose)
+		}
+		if len(probe) > 0 && len(probe[0]) > 0 {
+			visionDimension = len(probe[0])
 		}
 	}
 
@@ -336,13 +351,12 @@ func New(opts ...Option) (*Client, error) {
 		}
 		visionEmbeddingStore = vs
 	case databasePostgresVectorchord:
-		vs, _, vsErr := persistence.NewVectorChordEmbeddingStore(ctx, db, persistence.TaskNameVision, 768, logger)
+		vs, _, vsErr := persistence.NewVectorChordEmbeddingStore(ctx, db, persistence.TaskNameVision, visionDimension, logger)
 		if vsErr != nil {
 			return nil, fmt.Errorf("vision embedding store: %w", vsErr)
 		}
 		visionEmbeddingStore = vs
 	}
-	visionTextEmbedder := &embeddingAdapter{inner: visionEmbedding.TextEmbedder()}
 	visionIndex := handler.VectorIndex{
 		Store: visionEmbeddingStore,
 	}
@@ -479,6 +493,7 @@ func New(opts ...Option) (*Client, error) {
 		wikiContext:      wikiCtx,
 		hugotEmbedding:   hugotEmbedding,
 		visionEmbedding:  visionEmbedding,
+		visionEmbedder:   visionEmbedder,
 		closers:          cfg.closers,
 		logger:           logger,
 		dataDir:          dataDir,
@@ -510,7 +525,7 @@ func New(opts ...Option) (*Client, error) {
 	client.Enrichments = enrichQSvc
 	client.Tasks = queue
 	client.Tracking = trackingSvc
-	client.Search = service.NewSearch(domainEmbedder, textEmbeddingStore, codeEmbeddingStore, bm25Store, visionTextEmbedder, visionEmbeddingStore, enrichmentStore, &client.closed, logger)
+	client.Search = service.NewSearch(cfg.embeddingProvider, textEmbeddingStore, codeEmbeddingStore, bm25Store, client.visionEmbedder, visionEmbeddingStore, enrichmentStore, &client.closed, logger)
 	client.Grep = service.NewGrep(repoStore, commitStore, gitAdapter)
 
 	// Register task handlers
@@ -606,19 +621,6 @@ func (c *Client) Logger() zerolog.Logger {
 // Rasterizers returns the document rasterization registry, or nil if unavailable.
 func (c *Client) Rasterizers() *rasterization.Registry {
 	return c.rasterizers
-}
-
-// embeddingAdapter adapts provider.Embedder to the domain search.Embedder interface.
-type embeddingAdapter struct {
-	inner provider.Embedder
-}
-
-func (a *embeddingAdapter) Embed(ctx context.Context, inputs [][]byte) ([][]float64, error) {
-	resp, err := a.inner.Embed(ctx, provider.NewEmbeddingRequest(inputs))
-	if err != nil {
-		return nil, err
-	}
-	return resp.Embeddings(), nil
 }
 
 // buildSearchStores creates the search stores based on config.

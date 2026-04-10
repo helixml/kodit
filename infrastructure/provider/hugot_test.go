@@ -8,6 +8,8 @@ import (
 	"testing/fstest"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/helixml/kodit/domain/search"
 )
 
 func TestHugotEmbedding_Embed(t *testing.T) {
@@ -21,11 +23,9 @@ func TestHugotEmbedding_Embed(t *testing.T) {
 		require.NoError(t, emb.Close())
 	}()
 
-	req := NewTextEmbeddingRequest([]string{"hello world"})
-	resp, err := emb.Embed(context.Background(), req)
+	embeddings, err := emb.Embed(context.Background(), search.NewTextItems([]string{"hello world"}))
 	require.NoError(t, err)
 
-	embeddings := resp.Embeddings()
 	require.Len(t, embeddings, 1)
 	require.Equal(t, 768, len(embeddings[0]), "st-codesearch-distilroberta-base produces 768 dimensions")
 }
@@ -46,11 +46,9 @@ func TestHugotEmbedding_EmbedBatch(t *testing.T) {
 		texts[i] = "test sentence number"
 	}
 
-	req := NewTextEmbeddingRequest(texts)
-	resp, err := emb.Embed(context.Background(), req)
+	embeddings, err := emb.Embed(context.Background(), search.NewTextItems(texts))
 	require.NoError(t, err)
 
-	embeddings := resp.Embeddings()
 	require.Len(t, embeddings, 10)
 	for i, vec := range embeddings {
 		require.Equal(t, 768, len(vec), "embedding %d has wrong dimension", i)
@@ -64,11 +62,9 @@ func TestHugotEmbedding_EmbedEmpty(t *testing.T) {
 		require.NoError(t, emb.Close())
 	}()
 
-	req := NewTextEmbeddingRequest([]string{})
-	resp, err := emb.Embed(context.Background(), req)
+	embeddings, err := emb.Embed(context.Background(), search.NewTextItems([]string{}))
 	require.NoError(t, err)
 
-	embeddings := resp.Embeddings()
 	require.Empty(t, embeddings)
 }
 
@@ -190,7 +186,6 @@ func TestHugotEmbedding_CancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	req := NewTextEmbeddingRequest([]string{"hello"})
-	_, err := emb.Embed(ctx, req)
+	_, err := emb.Embed(ctx, search.NewTextItems([]string{"hello"}))
 	require.Error(t, err)
 }

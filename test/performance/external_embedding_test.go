@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/helixml/kodit/infrastructure/provider"
 	"github.com/stretchr/testify/require"
+
+	"github.com/helixml/kodit/domain/search"
+	"github.com/helixml/kodit/infrastructure/provider"
 )
 
 const (
@@ -57,11 +59,10 @@ func TestExternalEmbeddingBatching(t *testing.T) {
 	texts := sampleTexts(20)
 
 	// Warm up: single request to establish connection and verify credentials.
-	warmup := provider.NewTextEmbeddingRequest(texts[:1])
-	resp, err := embedder.Embed(ctx, warmup)
+	resp, err := embedder.Embed(ctx, search.NewTextItems(texts[:1]))
 	require.NoError(t, err)
-	require.Len(t, resp.Embeddings(), 1)
-	dimension := len(resp.Embeddings()[0])
+	require.Len(t, resp, 1)
+	dimension := len(resp[0])
 	t.Logf("model=%s  dimension=%d", openRouterEmbeddingModel, dimension)
 
 	// --- Phase 1: Sequential (one text per request) ---
@@ -73,10 +74,9 @@ func TestExternalEmbeddingBatching(t *testing.T) {
 
 				start := time.Now()
 				for _, text := range batch {
-					req := provider.NewTextEmbeddingRequest([]string{text})
-					resp, err := embedder.Embed(ctx, req)
+					resp, err := embedder.Embed(ctx, search.NewTextItems([]string{text}))
 					require.NoError(t, err)
-					require.Len(t, resp.Embeddings(), 1)
+					require.Len(t, resp, 1)
 				}
 				elapsed := time.Since(start)
 
@@ -96,8 +96,7 @@ func TestExternalEmbeddingBatching(t *testing.T) {
 		for i := range iterations {
 			text := texts[i%len(texts)]
 			start := time.Now()
-			req := provider.NewTextEmbeddingRequest([]string{text})
-			_, err := embedder.Embed(ctx, req)
+			_, err := embedder.Embed(ctx, search.NewTextItems([]string{text}))
 			latencies[i] = time.Since(start)
 			require.NoError(t, err)
 		}
