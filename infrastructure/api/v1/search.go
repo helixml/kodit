@@ -862,7 +862,13 @@ func snippetLinks(files []repository.File, lr *sourcelocation.SourceLocation, co
 	repoID := strconv.FormatInt(repo.ID(), 10)
 	fileLink := fmt.Sprintf("/api/v1/repositories/%s/blob/%s/%s", repoID, commit.SHA(), file.Path())
 	if lr != nil && lr.Page() > 0 {
-		fileLink = fmt.Sprintf("%s?page=%d&mode=raster", fileLink, lr.Page())
+		if lr.StartLine() > 0 {
+			// Text chunk from a document page — link to text extraction.
+			fileLink = fmt.Sprintf("%s?mode=text&page=%d", fileLink, lr.Page())
+		} else {
+			// Page image enrichment — link to rasterized image.
+			fileLink = fmt.Sprintf("%s?page=%d&mode=raster", fileLink, lr.Page())
+		}
 	}
 	return &dto.SnippetLinks{
 		Repository: fmt.Sprintf("/api/v1/repositories/%s", repoID),

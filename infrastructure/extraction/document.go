@@ -36,6 +36,12 @@ func Extensions() []string {
 	return out
 }
 
+// PageBoundary records where a page's text begins in a concatenated string.
+type PageBoundary struct {
+	Page       int // 1-based page number
+	ByteOffset int // byte offset in the concatenated text
+}
+
 // DocumentText extracts plain text from binary document files using tabula.
 type DocumentText struct{}
 
