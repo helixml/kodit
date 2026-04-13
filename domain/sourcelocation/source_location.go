@@ -30,6 +30,16 @@ func NewPage(enrichmentID int64, page int) SourceLocation {
 	}
 }
 
+// NewWithPage creates a SourceLocation with both a page number and a line range.
+func NewWithPage(enrichmentID int64, page, startLine, endLine int) SourceLocation {
+	return SourceLocation{
+		enrichmentID: enrichmentID,
+		page:         page,
+		startLine:    startLine,
+		endLine:      endLine,
+	}
+}
+
 // Reconstruct recreates a SourceLocation from persistence.
 func Reconstruct(id, enrichmentID int64, page, startLine, endLine int) SourceLocation {
 	return SourceLocation{

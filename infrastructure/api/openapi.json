@@ -2300,7 +2300,7 @@
         },
         "/repositories/{id}/blob/{blob_name}/{path}": {
             "get": {
-                "description": "Returns raw file content from a Git repository at a given blob reference (commit SHA, tag, or branch). Use mode=raster&page=N to get a rasterized JPEG of a document page.",
+                "description": "Returns raw file content from a Git repository at a given blob reference (commit SHA, tag, or branch). Use mode=raster&page=N to get a rasterized JPEG of a document page. Use mode=text&page=N to get extracted text from a document page. Use mode=text without page to get the page count.",
                 "parameters": [
                     {
                         "description": "Repository ID",
@@ -2346,7 +2346,7 @@
                         }
                     },
                     {
-                        "description": "Output mode: 'raster' returns a PNG image of the page",
+                        "description": "Output mode: 'raster' returns a JPEG image of the page, 'text' returns extracted text",
                         "in": "query",
                         "name": "mode",
                         "schema": {
@@ -2354,7 +2354,7 @@
                         }
                     },
                     {
-                        "description": "1-based page number (required when mode=raster)",
+                        "description": "1-based page number (required when mode=raster, optional for mode=text)",
                         "in": "query",
                         "name": "page",
                         "schema": {
@@ -2368,6 +2368,11 @@
                     },
                     "400": {
                         "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            },
                             "application/octet-stream": {
                                 "schema": {
                                     "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
@@ -2388,6 +2393,11 @@
                     },
                     "404": {
                         "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            },
                             "application/octet-stream": {
                                 "schema": {
                                     "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
@@ -2408,6 +2418,11 @@
                     },
                     "500": {
                         "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
+                                }
+                            },
                             "application/octet-stream": {
                                 "schema": {
                                     "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"

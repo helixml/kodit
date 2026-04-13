@@ -21,6 +21,7 @@ import (
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/wiki"
+	"github.com/helixml/kodit/infrastructure/extraction"
 	"github.com/helixml/kodit/infrastructure/rasterization"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -102,6 +103,7 @@ type Server struct {
 	fileContent        FileContentReader
 	diskPathResolver   DiskPathResolver
 	rasterizers        *rasterization.Registry
+	textRenderers      *extraction.TextRendererRegistry
 	semanticSearch     SemanticSearcher
 	keywordSearch      KeywordSearcher
 	visualSearch       VisualSearcher
@@ -139,7 +141,8 @@ const instructions = "This server provides access to code knowledge through mult
 	"where id is the repository ID, blob_name is a commit SHA, tag, or branch name, " +
 	"and path is the file path within the repository.\n" +
 	"Optional query parameters: ?lines=L17-L26,L45 and ?line_numbers=true\n" +
-	"For document pages (PDFs): ?page=N&mode=raster returns a rendered PNG image of the page\n\n" +
+	"For document pages (PDFs, DOCX, XLSX, PPTX): ?page=N&mode=raster returns a rendered image, " +
+	"?page=N&mode=text returns extracted text, ?mode=text returns the page count\n\n" +
 	"Choose the most appropriate tool based on what information you need. " +
 	"Often starting with architecture or API docs provides better context than " +
 	"immediately searching for code snippets."
@@ -152,6 +155,14 @@ func WithRasterization(diskPaths DiskPathResolver, rasterizers *rasterization.Re
 	return func(s *Server) {
 		s.diskPathResolver = diskPaths
 		s.rasterizers = rasterizers
+	}
+}
+
+// WithTextRendering enables text mode for file resource reads.
+func WithTextRendering(diskPaths DiskPathResolver, textRenderers *extraction.TextRendererRegistry) ServerOption {
+	return func(s *Server) {
+		s.diskPathResolver = diskPaths
+		s.textRenderers = textRenderers
 	}
 }
 
@@ -1121,17 +1132,22 @@ func (s *Server) handleReadFile(ctx context.Context, request mcp.ReadResourceReq
 	mode := query.Get("mode")
 	pageParam := query.Get("page")
 
-	if mode != "" && mode != "raster" {
-		return nil, fmt.Errorf("unsupported mode %q, valid modes: raster", mode)
+	if mode != "" && mode != "raster" && mode != "text" {
+		return nil, fmt.Errorf("unsupported mode %q, valid modes: raster, text", mode)
 	}
 
 	if pageParam != "" && mode == "" {
-		return nil, fmt.Errorf("page parameter requires mode=raster")
+		return nil, fmt.Errorf("page parameter requires mode=raster or mode=text")
 	}
 
 	// Raster mode: render a document page as a base64-encoded PNG.
 	if mode == "raster" {
 		return s.handleRasterRead(ctx, uri, repoID, blobName, filePath, pageParam)
+	}
+
+	// Text mode: extract text from a document page.
+	if mode == "text" {
+		return s.handleTextRead(ctx, uri, repoID, blobName, filePath, pageParam, query)
 	}
 
 	result, err := s.fileContent.Content(ctx, repoID, blobName, filePath)
@@ -1205,6 +1221,73 @@ func (s *Server) handleRasterRead(ctx context.Context, uri string, repoID int64,
 			URI:      uri,
 			MIMEType: "image/jpeg",
 			Blob:     base64.StdEncoding.EncodeToString(buf.Bytes()),
+		},
+	}, nil
+}
+
+// handleTextRead extracts text from a document page and returns it as text content.
+func (s *Server) handleTextRead(ctx context.Context, uri string, repoID int64, blobName, filePath, pageStr string, query url.Values) ([]mcp.ResourceContents, error) {
+	if s.diskPathResolver == nil || s.textRenderers == nil {
+		return nil, fmt.Errorf("text rendering not available")
+	}
+
+	ext := strings.ToLower(filepath.Ext(filePath))
+	renderer, ok := s.textRenderers.For(ext)
+	if !ok {
+		return nil, fmt.Errorf("text extraction not supported for %s files", ext)
+	}
+
+	diskPath, _, err := s.diskPathResolver.DiskPath(ctx, repoID, blobName, filePath)
+	if err != nil {
+		return nil, fmt.Errorf("resolve disk path: %w", err)
+	}
+
+	// No page parameter: return page count.
+	if pageStr == "" {
+		count, countErr := renderer.PageCount(diskPath)
+		if countErr != nil {
+			return nil, fmt.Errorf("get page count: %w", countErr)
+		}
+		return []mcp.ResourceContents{
+			mcp.TextResourceContents{
+				URI:      uri,
+				MIMEType: "application/json",
+				Text:     fmt.Sprintf(`{"page_count":%d}`, count),
+			},
+		}, nil
+	}
+
+	page, parseErr := strconv.Atoi(pageStr)
+	if parseErr != nil || page < 1 {
+		return nil, fmt.Errorf("page must be a positive integer")
+	}
+
+	text, err := renderer.Render(diskPath, page)
+	if err != nil {
+		return nil, fmt.Errorf("extract text from page %d: %w", page, err)
+	}
+
+	content := []byte(text)
+	linesParam := query.Get("lines")
+	lineNumbers := query.Get("line_numbers") == "true"
+
+	if linesParam != "" || lineNumbers {
+		filter, filterErr := service.NewLineFilter(linesParam)
+		if filterErr != nil {
+			return nil, fmt.Errorf("invalid lines parameter: %w", filterErr)
+		}
+		if lineNumbers {
+			content = filter.ApplyWithLineNumbers(content)
+		} else {
+			content = filter.Apply(content)
+		}
+	}
+
+	return []mcp.ResourceContents{
+		mcp.TextResourceContents{
+			URI:      uri,
+			MIMEType: "text/plain",
+			Text:     string(content),
 		},
 	}, nil
 }

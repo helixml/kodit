@@ -46,7 +46,7 @@ func (c *Client) registerHandlers() error {
 		indexinghandler.NewChunkFiles(
 			c.repoStores.Repositories, c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.lineRangeStore,
 			c.repoStores.Files, c.gitInfra.Adapter, c.documentText, extraction.NewExtractors(),
-			c.chunkParams, c.enrichCtx.Tracker, c.logger,
+			c.textRenderers, c.chunkParams, c.enrichCtx.Tracker, c.logger,
 		),
 		handler.NewEnrichmentCleanup(c.Enrichments, c.repoStores.Commits,
 			enrichment.TypeDevelopment, enrichment.SubtypeChunk),

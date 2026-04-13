@@ -1857,18 +1857,19 @@ func repoToDTO(repo repository.Repository, numCommits, numBranches, numTags int6
 // GetBlob handles GET /api/v1/repositories/{id}/blob/{blob_name}/*.
 //
 //	@Summary		Get raw file content
-//	@Description	Returns raw file content from a Git repository at a given blob reference (commit SHA, tag, or branch). Use mode=raster&page=N to get a rasterized JPEG of a document page.
+//	@Description	Returns raw file content from a Git repository at a given blob reference (commit SHA, tag, or branch). Use mode=raster&page=N to get a rasterized JPEG of a document page. Use mode=text&page=N to get extracted text from a document page. Use mode=text without page to get the page count.
 //	@Tags			repositories
 //	@Produce		octet-stream
 //	@Produce		plain
 //	@Produce		jpeg
+//	@Produce		json
 //	@Param			id			path	int		true	"Repository ID"
 //	@Param			blob_name	path	string	true	"Commit SHA, tag name, or branch name"
 //	@Param			path		path	string	true	"File path within the repository"
 //	@Param			lines			query	string	false	"Line ranges to extract (e.g. L17-L26,L45,L55-L90)"
 //	@Param			line_numbers	query	bool	false	"Prefix each line with its 1-based line number"
-//	@Param			mode			query	string	false	"Output mode: 'raster' returns a PNG image of the page"
-//	@Param			page			query	int		false	"1-based page number (required when mode=raster)"
+//	@Param			mode			query	string	false	"Output mode: 'raster' returns a JPEG image of the page, 'text' returns extracted text"
+//	@Param			page			query	int		false	"1-based page number (required when mode=raster, optional for mode=text)"
 //	@Success		200
 //	@Failure		400	{object}	middleware.JSONAPIErrorResponse
 //	@Failure		404	{object}	middleware.JSONAPIErrorResponse
@@ -1896,19 +1897,25 @@ func (r *RepositoriesRouter) GetBlob(w http.ResponseWriter, req *http.Request) {
 	mode := req.URL.Query().Get("mode")
 	pageParam := req.URL.Query().Get("page")
 
-	if mode != "" && mode != "raster" {
-		middleware.WriteError(w, req, fmt.Errorf("unsupported mode %q, valid modes: raster: %w", mode, middleware.ErrValidation), r.logger)
+	if mode != "" && mode != "raster" && mode != "text" {
+		middleware.WriteError(w, req, fmt.Errorf("unsupported mode %q, valid modes: raster, text: %w", mode, middleware.ErrValidation), r.logger)
 		return
 	}
 
 	if pageParam != "" && mode == "" {
-		middleware.WriteError(w, req, fmt.Errorf("page parameter requires mode=raster: %w", middleware.ErrValidation), r.logger)
+		middleware.WriteError(w, req, fmt.Errorf("page parameter requires mode=raster or mode=text: %w", middleware.ErrValidation), r.logger)
 		return
 	}
 
 	// Raster mode: render a document page as a PNG image.
 	if mode == "raster" {
 		r.renderRasterPage(w, req, repoID, blobName, filePath)
+		return
+	}
+
+	// Text mode: extract text from a document page.
+	if mode == "text" {
+		r.renderTextPage(w, req, repoID, blobName, filePath)
 		return
 	}
 
@@ -1997,6 +2004,79 @@ func (r *RepositoriesRouter) renderRasterPage(w http.ResponseWriter, req *http.R
 	w.Header().Set("X-Commit-SHA", commitSHA)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(buf.Bytes())
+}
+
+// renderTextPage extracts text from a document page and writes a plain text response.
+func (r *RepositoriesRouter) renderTextPage(w http.ResponseWriter, req *http.Request, repoID int64, blobName, filePath string) {
+	registry := r.client.TextRenderers()
+	if registry == nil {
+		middleware.WriteError(w, req, fmt.Errorf("text rendering not available: %w", middleware.ErrValidation), r.logger)
+		return
+	}
+
+	ext := strings.ToLower(filepath.Ext(filePath))
+	renderer, ok := registry.For(ext)
+	if !ok {
+		middleware.WriteError(w, req, fmt.Errorf("text extraction not supported for %s files: %w", ext, middleware.ErrValidation), r.logger)
+		return
+	}
+
+	diskPath, commitSHA, err := r.client.Blobs.DiskPath(req.Context(), repoID, blobName, filePath)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	pageStr := req.URL.Query().Get("page")
+
+	// No page parameter: return page count.
+	if pageStr == "" {
+		count, countErr := renderer.PageCount(diskPath)
+		if countErr != nil {
+			middleware.WriteError(w, req, fmt.Errorf("get page count: %w", countErr), r.logger)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Commit-SHA", commitSHA)
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintf(w, `{"page_count":%d}`, count)
+		return
+	}
+
+	page, parseErr := strconv.Atoi(pageStr)
+	if parseErr != nil || page < 1 {
+		middleware.WriteError(w, req, fmt.Errorf("page must be a positive integer: %w", middleware.ErrValidation), r.logger)
+		return
+	}
+
+	text, err := renderer.Render(diskPath, page)
+	if err != nil {
+		middleware.WriteError(w, req, fmt.Errorf("extract text from page %d: %w", page, err), r.logger)
+		return
+	}
+
+	content := []byte(text)
+
+	linesParam := req.URL.Query().Get("lines")
+	lineNumbers := req.URL.Query().Get("line_numbers") == "true"
+
+	if linesParam != "" || lineNumbers {
+		filter, filterErr := service.NewLineFilter(linesParam)
+		if filterErr != nil {
+			middleware.WriteError(w, req, fmt.Errorf("%s: %w", filterErr.Error(), middleware.ErrValidation), r.logger)
+			return
+		}
+		if lineNumbers {
+			content = filter.ApplyWithLineNumbers(content)
+		} else {
+			content = filter.Apply(content)
+		}
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("X-Commit-SHA", commitSHA)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(content)
 }
 
 // Grep searches file contents in a repository using git grep.

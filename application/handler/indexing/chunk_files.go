@@ -38,6 +38,7 @@ type ChunkFiles struct {
 	fileContent      FileContentSource
 	documentText     DocumentTextSource
 	extractors       *extraction.Extractors
+	textRenderers    *extraction.TextRendererRegistry
 	params           chunking.ChunkParams
 	trackerFactory   handler.TrackerFactory
 	logger           zerolog.Logger
@@ -45,6 +46,8 @@ type ChunkFiles struct {
 
 // NewChunkFiles creates a new ChunkFiles handler.
 // When documentText is nil, document files are skipped.
+// When textRenderers is non-nil, document text is extracted per-page so
+// that each chunk records the page it came from.
 func NewChunkFiles(
 	repoStore repository.RepositoryStore,
 	enrichmentStore enrichment.EnrichmentStore,
@@ -54,6 +57,7 @@ func NewChunkFiles(
 	fileContent FileContentSource,
 	documentText DocumentTextSource,
 	extractors *extraction.Extractors,
+	textRenderers *extraction.TextRendererRegistry,
 	params chunking.ChunkParams,
 	trackerFactory handler.TrackerFactory,
 	logger zerolog.Logger,
@@ -67,6 +71,7 @@ func NewChunkFiles(
 		fileContent:      fileContent,
 		documentText:     documentText,
 		extractors:       extractors,
+		textRenderers:    textRenderers,
 		params:           params,
 		trackerFactory:   trackerFactory,
 		logger:           logger,
@@ -144,6 +149,7 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 		relPath := relativeFilePath(f.Path(), clonedPath)
 
 		var text string
+		var pageBoundaries []extraction.PageBoundary
 
 		if extraction.IsDocument(ext) {
 			if h.documentText == nil {
@@ -156,12 +162,29 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 				processed++
 				continue
 			}
-			var extractErr error
-			text, extractErr = h.documentText.Text(diskPath)
-			if extractErr != nil {
-				h.logger.Warn().Str("path", f.Path()).Str("error", extractErr.Error()).Msg("failed to extract document text")
-				processed++
-				continue
+
+			// Try per-page extraction for page tracking.
+			if h.textRenderers != nil {
+				if renderer, ok := h.textRenderers.For(ext); ok {
+					var perPageErr error
+					text, pageBoundaries, perPageErr = extractPerPage(renderer, diskPath)
+					if perPageErr != nil {
+						h.logger.Warn().Str("path", f.Path()).Str("error", perPageErr.Error()).Msg("per-page extraction failed, falling back")
+						text = ""
+						pageBoundaries = nil
+					}
+				}
+			}
+
+			// Fall back to whole-document extraction.
+			if text == "" {
+				var extractErr error
+				text, extractErr = h.documentText.Text(diskPath)
+				if extractErr != nil {
+					h.logger.Warn().Str("path", f.Path()).Str("error", extractErr.Error()).Msg("failed to extract document text")
+					processed++
+					continue
+				}
 			}
 		} else {
 			content, readErr := h.fileContent.FileContent(ctx, clonedPath, cp.CommitSHA(), relPath)
@@ -191,7 +214,7 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 			continue
 		}
 
-		if err := h.persistChunks(ctx, textChunks, f, cp.CommitSHA(), repoIDStr); err != nil {
+		if err := h.persistChunks(ctx, textChunks, pageBoundaries, f, cp.CommitSHA(), repoIDStr); err != nil {
 			return err
 		}
 
@@ -204,7 +227,8 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 }
 
 // persistChunks saves enrichments, line ranges, and associations for the given chunks.
-func (h *ChunkFiles) persistChunks(ctx context.Context, textChunks chunking.TextChunks, f repository.File, commitSHA string, repoIDStr string) error {
+// When pageBoundaries is non-empty, each chunk is assigned the page where it starts.
+func (h *ChunkFiles) persistChunks(ctx context.Context, textChunks chunking.TextChunks, pageBoundaries []extraction.PageBoundary, f repository.File, commitSHA string, repoIDStr string) error {
 	for _, ch := range textChunks.All() {
 		e := enrichment.NewChunkEnrichmentWithLanguage(ch.Content(), f.Extension())
 		saved, saveErr := h.enrichmentStore.Save(ctx, e)
@@ -212,7 +236,13 @@ func (h *ChunkFiles) persistChunks(ctx context.Context, textChunks chunking.Text
 			return fmt.Errorf("save chunk enrichment: %w", saveErr)
 		}
 
-		lr := sourcelocation.New(saved.ID(), ch.StartLine(), ch.EndLine())
+		page := pageForByteOffset(pageBoundaries, ch.Offset())
+		var lr sourcelocation.SourceLocation
+		if page > 0 {
+			lr = sourcelocation.NewWithPage(saved.ID(), page, ch.StartLine(), ch.EndLine())
+		} else {
+			lr = sourcelocation.New(saved.ID(), ch.StartLine(), ch.EndLine())
+		}
 		if _, err := h.lineRangeStore.Save(ctx, lr); err != nil {
 			return fmt.Errorf("save chunk line range: %w", err)
 		}
@@ -352,4 +382,44 @@ func init() {
 func isIndexable(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
 	return indexableExtensions[ext]
+}
+
+// extractPerPage extracts text from each page of a document and returns
+// the concatenated text along with page boundaries for offset mapping.
+func extractPerPage(renderer extraction.TextRenderer, path string) (string, []extraction.PageBoundary, error) {
+	count, err := renderer.PageCount(path)
+	if err != nil {
+		return "", nil, fmt.Errorf("page count: %w", err)
+	}
+	if count == 0 {
+		return "", nil, nil
+	}
+
+	var buf strings.Builder
+	boundaries := make([]extraction.PageBoundary, 0, count)
+	for p := 1; p <= count; p++ {
+		pageText, renderErr := renderer.Render(path, p)
+		if renderErr != nil {
+			return "", nil, fmt.Errorf("render page %d: %w", p, renderErr)
+		}
+		boundaries = append(boundaries, extraction.PageBoundary{Page: p, ByteOffset: buf.Len()})
+		buf.WriteString(pageText)
+		if p < count {
+			buf.WriteString("\n")
+		}
+	}
+	return buf.String(), boundaries, nil
+}
+
+// pageForByteOffset returns the 1-based page number for the given byte offset.
+// Returns 0 when boundaries is empty.
+func pageForByteOffset(boundaries []extraction.PageBoundary, offset int) int {
+	page := 0
+	for _, b := range boundaries {
+		if b.ByteOffset > offset {
+			break
+		}
+		page = b.Page
+	}
+	return page
 }
