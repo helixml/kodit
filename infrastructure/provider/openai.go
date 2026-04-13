@@ -29,12 +29,12 @@ var errUpstreamProviderFailure = errors.New("upstream provider failure")
 
 // OpenAIProvider implements both text generation and embedding using OpenAI API.
 type OpenAIProvider struct {
-	client            *openai.Client
-	chatModel         string
-	embeddingModel    string
-	maxRetries        int
-	initialDelay      time.Duration
-	backoffFactor     float64
+	client              *openai.Client
+	chatModel           string
+	embeddingModel      string
+	maxRetries          int
+	initialDelay        time.Duration
+	backoffFactor       float64
 	extraParams         map[string]any
 	queryInstruction    string
 	documentInstruction string
@@ -100,15 +100,15 @@ func NewOpenAIProvider(apiKey string, opts ...OpenAIOption) *OpenAIProvider {
 
 // OpenAIConfig holds configuration for OpenAI provider.
 type OpenAIConfig struct {
-	APIKey         string
-	BaseURL        string
-	ChatModel      string
-	EmbeddingModel string
-	Timeout        time.Duration
-	MaxRetries     int
-	InitialDelay   time.Duration
-	BackoffFactor  float64
-	HTTPClient     *http.Client
+	APIKey              string
+	BaseURL             string
+	ChatModel           string
+	EmbeddingModel      string
+	Timeout             time.Duration
+	MaxRetries          int
+	InitialDelay        time.Duration
+	BackoffFactor       float64
+	HTTPClient          *http.Client
 	ExtraParams         map[string]any
 	QueryInstruction    string
 	DocumentInstruction string
@@ -158,12 +158,12 @@ func NewOpenAIProviderFromConfig(cfg OpenAIConfig) *OpenAIProvider {
 	}
 
 	return &OpenAIProvider{
-		client:            client,
-		chatModel:         chatModel,
-		embeddingModel:    embeddingModel,
-		maxRetries:        maxRetries,
-		initialDelay:      initialDelay,
-		backoffFactor:     backoffFactor,
+		client:              client,
+		chatModel:           chatModel,
+		embeddingModel:      embeddingModel,
+		maxRetries:          maxRetries,
+		initialDelay:        initialDelay,
+		backoffFactor:       backoffFactor,
 		extraParams:         cfg.ExtraParams,
 		queryInstruction:    cfg.QueryInstruction,
 		documentInstruction: cfg.DocumentInstruction,

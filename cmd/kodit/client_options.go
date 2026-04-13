@@ -165,11 +165,11 @@ func visionEmbeddingOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 	var opts []kodit.Option
 
 	openaiCfg := provider.OpenAIConfig{
-		APIKey:         endpoint.APIKey(),
-		BaseURL:        endpoint.BaseURL(),
-		EmbeddingModel: endpoint.Model(),
-		Timeout:        endpoint.Timeout(),
-		MaxRetries:     endpoint.MaxRetries(),
+		APIKey:              endpoint.APIKey(),
+		BaseURL:             endpoint.BaseURL(),
+		EmbeddingModel:      endpoint.Model(),
+		Timeout:             endpoint.Timeout(),
+		MaxRetries:          endpoint.MaxRetries(),
 		QueryInstruction:    endpoint.QueryInstruction(),
 		DocumentInstruction: endpoint.DocumentInstruction(),
 	}

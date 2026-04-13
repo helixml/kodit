@@ -92,21 +92,21 @@ func (c LiteLLMCacheConfig) WithEnabled(enabled bool) LiteLLMCacheConfig {
 
 // Endpoint configures an AI service endpoint.
 type Endpoint struct {
-	baseURL          string
-	model            string
-	apiKey           string
-	numParallelTasks int
-	socketPath       string
-	timeout          time.Duration
-	maxRetries       int
-	initialDelay     time.Duration
-	backoffFactor    float64
-	extraParams        map[string]any
-	queryInstruction   string
+	baseURL             string
+	model               string
+	apiKey              string
+	numParallelTasks    int
+	socketPath          string
+	timeout             time.Duration
+	maxRetries          int
+	initialDelay        time.Duration
+	backoffFactor       float64
+	extraParams         map[string]any
+	queryInstruction    string
 	documentInstruction string
-	maxTokens          int
-	maxBatchChars    int
-	maxBatchSize     int
+	maxTokens           int
+	maxBatchChars       int
+	maxBatchSize        int
 }
 
 // NewEndpoint creates a new Endpoint with defaults.
