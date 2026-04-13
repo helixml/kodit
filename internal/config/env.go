@@ -142,11 +142,16 @@ type EndpointEnv struct {
 	// Env: *_EXTRA_PARAMS
 	ExtraParams string `envconfig:"EXTRA_PARAMS"`
 
-	// SystemPrompt is the system-message instruction for embedding queries.
-	// Used by vision embedding models (e.g. Qwen3-VL-Embedding) that use
-	// asymmetric retrieval: queries get an instruction, documents do not.
-	// Env: *_SYSTEM_PROMPT
-	SystemPrompt string `envconfig:"SYSTEM_PROMPT"`
+	// QueryInstruction is the instruction prepended to search queries for
+	// asymmetric retrieval. Providers use this to distinguish query embeddings
+	// from document embeddings, placing them correctly in the vector space.
+	// Env: *_QUERY_INSTRUCTION
+	QueryInstruction string `envconfig:"QUERY_INSTRUCTION"`
+
+	// DocumentInstruction is the instruction prepended to documents during
+	// ingestion for asymmetric retrieval.
+	// Env: *_DOCUMENT_INSTRUCTION
+	DocumentInstruction string `envconfig:"DOCUMENT_INSTRUCTION"`
 
 	// MaxTokens is the maximum token limit.
 	// Env: *_MAX_TOKENS (default: 4000)
@@ -361,8 +366,11 @@ func (e EndpointEnv) ToEndpoint() Endpoint {
 			opts = append(opts, WithExtraParams(params))
 		}
 	}
-	if e.SystemPrompt != "" {
-		opts = append(opts, WithSystemPrompt(e.SystemPrompt))
+	if e.QueryInstruction != "" {
+		opts = append(opts, WithQueryInstruction(e.QueryInstruction))
+	}
+	if e.DocumentInstruction != "" {
+		opts = append(opts, WithDocumentInstruction(e.DocumentInstruction))
 	}
 
 	return NewEndpointWithOptions(opts...)

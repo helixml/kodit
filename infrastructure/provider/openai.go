@@ -35,9 +35,11 @@ type OpenAIProvider struct {
 	maxRetries        int
 	initialDelay      time.Duration
 	backoffFactor     float64
-	extraParams       map[string]any
-	supportsText      bool
-	supportsEmbedding bool
+	extraParams         map[string]any
+	queryInstruction    string
+	documentInstruction string
+	supportsText        bool
+	supportsEmbedding   bool
 }
 
 // OpenAIOption is a functional option for OpenAIProvider.
@@ -107,8 +109,9 @@ type OpenAIConfig struct {
 	InitialDelay   time.Duration
 	BackoffFactor  float64
 	HTTPClient     *http.Client
-	ExtraParams    map[string]any
-	Instruction    string
+	ExtraParams         map[string]any
+	QueryInstruction    string
+	DocumentInstruction string
 }
 
 // NewOpenAIProviderFromConfig creates a provider from configuration.
@@ -161,9 +164,11 @@ func NewOpenAIProviderFromConfig(cfg OpenAIConfig) *OpenAIProvider {
 		maxRetries:        maxRetries,
 		initialDelay:      initialDelay,
 		backoffFactor:     backoffFactor,
-		extraParams:       cfg.ExtraParams,
-		supportsText:      true,
-		supportsEmbedding: true,
+		extraParams:         cfg.ExtraParams,
+		queryInstruction:    cfg.QueryInstruction,
+		documentInstruction: cfg.DocumentInstruction,
+		supportsText:        true,
+		supportsEmbedding:   true,
 	}
 }
 
@@ -270,6 +275,14 @@ func (p *OpenAIProvider) Embed(ctx context.Context, items []search.EmbeddingItem
 		Input: texts,
 	}
 
+	// Apply asymmetric retrieval instruction when configured.
+	// A batch is either all queries or all documents — the two are never mixed.
+	if instruction := p.instructionForBatch(items); instruction != "" {
+		openaiReq.ExtraBody = map[string]any{
+			"instruction": instruction,
+		}
+	}
+
 	var resp openai.EmbeddingResponse
 	var err error
 
@@ -307,6 +320,19 @@ func (p *OpenAIProvider) Embed(ctx context.Context, items []search.EmbeddingItem
 	}
 
 	return embeddings, nil
+}
+
+// instructionForBatch returns the appropriate instruction for a batch of items.
+// If the first item is a query, the query instruction is returned; otherwise the
+// document instruction. Returns "" when no instruction is configured.
+func (p *OpenAIProvider) instructionForBatch(items []search.EmbeddingItem) string {
+	if len(items) == 0 {
+		return ""
+	}
+	if items[0].IsQuery() {
+		return p.queryInstruction
+	}
+	return p.documentInstruction
 }
 
 // withRetry executes the function with exponential backoff retry.

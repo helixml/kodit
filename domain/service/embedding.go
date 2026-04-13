@@ -218,7 +218,7 @@ func (s *EmbeddingService) Find(ctx context.Context, query string, options ...re
 		return nil, fmt.Errorf("Find: nil embedder")
 	}
 
-	embeddings, err := s.embedder.Embed(ctx, []search.EmbeddingItem{search.NewTextItem(query)})
+	embeddings, err := s.embedder.Embed(ctx, []search.EmbeddingItem{search.NewQueryItem(query)})
 	if err != nil {
 		return nil, fmt.Errorf("embed query: %w", err)
 	}

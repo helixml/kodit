@@ -101,9 +101,10 @@ type Endpoint struct {
 	maxRetries       int
 	initialDelay     time.Duration
 	backoffFactor    float64
-	extraParams      map[string]any
-	systemPrompt     string
-	maxTokens        int
+	extraParams        map[string]any
+	queryInstruction   string
+	documentInstruction string
+	maxTokens          int
 	maxBatchChars    int
 	maxBatchSize     int
 }
@@ -161,8 +162,11 @@ func (e Endpoint) ExtraParams() map[string]any {
 	return result
 }
 
-// SystemPrompt returns the system-message instruction for embedding queries.
-func (e Endpoint) SystemPrompt() string { return e.systemPrompt }
+// QueryInstruction returns the instruction prepended to search queries.
+func (e Endpoint) QueryInstruction() string { return e.queryInstruction }
+
+// DocumentInstruction returns the instruction prepended to documents during ingestion.
+func (e Endpoint) DocumentInstruction() string { return e.documentInstruction }
 
 // MaxTokens returns the maximum token limit.
 func (e Endpoint) MaxTokens() int { return e.maxTokens }
@@ -238,9 +242,14 @@ func WithExtraParams(params map[string]any) EndpointOption {
 	}
 }
 
-// WithSystemPrompt sets the system-message instruction for embedding queries.
-func WithSystemPrompt(s string) EndpointOption {
-	return func(e *Endpoint) { e.systemPrompt = s }
+// WithQueryInstruction sets the instruction prepended to search queries.
+func WithQueryInstruction(s string) EndpointOption {
+	return func(e *Endpoint) { e.queryInstruction = s }
+}
+
+// WithDocumentInstruction sets the instruction prepended to documents during ingestion.
+func WithDocumentInstruction(s string) EndpointOption {
+	return func(e *Endpoint) { e.documentInstruction = s }
 }
 
 // WithMaxTokens sets the maximum token limit.

@@ -65,15 +65,15 @@ func TestOpenAIVisionProvider_EmbedImage_SendsMessages(t *testing.T) {
 
 	var messages []map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(received["messages"], &messages))
-	require.Len(t, messages, 1, "expected one message per embedding item")
+	require.Len(t, messages, 2, "expected system + user messages per embedding item")
 
-	// The message must have role "user" and content with image_url part.
+	// The user message must have role "user" and content with image_url part.
 	var role string
-	require.NoError(t, json.Unmarshal(messages[0]["role"], &role))
+	require.NoError(t, json.Unmarshal(messages[1]["role"], &role))
 	require.Equal(t, "user", role)
 
 	var content []map[string]json.RawMessage
-	require.NoError(t, json.Unmarshal(messages[0]["content"], &content))
+	require.NoError(t, json.Unmarshal(messages[1]["content"], &content))
 	require.NotEmpty(t, content, "content must contain at least one part")
 
 	var partType string
@@ -113,7 +113,7 @@ func TestOpenAIVisionProvider_EmbedText_SendsMessagesWithInstruction(t *testing.
 	})
 
 	_, err := p.Embed(context.Background(), []search.EmbeddingItem{
-		search.NewTextItem("hello world"),
+		search.NewQueryItem("hello world"),
 	})
 	require.NoError(t, err)
 
@@ -135,7 +135,7 @@ func TestOpenAIVisionProvider_EmbedText_SendsMessagesWithInstruction(t *testing.
 
 	var instructionText string
 	require.NoError(t, json.Unmarshal(sysContent[0]["text"], &instructionText))
-	require.Equal(t, defaultQueryInstruction, instructionText)
+	require.Equal(t, defaultVisionQueryInstruction, instructionText)
 
 	// Second message: user with text content.
 	var userRole string
@@ -151,9 +151,10 @@ func TestOpenAIVisionProvider_EmbedText_SendsMessagesWithInstruction(t *testing.
 	require.Equal(t, "text", partType)
 }
 
-// TestOpenAIVisionProvider_EmbedImage_NoInstruction verifies that image
-// items (documents) do NOT get a system instruction message — only queries do.
-func TestOpenAIVisionProvider_EmbedImage_NoInstruction(t *testing.T) {
+// TestOpenAIVisionProvider_EmbedImage_DocumentInstruction verifies that image
+// items (documents) get a system message with the document instruction,
+// distinct from the query instruction.
+func TestOpenAIVisionProvider_EmbedImage_DocumentInstruction(t *testing.T) {
 	var received map[string]json.RawMessage
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -189,9 +190,23 @@ func TestOpenAIVisionProvider_EmbedImage_NoInstruction(t *testing.T) {
 
 	var messages []map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(received["messages"], &messages))
-	require.Len(t, messages, 1, "image embedding must have only user message, no system instruction")
+	require.Len(t, messages, 2, "image embedding must have system + user messages")
 
-	var role string
-	require.NoError(t, json.Unmarshal(messages[0]["role"], &role))
-	require.Equal(t, "user", role, "the single message must be from user")
+	// System message with document instruction.
+	var sysRole string
+	require.NoError(t, json.Unmarshal(messages[0]["role"], &sysRole))
+	require.Equal(t, "system", sysRole)
+
+	var sysContent []map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(messages[0]["content"], &sysContent))
+	require.Len(t, sysContent, 1)
+
+	var instructionText string
+	require.NoError(t, json.Unmarshal(sysContent[0]["text"], &instructionText))
+	require.Equal(t, defaultVisionDocumentInstruction, instructionText)
+
+	// User message with image content.
+	var userRole string
+	require.NoError(t, json.Unmarshal(messages[1]["role"], &userRole))
+	require.Equal(t, "user", userRole)
 }

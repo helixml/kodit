@@ -14,22 +14,26 @@ import (
 	"github.com/helixml/kodit/domain/search"
 )
 
-// defaultQueryInstruction is the system-message instruction prepended to
-// text-only (query) embeddings. Qwen3-VL-Embedding uses asymmetric
-// retrieval: queries get an instruction, documents/images do not.
-const defaultQueryInstruction = "Retrieve images or text relevant to the user's query."
+// Default instructions for asymmetric retrieval. Qwen3-VL-Embedding uses
+// different instructions for queries vs documents so that each is placed
+// correctly in the vector space.
+const (
+	defaultVisionQueryInstruction    = "Retrieve images relevant to the user's query."
+	defaultVisionDocumentInstruction = "Represent the image for retrieval."
+)
 
 // OpenAIVisionProvider embeds text or image inputs via an OpenAI-compatible
 // vision-language embedding API (e.g. Qwen3-VL-Embedding). It implements
 // Embedder and uses the vLLM "messages" format for all inputs so that
 // the model's chat template is applied consistently across modalities.
 type OpenAIVisionProvider struct {
-	client         *openai.Client
-	embeddingModel string
-	instruction    string
-	maxRetries     int
-	initialDelay   time.Duration
-	backoffFactor  float64
+	client              *openai.Client
+	embeddingModel      string
+	queryInstruction    string
+	documentInstruction string
+	maxRetries          int
+	initialDelay        time.Duration
+	backoffFactor       float64
 }
 
 // NewOpenAIVisionProvider creates a provider from configuration.
@@ -70,18 +74,24 @@ func NewOpenAIVisionProvider(cfg OpenAIConfig) *OpenAIVisionProvider {
 		backoffFactor = 2.0
 	}
 
-	instruction := cfg.Instruction
-	if instruction == "" {
-		instruction = defaultQueryInstruction
+	queryInstruction := cfg.QueryInstruction
+	if queryInstruction == "" {
+		queryInstruction = defaultVisionQueryInstruction
+	}
+
+	documentInstruction := cfg.DocumentInstruction
+	if documentInstruction == "" {
+		documentInstruction = defaultVisionDocumentInstruction
 	}
 
 	return &OpenAIVisionProvider{
-		client:         client,
-		embeddingModel: embeddingModel,
-		instruction:    instruction,
-		maxRetries:     maxRetries,
-		initialDelay:   initialDelay,
-		backoffFactor:  backoffFactor,
+		client:              client,
+		embeddingModel:      embeddingModel,
+		queryInstruction:    queryInstruction,
+		documentInstruction: documentInstruction,
+		maxRetries:          maxRetries,
+		initialDelay:        initialDelay,
+		backoffFactor:       backoffFactor,
 	}
 }
 
@@ -115,22 +125,23 @@ func (p *OpenAIVisionProvider) Embed(ctx context.Context, items []search.Embeddi
 }
 
 // embedItem sends a single item using the vLLM "messages" format.
-// For text-only items (queries), a system message with the retrieval
-// instruction is prepended — this is the asymmetric pattern recommended
-// by Qwen3-VL-Embedding. Image items (documents) get no instruction.
+// A system message with the appropriate instruction is prepended based on
+// whether the item is a query or a document — this is the asymmetric
+// retrieval pattern used by Qwen3-VL-Embedding.
 func (p *OpenAIVisionProvider) embedItem(ctx context.Context, item search.EmbeddingItem) ([]float64, error) {
 	content := buildMessageContent(item)
 
 	var messages []map[string]any
 
-	// Asymmetric retrieval: queries (text-only) get an instruction,
-	// documents (images) do not.
-	if !item.HasImage() {
-		messages = append(messages, map[string]any{
-			"role":    "system",
-			"content": []map[string]any{{"type": "text", "text": p.instruction}},
-		})
+	// Asymmetric retrieval: queries and documents get different instructions.
+	instruction := p.documentInstruction
+	if item.IsQuery() {
+		instruction = p.queryInstruction
 	}
+	messages = append(messages, map[string]any{
+		"role":    "system",
+		"content": []map[string]any{{"type": "text", "text": instruction}},
+	})
 
 	messages = append(messages, map[string]any{
 		"role":    "user",

@@ -310,7 +310,7 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 		if len(textsToEmbed) > 0 {
 			items := make([]search.EmbeddingItem, len(textsToEmbed))
 			for i, t := range textsToEmbed {
-				items[i] = search.NewTextItem(t)
+				items[i] = search.NewQueryItem(t)
 			}
 			embeddings, err := s.embedder.Embed(ctx, items)
 			if err != nil {
@@ -444,7 +444,7 @@ func (s Search) SearchText(ctx context.Context, query string, topK int) ([]enric
 		topK = 10
 	}
 
-	embeddings, err := s.embedder.Embed(ctx, []search.EmbeddingItem{search.NewTextItem(query)})
+	embeddings, err := s.embedder.Embed(ctx, []search.EmbeddingItem{search.NewQueryItem(query)})
 	if err != nil {
 		return nil, fmt.Errorf("embed query: %w", err)
 	}
@@ -482,7 +482,7 @@ func (s Search) SearchCode(ctx context.Context, query string, topK int) ([]enric
 		topK = 10
 	}
 
-	embeddings, err := s.embedder.Embed(ctx, []search.EmbeddingItem{search.NewTextItem(query)})
+	embeddings, err := s.embedder.Embed(ctx, []search.EmbeddingItem{search.NewQueryItem(query)})
 	if err != nil {
 		return nil, fmt.Errorf("embed query: %w", err)
 	}
@@ -521,7 +521,7 @@ func (s Search) SearchCodeWithScores(ctx context.Context, query string, topK int
 		topK = 10
 	}
 
-	embeddings, err := s.embedder.Embed(ctx, []search.EmbeddingItem{search.NewTextItem(query)})
+	embeddings, err := s.embedder.Embed(ctx, []search.EmbeddingItem{search.NewQueryItem(query)})
 	if err != nil {
 		return nil, nil, fmt.Errorf("embed query: %w", err)
 	}
@@ -614,7 +614,7 @@ func (s Search) SearchVisualWithScores(ctx context.Context, query string, topK i
 		topK = 10
 	}
 
-	embeddings, err := s.visionEmbedder.Embed(ctx, []search.EmbeddingItem{search.NewTextItem(query)})
+	embeddings, err := s.visionEmbedder.Embed(ctx, []search.EmbeddingItem{search.NewQueryItem(query)})
 	if err != nil {
 		return nil, nil, fmt.Errorf("embed visual query: %w", err)
 	}
