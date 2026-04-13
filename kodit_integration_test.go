@@ -17,22 +17,22 @@ import (
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
-	"github.com/helixml/kodit/infrastructure/provider"
+	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/internal/database"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// stubEmbedder is a minimal provider.Embedder for tests that do not need real embeddings.
-// It returns a single zero vector per input so the pipeline can complete without a model.
+// stubEmbedder is a minimal search.Embedder for tests that do not need real embeddings.
+// It returns a single zero vector per item so the pipeline can complete without a model.
 type stubEmbedder struct{}
 
-func (stubEmbedder) Embed(_ context.Context, req provider.EmbeddingRequest) (provider.EmbeddingResponse, error) {
-	vecs := make([][]float64, len(req.Inputs()))
+func (stubEmbedder) Embed(_ context.Context, items []search.EmbeddingItem) ([][]float64, error) {
+	vecs := make([][]float64, len(items))
 	for i := range vecs {
 		vecs[i] = []float64{0}
 	}
-	return provider.NewEmbeddingResponse(vecs, provider.Usage{}), nil
+	return vecs, nil
 }
 
 const testPollPeriod = 50 * time.Millisecond

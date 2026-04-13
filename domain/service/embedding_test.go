@@ -20,10 +20,10 @@ type fakeEmbedder struct {
 	errAt int        // batch index at which to return an error; -1 = never
 }
 
-func (f *fakeEmbedder) Embed(_ context.Context, inputs [][]byte) ([][]float64, error) {
-	texts := make([]string, len(inputs))
-	for i, b := range inputs {
-		texts[i] = string(b)
+func (f *fakeEmbedder) Embed(_ context.Context, items []search.EmbeddingItem) ([][]float64, error) {
+	texts := make([]string, len(items))
+	for i, item := range items {
+		texts[i] = string(item.Text())
 	}
 	f.mu.Lock()
 	idx := len(f.calls)
@@ -32,8 +32,8 @@ func (f *fakeEmbedder) Embed(_ context.Context, inputs [][]byte) ([][]float64, e
 	if f.errAt >= 0 && idx == f.errAt {
 		return nil, fmt.Errorf("embed error at batch %d", idx)
 	}
-	vectors := make([][]float64, len(inputs))
-	for i := range inputs {
+	vectors := make([][]float64, len(items))
+	for i := range items {
 		vectors[i] = []float64{0.1, 0.2, 0.3}
 	}
 	return vectors, nil

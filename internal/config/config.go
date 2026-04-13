@@ -92,19 +92,21 @@ func (c LiteLLMCacheConfig) WithEnabled(enabled bool) LiteLLMCacheConfig {
 
 // Endpoint configures an AI service endpoint.
 type Endpoint struct {
-	baseURL          string
-	model            string
-	apiKey           string
-	numParallelTasks int
-	socketPath       string
-	timeout          time.Duration
-	maxRetries       int
-	initialDelay     time.Duration
-	backoffFactor    float64
-	extraParams      map[string]any
-	maxTokens        int
-	maxBatchChars    int
-	maxBatchSize     int
+	baseURL             string
+	model               string
+	apiKey              string
+	numParallelTasks    int
+	socketPath          string
+	timeout             time.Duration
+	maxRetries          int
+	initialDelay        time.Duration
+	backoffFactor       float64
+	extraParams         map[string]any
+	queryInstruction    string
+	documentInstruction string
+	maxTokens           int
+	maxBatchChars       int
+	maxBatchSize        int
 }
 
 // NewEndpoint creates a new Endpoint with defaults.
@@ -159,6 +161,12 @@ func (e Endpoint) ExtraParams() map[string]any {
 	}
 	return result
 }
+
+// QueryInstruction returns the instruction prepended to search queries.
+func (e Endpoint) QueryInstruction() string { return e.queryInstruction }
+
+// DocumentInstruction returns the instruction prepended to documents during ingestion.
+func (e Endpoint) DocumentInstruction() string { return e.documentInstruction }
 
 // MaxTokens returns the maximum token limit.
 func (e Endpoint) MaxTokens() int { return e.maxTokens }
@@ -232,6 +240,16 @@ func WithExtraParams(params map[string]any) EndpointOption {
 			}
 		}
 	}
+}
+
+// WithQueryInstruction sets the instruction prepended to search queries.
+func WithQueryInstruction(s string) EndpointOption {
+	return func(e *Endpoint) { e.queryInstruction = s }
+}
+
+// WithDocumentInstruction sets the instruction prepended to documents during ingestion.
+func WithDocumentInstruction(s string) EndpointOption {
+	return func(e *Endpoint) { e.documentInstruction = s }
 }
 
 // WithMaxTokens sets the maximum token limit.
@@ -393,27 +411,28 @@ func NewRemoteConfigWithOptions(opts ...RemoteConfigOption) RemoteConfig {
 
 // AppConfig holds the main application configuration.
 type AppConfig struct {
-	host                   string
-	port                   int
-	dataDir                string
-	dbURL                  string
-	logLevel               string
-	logFormat              LogFormat
-	disableTelemetry       bool
-	skipProviderValidation bool
-	embeddingEndpoint      *Endpoint
-	enrichmentEndpoint     *Endpoint
-	periodicSync           PeriodicSyncConfig
-	apiKeys                []string
-	remote                 RemoteConfig
-	reporting              ReportingConfig
-	litellmCache           LiteLLMCacheConfig
-	workerCount            int
-	searchLimit            int
-	httpCacheDir           string
-	chunkSize              int
-	chunkOverlap           int
-	chunkMinSize           int
+	host                    string
+	port                    int
+	dataDir                 string
+	dbURL                   string
+	logLevel                string
+	logFormat               LogFormat
+	disableTelemetry        bool
+	skipProviderValidation  bool
+	embeddingEndpoint       *Endpoint
+	enrichmentEndpoint      *Endpoint
+	visionEmbeddingEndpoint *Endpoint
+	periodicSync            PeriodicSyncConfig
+	apiKeys                 []string
+	remote                  RemoteConfig
+	reporting               ReportingConfig
+	litellmCache            LiteLLMCacheConfig
+	workerCount             int
+	searchLimit             int
+	httpCacheDir            string
+	chunkSize               int
+	chunkOverlap            int
+	chunkMinSize            int
 }
 
 // DefaultDataDir returns the default data directory.
@@ -510,6 +529,9 @@ func (c AppConfig) EmbeddingEndpoint() *Endpoint { return c.embeddingEndpoint }
 
 // EnrichmentEndpoint returns the enrichment endpoint config.
 func (c AppConfig) EnrichmentEndpoint() *Endpoint { return c.enrichmentEndpoint }
+
+// VisionEmbeddingEndpoint returns the vision embedding endpoint config.
+func (c AppConfig) VisionEmbeddingEndpoint() *Endpoint { return c.visionEmbeddingEndpoint }
 
 // PeriodicSync returns the periodic sync config.
 func (c AppConfig) PeriodicSync() PeriodicSyncConfig { return c.periodicSync }
@@ -638,6 +660,11 @@ func WithEnrichmentEndpoint(e Endpoint) AppConfigOption {
 	return func(c *AppConfig) { c.enrichmentEndpoint = &e }
 }
 
+// WithVisionEmbeddingEndpoint sets the vision embedding endpoint.
+func WithVisionEmbeddingEndpoint(e Endpoint) AppConfigOption {
+	return func(c *AppConfig) { c.visionEmbeddingEndpoint = &e }
+}
+
 // WithPeriodicSyncConfig sets the periodic sync config.
 func WithPeriodicSyncConfig(p PeriodicSyncConfig) AppConfigOption {
 	return func(c *AppConfig) { c.periodicSync = p }
@@ -735,6 +762,8 @@ func (c AppConfig) LogConfig(event *zerolog.Event) *zerolog.Event {
 		Str("embedding_model", c.endpointModel(c.embeddingEndpoint)).
 		Str("enrichment_base_url", c.endpointBaseURL(c.enrichmentEndpoint)).
 		Str("enrichment_model", c.endpointModel(c.enrichmentEndpoint)).
+		Str("vision_embedding_base_url", c.endpointBaseURL(c.visionEmbeddingEndpoint)).
+		Str("vision_embedding_model", c.endpointModel(c.visionEmbeddingEndpoint)).
 		Int("api_keys_count", len(c.apiKeys)).
 		Bool("skip_provider_validation", c.skipProviderValidation).
 		Bool("periodic_sync_enabled", c.periodicSync.Enabled()).

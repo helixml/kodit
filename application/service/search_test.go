@@ -21,12 +21,12 @@ type fakeEmbedder struct {
 	err     error
 }
 
-func (f fakeEmbedder) Embed(_ context.Context, inputs [][]byte) ([][]float64, error) {
+func (f fakeEmbedder) Embed(_ context.Context, items []search.EmbeddingItem) ([][]float64, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
-	result := make([][]float64, len(inputs))
-	for i := range inputs {
+	result := make([][]float64, len(items))
+	for i := range items {
 		if i < len(f.vectors) {
 			result[i] = f.vectors[i]
 		} else {

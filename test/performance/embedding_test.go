@@ -30,19 +30,6 @@ const (
 	embeddingDimension = 768
 )
 
-// embeddingAdapter adapts provider.Embedder to domain search.Embedder.
-type embeddingAdapter struct {
-	inner provider.Embedder
-}
-
-func (a *embeddingAdapter) Embed(ctx context.Context, inputs [][]byte) ([][]float64, error) {
-	resp, err := a.inner.Embed(ctx, provider.NewEmbeddingRequest(inputs))
-	if err != nil {
-		return nil, err
-	}
-	return resp.Embeddings(), nil
-}
-
 // testDB connects to the VectorChord PostgreSQL instance and drops any
 // leftover performance test tables. Returns the database and a cleanup function.
 func testDB(t *testing.T) database.Database {
@@ -128,8 +115,7 @@ func TestEmbeddingPipeline(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	adapter := &embeddingAdapter{inner: embedder}
-	svc, err := domainservice.NewEmbedding(store, adapter, search.DefaultTokenBudget(), 1)
+	svc, err := domainservice.NewEmbedding(store, embedder, search.DefaultTokenBudget(), 1)
 	require.NoError(t, err)
 
 	// --- Phase 1: ONNX Model Inference ---
@@ -143,12 +129,10 @@ func TestEmbeddingPipeline(t *testing.T) {
 				}
 
 				start := time.Now()
-				req := provider.NewTextEmbeddingRequest(texts)
-				resp, err := embedder.Embed(ctx, req)
+				embeddings, err := embedder.Embed(ctx, search.NewTextItems(texts))
 				elapsed := time.Since(start)
 				require.NoError(t, err)
 
-				embeddings := resp.Embeddings()
 				require.Len(t, embeddings, size)
 
 				perItem := elapsed / time.Duration(size)
@@ -303,8 +287,7 @@ func TestEmbeddingPipelineCPUProfile(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	adapter := &embeddingAdapter{inner: embedder}
-	svc, err := domainservice.NewEmbedding(store, adapter, search.DefaultTokenBudget(), 1)
+	svc, err := domainservice.NewEmbedding(store, embedder, search.DefaultTokenBudget(), 1)
 	require.NoError(t, err)
 
 	// Create profile output
@@ -314,8 +297,7 @@ func TestEmbeddingPipelineCPUProfile(t *testing.T) {
 	defer func() { require.NoError(t, f.Close()) }()
 
 	// Warm up the ONNX model before profiling
-	warmReq := provider.NewTextEmbeddingRequest([]string{"warmup"})
-	_, err = embedder.Embed(ctx, warmReq)
+	_, err = embedder.Embed(ctx, search.NewTextItems([]string{"warmup"}))
 	require.NoError(t, err)
 
 	// Start CPU profiling
@@ -359,13 +341,11 @@ func TestEmbeddingPipelineMemProfile(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	adapter := &embeddingAdapter{inner: embedder}
-	svc, err := domainservice.NewEmbedding(store, adapter, search.DefaultTokenBudget(), 1)
+	svc, err := domainservice.NewEmbedding(store, embedder, search.DefaultTokenBudget(), 1)
 	require.NoError(t, err)
 
 	// Warm up
-	warmReq := provider.NewTextEmbeddingRequest([]string{"warmup"})
-	_, err = embedder.Embed(ctx, warmReq)
+	_, err = embedder.Embed(ctx, search.NewTextItems([]string{"warmup"}))
 	require.NoError(t, err)
 
 	// Allocate/index 200 documents

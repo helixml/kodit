@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -9,6 +10,8 @@ import (
 	"time"
 
 	openai "github.com/sashabaranov/go-openai"
+
+	"github.com/helixml/kodit/domain/search"
 )
 
 // errEmbeddingCountMismatch indicates the API returned fewer embedding vectors
@@ -26,14 +29,17 @@ var errUpstreamProviderFailure = errors.New("upstream provider failure")
 
 // OpenAIProvider implements both text generation and embedding using OpenAI API.
 type OpenAIProvider struct {
-	client            *openai.Client
-	chatModel         string
-	embeddingModel    string
-	maxRetries        int
-	initialDelay      time.Duration
-	backoffFactor     float64
-	supportsText      bool
-	supportsEmbedding bool
+	client              *openai.Client
+	chatModel           string
+	embeddingModel      string
+	maxRetries          int
+	initialDelay        time.Duration
+	backoffFactor       float64
+	extraParams         map[string]any
+	queryInstruction    string
+	documentInstruction string
+	supportsText        bool
+	supportsEmbedding   bool
 }
 
 // OpenAIOption is a functional option for OpenAIProvider.
@@ -94,15 +100,18 @@ func NewOpenAIProvider(apiKey string, opts ...OpenAIOption) *OpenAIProvider {
 
 // OpenAIConfig holds configuration for OpenAI provider.
 type OpenAIConfig struct {
-	APIKey         string
-	BaseURL        string
-	ChatModel      string
-	EmbeddingModel string
-	Timeout        time.Duration
-	MaxRetries     int
-	InitialDelay   time.Duration
-	BackoffFactor  float64
-	HTTPClient     *http.Client
+	APIKey              string
+	BaseURL             string
+	ChatModel           string
+	EmbeddingModel      string
+	Timeout             time.Duration
+	MaxRetries          int
+	InitialDelay        time.Duration
+	BackoffFactor       float64
+	HTTPClient          *http.Client
+	ExtraParams         map[string]any
+	QueryInstruction    string
+	DocumentInstruction string
 }
 
 // NewOpenAIProviderFromConfig creates a provider from configuration.
@@ -149,14 +158,17 @@ func NewOpenAIProviderFromConfig(cfg OpenAIConfig) *OpenAIProvider {
 	}
 
 	return &OpenAIProvider{
-		client:            client,
-		chatModel:         chatModel,
-		embeddingModel:    embeddingModel,
-		maxRetries:        maxRetries,
-		initialDelay:      initialDelay,
-		backoffFactor:     backoffFactor,
-		supportsText:      true,
-		supportsEmbedding: true,
+		client:              client,
+		chatModel:           chatModel,
+		embeddingModel:      embeddingModel,
+		maxRetries:          maxRetries,
+		initialDelay:        initialDelay,
+		backoffFactor:       backoffFactor,
+		extraParams:         cfg.ExtraParams,
+		queryInstruction:    cfg.QueryInstruction,
+		documentInstruction: cfg.DocumentInstruction,
+		supportsText:        true,
+		supportsEmbedding:   true,
 	}
 }
 
@@ -201,6 +213,12 @@ func (p *OpenAIProvider) ChatCompletion(ctx context.Context, req ChatCompletionR
 		openaiReq.Temperature = float32(req.Temperature())
 	}
 
+	if len(p.extraParams) > 0 {
+		if err := applyExtraParams(&openaiReq, p.extraParams); err != nil {
+			return ChatCompletionResponse{}, fmt.Errorf("apply extra params: %w", err)
+		}
+	}
+
 	var resp openai.ChatCompletionResponse
 	var err error
 
@@ -232,25 +250,37 @@ func (p *OpenAIProvider) ChatCompletion(ctx context.Context, req ChatCompletionR
 	), nil
 }
 
-// Embed generates embeddings for the given texts in a single API call.
-func (p *OpenAIProvider) Embed(ctx context.Context, req EmbeddingRequest) (EmbeddingResponse, error) {
+// Embed generates embeddings for the given text items in a single API call.
+// Items without a text payload return an error — OpenAI text embedding
+// endpoints do not accept image inputs.
+func (p *OpenAIProvider) Embed(ctx context.Context, items []search.EmbeddingItem) ([][]float64, error) {
 	if !p.supportsEmbedding {
-		return EmbeddingResponse{}, ErrUnsupportedOperation
+		return nil, ErrUnsupportedOperation
 	}
 
-	inputs := req.Inputs()
-	if len(inputs) == 0 {
-		return NewEmbeddingResponse([][]float64{}, NewUsage(0, 0, 0)), nil
+	if len(items) == 0 {
+		return [][]float64{}, nil
 	}
 
-	texts := make([]string, len(inputs))
-	for i, b := range inputs {
-		texts[i] = string(b)
+	texts := make([]string, len(items))
+	for i, item := range items {
+		if !item.HasText() {
+			return nil, fmt.Errorf("openai embedding requires text, got item %d with no text", i)
+		}
+		texts[i] = string(item.Text())
 	}
 
 	openaiReq := openai.EmbeddingRequest{
 		Model: openai.EmbeddingModel(p.embeddingModel),
 		Input: texts,
+	}
+
+	// Apply asymmetric retrieval instruction when configured.
+	// A batch is either all queries or all documents — the two are never mixed.
+	if instruction := p.instructionForBatch(items); instruction != "" {
+		openaiReq.ExtraBody = map[string]any{
+			"instruction": instruction,
+		}
 	}
 
 	var resp openai.EmbeddingResponse
@@ -278,7 +308,7 @@ func (p *OpenAIProvider) Embed(ctx context.Context, req EmbeddingRequest) (Embed
 	})
 
 	if err != nil {
-		return EmbeddingResponse{}, p.wrapError("embedding", err)
+		return nil, p.wrapError("embedding", err)
 	}
 
 	embeddings := make([][]float64, len(resp.Data))
@@ -289,8 +319,20 @@ func (p *OpenAIProvider) Embed(ctx context.Context, req EmbeddingRequest) (Embed
 		}
 	}
 
-	usage := NewUsage(resp.Usage.PromptTokens, 0, resp.Usage.TotalTokens)
-	return NewEmbeddingResponse(embeddings, usage), nil
+	return embeddings, nil
+}
+
+// instructionForBatch returns the appropriate instruction for a batch of items.
+// If the first item is a query, the query instruction is returned; otherwise the
+// document instruction. Returns "" when no instruction is configured.
+func (p *OpenAIProvider) instructionForBatch(items []search.EmbeddingItem) string {
+	if len(items) == 0 {
+		return ""
+	}
+	if items[0].IsQuery() {
+		return p.queryInstruction
+	}
+	return p.documentInstruction
 }
 
 // withRetry executes the function with exponential backoff retry.
@@ -382,9 +424,46 @@ func (p *OpenAIProvider) wrapError(operation string, err error) error {
 	return NewProviderError(operation, 0, err.Error(), err)
 }
 
+// applyExtraParams merges arbitrary key-value pairs into an
+// openai.ChatCompletionRequest via JSON round-trip. This lets callers set any
+// field the go-openai library supports (e.g. chat_template_kwargs,
+// reasoning_effort) without the provider needing per-field wiring.
+func applyExtraParams(req *openai.ChatCompletionRequest, params map[string]any) error {
+	base, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("marshal request: %w", err)
+	}
+
+	extra, err := json.Marshal(params)
+	if err != nil {
+		return fmt.Errorf("marshal extra params: %w", err)
+	}
+
+	merged, err := jsonMerge(base, extra)
+	if err != nil {
+		return fmt.Errorf("merge: %w", err)
+	}
+
+	return json.Unmarshal(merged, req)
+}
+
+// jsonMerge shallow-merges two JSON objects. Keys from b override keys in a.
+func jsonMerge(a, b []byte) ([]byte, error) {
+	var am, bm map[string]json.RawMessage
+	if err := json.Unmarshal(a, &am); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(b, &bm); err != nil {
+		return nil, err
+	}
+	for k, v := range bm {
+		am[k] = v
+	}
+	return json.Marshal(am)
+}
+
 // Ensure OpenAIProvider implements the interfaces.
 var (
-	_ FullProvider  = (*OpenAIProvider)(nil)
-	_ TextGenerator = (*OpenAIProvider)(nil)
-	_ Embedder      = (*OpenAIProvider)(nil)
+	_ TextGenerator   = (*OpenAIProvider)(nil)
+	_ search.Embedder = (*OpenAIProvider)(nil)
 )

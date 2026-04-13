@@ -58,6 +58,10 @@ type EnvConfig struct {
 	// EnrichmentEndpoint configures the enrichment AI service.
 	EnrichmentEndpoint EndpointEnv `envconfig:"ENRICHMENT_ENDPOINT"`
 
+	// VisionEmbeddingEndpoint configures an optional remote vision embedding service.
+	// When set, replaces the local SigLIP2 model for image/text vision embeddings.
+	VisionEmbeddingEndpoint EndpointEnv `envconfig:"VISION_EMBEDDING_ENDPOINT"`
+
 	// PeriodicSync configures periodic repository syncing.
 	PeriodicSync PeriodicSyncEnv `envconfig:"PERIODIC_SYNC"`
 
@@ -137,6 +141,17 @@ type EndpointEnv struct {
 	// ExtraParams is a JSON-encoded map of extra parameters.
 	// Env: *_EXTRA_PARAMS
 	ExtraParams string `envconfig:"EXTRA_PARAMS"`
+
+	// QueryInstruction is the instruction prepended to search queries for
+	// asymmetric retrieval. Providers use this to distinguish query embeddings
+	// from document embeddings, placing them correctly in the vector space.
+	// Env: *_QUERY_INSTRUCTION
+	QueryInstruction string `envconfig:"QUERY_INSTRUCTION"`
+
+	// DocumentInstruction is the instruction prepended to documents during
+	// ingestion for asymmetric retrieval.
+	// Env: *_DOCUMENT_INSTRUCTION
+	DocumentInstruction string `envconfig:"DOCUMENT_INSTRUCTION"`
 
 	// MaxTokens is the maximum token limit.
 	// Env: *_MAX_TOKENS (default: 4000)
@@ -263,6 +278,11 @@ func (e EnvConfig) ToAppConfig() AppConfig {
 		cfg = applyOption(cfg, WithEnrichmentEndpoint(e.EnrichmentEndpoint.ToEndpoint()))
 	}
 
+	// Vision embedding endpoint
+	if e.VisionEmbeddingEndpoint.IsConfigured() {
+		cfg = applyOption(cfg, WithVisionEmbeddingEndpoint(e.VisionEmbeddingEndpoint.ToEndpoint()))
+	}
+
 	// Periodic sync config
 	cfg = applyOption(cfg, WithPeriodicSyncConfig(e.PeriodicSync.ToPeriodicSyncConfig()))
 
@@ -345,6 +365,12 @@ func (e EndpointEnv) ToEndpoint() Endpoint {
 		if params != nil {
 			opts = append(opts, WithExtraParams(params))
 		}
+	}
+	if e.QueryInstruction != "" {
+		opts = append(opts, WithQueryInstruction(e.QueryInstruction))
+	}
+	if e.DocumentInstruction != "" {
+		opts = append(opts, WithDocumentInstruction(e.DocumentInstruction))
 	}
 
 	return NewEndpointWithOptions(opts...)

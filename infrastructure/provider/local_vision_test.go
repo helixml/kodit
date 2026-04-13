@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/helixml/kodit/domain/search"
 )
 
 // testPNG generates a simple solid-color PNG image.
@@ -43,15 +45,11 @@ func TestLocalVisionEmbedding_EmbedImage(t *testing.T) {
 	modelDir := localVisionModelPath(t)
 	emb := NewLocalVisionEmbedding(SigLIP2BaseConfig, modelDir)
 
-	vision := emb.VisionEmbedder()
-
 	imgData := testPNG(t, 64, 64, color.RGBA{R: 255, A: 255})
-	req := NewEmbeddingRequest([][]byte{imgData})
 
-	resp, err := vision.Embed(context.Background(), req)
+	embeddings, err := emb.Embed(context.Background(), search.NewImageItems([][]byte{imgData}))
 	require.NoError(t, err)
 
-	embeddings := resp.Embeddings()
 	require.Len(t, embeddings, 1, "expected one embedding for one image")
 	require.Equal(t, 768, len(embeddings[0]), "siglip2-base produces 768 dimensions")
 }
@@ -60,13 +58,9 @@ func TestLocalVisionEmbedding_EmbedQuery(t *testing.T) {
 	modelDir := localVisionModelPath(t)
 	emb := NewLocalVisionEmbedding(SigLIP2BaseConfig, modelDir)
 
-	text := emb.TextEmbedder()
-
-	req := NewTextEmbeddingRequest([]string{"a photo of a cat"})
-	resp, err := text.Embed(context.Background(), req)
+	embeddings, err := emb.Embed(context.Background(), search.NewTextItems([]string{"a photo of a cat"}))
 	require.NoError(t, err)
 
-	embeddings := resp.Embeddings()
 	require.Len(t, embeddings, 1, "expected one embedding for one query")
 	require.Equal(t, 768, len(embeddings[0]), "siglip2-base produces 768 dimensions")
 }
@@ -75,16 +69,9 @@ func TestLocalVisionEmbedding_EmbedEmpty(t *testing.T) {
 	modelDir := t.TempDir()
 	emb := NewLocalVisionEmbedding(SigLIP2BaseConfig, modelDir)
 
-	vision := emb.VisionEmbedder()
-	text := emb.TextEmbedder()
-
-	resp, err := vision.Embed(context.Background(), NewEmbeddingRequest(nil))
+	embeddings, err := emb.Embed(context.Background(), nil)
 	require.NoError(t, err)
-	require.Empty(t, resp.Embeddings())
-
-	textResp, err := text.Embed(context.Background(), NewEmbeddingRequest(nil))
-	require.NoError(t, err)
-	require.Empty(t, textResp.Embeddings())
+	require.Empty(t, embeddings)
 }
 
 func TestLocalVisionEmbedding_CancelledContext(t *testing.T) {
@@ -94,8 +81,7 @@ func TestLocalVisionEmbedding_CancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	vision := emb.VisionEmbedder()
 	imgData := testPNG(t, 8, 8, color.White)
-	_, err := vision.Embed(ctx, NewEmbeddingRequest([][]byte{imgData}))
+	_, err := emb.Embed(ctx, []search.EmbeddingItem{search.NewImageItem(imgData)})
 	require.Error(t, err)
 }

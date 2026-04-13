@@ -10,6 +10,8 @@ import (
 
 	"github.com/knights-analytics/hugot"
 	"github.com/knights-analytics/hugot/pipelines"
+
+	"github.com/helixml/kodit/domain/search"
 )
 
 // ortSingleton holds the process-wide ONNX Runtime session.
@@ -222,36 +224,39 @@ func extractEmbeddedModelByName(embedded fs.FS, targetDir, name string) (string,
 	return modelPath, nil
 }
 
-// Embed generates embeddings for the given text inputs using the local model.
-func (h *HugotEmbedding) Embed(ctx context.Context, req EmbeddingRequest) (EmbeddingResponse, error) {
-	inputs := req.Inputs()
-	if len(inputs) == 0 {
-		return NewEmbeddingResponse([][]float64{}, NewUsage(0, 0, 0)), nil
+// Embed generates embeddings for the given text items using the local model.
+// Items without a text payload return an error — hugot is a text-only model.
+func (h *HugotEmbedding) Embed(ctx context.Context, items []search.EmbeddingItem) ([][]float64, error) {
+	if len(items) == 0 {
+		return [][]float64{}, nil
 	}
 
 	if err := ctx.Err(); err != nil {
-		return EmbeddingResponse{}, err
+		return nil, err
 	}
 
 	if err := h.initialize(); err != nil {
-		return EmbeddingResponse{}, fmt.Errorf("initialize hugot: %w", err)
+		return nil, fmt.Errorf("initialize hugot: %w", err)
+	}
+
+	texts := make([]string, len(items))
+	for i, item := range items {
+		if !item.HasText() {
+			return nil, fmt.Errorf("hugot embedding requires text, got item %d with no text", i)
+		}
+		texts[i] = string(item.Text())
 	}
 
 	// Hold the singleton mutex for inference — ORT is not thread-safe.
 	ortSingleton.mu.Lock()
 	defer ortSingleton.mu.Unlock()
 
-	texts := make([]string, len(inputs))
-	for i, b := range inputs {
-		texts[i] = string(b)
-	}
-
 	result, err := h.pipeline.RunPipeline(texts)
 	if err != nil {
-		return EmbeddingResponse{}, fmt.Errorf("run embedding pipeline: %w", err)
+		return nil, fmt.Errorf("run embedding pipeline: %w", err)
 	}
 
-	return toEmbeddingResponse(result.Embeddings), nil
+	return float32MatrixToFloat64(result.Embeddings), nil
 }
 
 // Close is a no-op. The ONNX Runtime session is process-global and shared
@@ -260,4 +265,4 @@ func (h *HugotEmbedding) Close() error {
 	return nil
 }
 
-var _ Embedder = (*HugotEmbedding)(nil)
+var _ search.Embedder = (*HugotEmbedding)(nil)
