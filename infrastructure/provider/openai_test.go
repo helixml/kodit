@@ -348,3 +348,72 @@ func TestOpenAIProvider_EmbedUpstreamErrorRecovers(t *testing.T) {
 	require.Len(t, embeddings, 2)
 	require.Equal(t, int64(3), counter.Load(), "should have retried twice then succeeded")
 }
+
+func TestApplyExtraParams_ChatTemplateKwargs(t *testing.T) {
+	// Verify that extra params like chat_template_kwargs are applied to the
+	// request sent to the API.
+	var received map[string]json.RawMessage
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&received)
+
+		resp := map[string]interface{}{
+			"id":      "test",
+			"object":  "chat.completion",
+			"model":   "test-model",
+			"choices": []map[string]interface{}{{"message": map[string]string{"role": "assistant", "content": "hello"}, "finish_reason": "stop"}},
+			"usage":   map[string]int{"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	p := NewOpenAIProviderFromConfig(OpenAIConfig{
+		APIKey:    "test-key",
+		BaseURL:   srv.URL,
+		ChatModel: "test-model",
+		ExtraParams: map[string]any{
+			"chat_template_kwargs": map[string]any{"enable_thinking": false},
+		},
+	})
+
+	resp, err := p.ChatCompletion(context.Background(), NewChatCompletionRequest([]Message{UserMessage("hi")}))
+	require.NoError(t, err)
+	require.Equal(t, "hello", resp.Content())
+
+	// Verify chat_template_kwargs was sent in the request body.
+	require.Contains(t, received, "chat_template_kwargs")
+
+	var kwargs map[string]any
+	require.NoError(t, json.Unmarshal(received["chat_template_kwargs"], &kwargs))
+	require.Equal(t, false, kwargs["enable_thinking"])
+}
+
+func TestApplyExtraParams_Nil(t *testing.T) {
+	// Verify that nil extra params don't affect the request.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := map[string]interface{}{
+			"id":      "test",
+			"object":  "chat.completion",
+			"model":   "test-model",
+			"choices": []map[string]interface{}{{"message": map[string]string{"role": "assistant", "content": "hello"}, "finish_reason": "stop"}},
+			"usage":   map[string]int{"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	p := NewOpenAIProviderFromConfig(OpenAIConfig{
+		APIKey:    "test-key",
+		BaseURL:   srv.URL,
+		ChatModel: "test-model",
+	})
+
+	resp, err := p.ChatCompletion(context.Background(), NewChatCompletionRequest([]Message{UserMessage("hi")}))
+	require.NoError(t, err)
+	require.Equal(t, "hello", resp.Content())
+}

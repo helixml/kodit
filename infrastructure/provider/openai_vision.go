@@ -14,14 +14,19 @@ import (
 	"github.com/helixml/kodit/domain/search"
 )
 
+// defaultQueryInstruction is the system-message instruction prepended to
+// text-only (query) embeddings. Qwen3-VL-Embedding uses asymmetric
+// retrieval: queries get an instruction, documents/images do not.
+const defaultQueryInstruction = "Retrieve images or text relevant to the user's query."
+
 // OpenAIVisionProvider embeds text or image inputs via an OpenAI-compatible
 // vision-language embedding API (e.g. Qwen3-VL-Embedding). It implements
-// Embedder: each input in a batch is inspected by its magic bytes and sent
-// to the API as either a plain text string or a base64-encoded image content
-// part. Both produce vectors in the same embedding space.
+// Embedder and uses the vLLM "messages" format for all inputs so that
+// the model's chat template is applied consistently across modalities.
 type OpenAIVisionProvider struct {
 	client         *openai.Client
 	embeddingModel string
+	instruction    string
 	maxRetries     int
 	initialDelay   time.Duration
 	backoffFactor  float64
@@ -65,9 +70,15 @@ func NewOpenAIVisionProvider(cfg OpenAIConfig) *OpenAIVisionProvider {
 		backoffFactor = 2.0
 	}
 
+	instruction := cfg.Instruction
+	if instruction == "" {
+		instruction = defaultQueryInstruction
+	}
+
 	return &OpenAIVisionProvider{
 		client:         client,
 		embeddingModel: embeddingModel,
+		instruction:    instruction,
 		maxRetries:     maxRetries,
 		initialDelay:   initialDelay,
 		backoffFactor:  backoffFactor,
@@ -79,28 +90,59 @@ func (p *OpenAIVisionProvider) Close() error {
 	return nil
 }
 
-// Embed sends each item to the remote API, using its text field, image
-// field, or both. Items carrying only text are sent as plain strings;
-// items carrying only an image are sent as base64 image content parts;
-// items carrying both are sent as a combined content-parts list, which
-// multimodal-capable models may use to jointly embed text and image.
+// Embed sends each item to the remote API using the vLLM "messages"
+// format. Both text and image items are sent as chat messages because
+// Qwen3-VL-Embedding applies a chat template that must be consistent
+// across modalities for cross-modal search to work. Sending text queries
+// via the plain "input" field would bypass the chat template, placing
+// them in a different embedding space than image embeddings.
 func (p *OpenAIVisionProvider) Embed(ctx context.Context, items []search.EmbeddingItem) ([][]float64, error) {
 	if len(items) == 0 {
 		return [][]float64{}, nil
 	}
 
-	apiInputs := make([]any, len(items))
+	embeddings := make([][]float64, len(items))
+
 	for i, item := range items {
-		input, err := buildVisionAPIInput(item)
+		vec, err := p.embedItem(ctx, item)
 		if err != nil {
-			return nil, fmt.Errorf("build vision input %d: %w", i, err)
+			return nil, fmt.Errorf("embed item %d: %w", i, err)
 		}
-		apiInputs[i] = input
+		embeddings[i] = vec
 	}
+
+	return embeddings, nil
+}
+
+// embedItem sends a single item using the vLLM "messages" format.
+// For text-only items (queries), a system message with the retrieval
+// instruction is prepended — this is the asymmetric pattern recommended
+// by Qwen3-VL-Embedding. Image items (documents) get no instruction.
+func (p *OpenAIVisionProvider) embedItem(ctx context.Context, item search.EmbeddingItem) ([]float64, error) {
+	content := buildMessageContent(item)
+
+	var messages []map[string]any
+
+	// Asymmetric retrieval: queries (text-only) get an instruction,
+	// documents (images) do not.
+	if !item.HasImage() {
+		messages = append(messages, map[string]any{
+			"role":    "system",
+			"content": []map[string]any{{"type": "text", "text": p.instruction}},
+		})
+	}
+
+	messages = append(messages, map[string]any{
+		"role":    "user",
+		"content": content,
+	})
 
 	openaiReq := openai.EmbeddingRequest{
 		Model: openai.EmbeddingModel(p.embeddingModel),
-		Input: apiInputs,
+		Input: "",
+		ExtraBody: map[string]any{
+			"messages": messages,
+		},
 	}
 
 	var resp openai.EmbeddingResponse
@@ -117,8 +159,8 @@ func (p *OpenAIVisionProvider) Embed(ctx context.Context, items []search.Embeddi
 				errUpstreamProviderFailure,
 			)
 		}
-		if len(resp.Data) != len(items) {
-			return fmt.Errorf("%w: got %d vectors for %d items", errEmbeddingCountMismatch, len(resp.Data), len(items))
+		if len(resp.Data) == 0 {
+			return fmt.Errorf("%w: got 0 vectors for 1 item", errEmbeddingCountMismatch)
 		}
 		return nil
 	})
@@ -127,47 +169,38 @@ func (p *OpenAIVisionProvider) Embed(ctx context.Context, items []search.Embeddi
 		return nil, p.wrapError("vision_embedding", err)
 	}
 
-	embeddings := make([][]float64, len(resp.Data))
-	for i, data := range resp.Data {
-		embeddings[i] = make([]float64, len(data.Embedding))
-		for j, v := range data.Embedding {
-			embeddings[i][j] = float64(v)
-		}
+	vec := make([]float64, len(resp.Data[0].Embedding))
+	for j, v := range resp.Data[0].Embedding {
+		vec[j] = float64(v)
 	}
-
-	return embeddings, nil
+	return vec, nil
 }
 
-// buildVisionAPIInput converts an EmbeddingItem into the value that the
-// OpenAI-compatible vision embedding API expects as a single element of
-// its `input` array. Text-only items are sent as plain strings; image
-// items are sent as a list of content parts (one image part, plus an
-// optional text part if the item is multimodal).
-func buildVisionAPIInput(item search.EmbeddingItem) (any, error) {
-	if !item.HasText() && !item.HasImage() {
-		return nil, fmt.Errorf("item has neither text nor image")
-	}
+// buildMessageContent returns the "content" array for a chat message. Both
+// text-only and image items are formatted as content parts so that vLLM's
+// chat template processes them consistently, keeping text and image
+// embeddings in the same vector space for cross-modal search.
+func buildMessageContent(item search.EmbeddingItem) []map[string]any {
+	var parts []map[string]any
 
 	if item.HasImage() {
 		dataURI := "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(item.Image())
-		parts := []any{
-			map[string]any{
-				"type": "image_url",
-				"image_url": map[string]any{
-					"url": dataURI,
-				},
+		parts = append(parts, map[string]any{
+			"type": "image_url",
+			"image_url": map[string]any{
+				"url": dataURI,
 			},
-		}
-		if item.HasText() {
-			parts = append(parts, map[string]any{
-				"type": "text",
-				"text": string(item.Text()),
-			})
-		}
-		return parts, nil
+		})
 	}
 
-	return string(item.Text()), nil
+	if item.HasText() {
+		parts = append(parts, map[string]any{
+			"type": "text",
+			"text": string(item.Text()),
+		})
+	}
+
+	return parts
 }
 
 func (p *OpenAIVisionProvider) withRetry(ctx context.Context, fn func() error) error {

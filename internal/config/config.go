@@ -102,6 +102,7 @@ type Endpoint struct {
 	initialDelay     time.Duration
 	backoffFactor    float64
 	extraParams      map[string]any
+	systemPrompt     string
 	maxTokens        int
 	maxBatchChars    int
 	maxBatchSize     int
@@ -159,6 +160,9 @@ func (e Endpoint) ExtraParams() map[string]any {
 	}
 	return result
 }
+
+// SystemPrompt returns the system-message instruction for embedding queries.
+func (e Endpoint) SystemPrompt() string { return e.systemPrompt }
 
 // MaxTokens returns the maximum token limit.
 func (e Endpoint) MaxTokens() int { return e.maxTokens }
@@ -232,6 +236,11 @@ func WithExtraParams(params map[string]any) EndpointOption {
 			}
 		}
 	}
+}
+
+// WithSystemPrompt sets the system-message instruction for embedding queries.
+func WithSystemPrompt(s string) EndpointOption {
+	return func(e *Endpoint) { e.systemPrompt = s }
 }
 
 // WithMaxTokens sets the maximum token limit.

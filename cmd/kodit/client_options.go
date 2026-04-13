@@ -116,11 +116,12 @@ func textOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 	var opts []kodit.Option
 
 	txtCfg := provider.OpenAIConfig{
-		APIKey:     endpoint.APIKey(),
-		BaseURL:    endpoint.BaseURL(),
-		ChatModel:  endpoint.Model(),
-		Timeout:    endpoint.Timeout(),
-		MaxRetries: endpoint.MaxRetries(),
+		APIKey:      endpoint.APIKey(),
+		BaseURL:     endpoint.BaseURL(),
+		ChatModel:   endpoint.Model(),
+		Timeout:     endpoint.Timeout(),
+		MaxRetries:  endpoint.MaxRetries(),
+		ExtraParams: endpoint.ExtraParams(),
 	}
 	if cacheDir := cfg.HTTPCacheDir(); cacheDir != "" {
 		transport, err := provider.NewCachingTransport(cacheDir, nil)
@@ -167,6 +168,7 @@ func visionEmbeddingOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 		EmbeddingModel: endpoint.Model(),
 		Timeout:        endpoint.Timeout(),
 		MaxRetries:     endpoint.MaxRetries(),
+		Instruction:    endpoint.SystemPrompt(),
 	}
 	if cacheDir := cfg.HTTPCacheDir(); cacheDir != "" {
 		transport, err := provider.NewCachingTransport(cacheDir, nil)

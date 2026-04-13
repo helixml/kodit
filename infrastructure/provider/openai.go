@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -34,6 +35,7 @@ type OpenAIProvider struct {
 	maxRetries        int
 	initialDelay      time.Duration
 	backoffFactor     float64
+	extraParams       map[string]any
 	supportsText      bool
 	supportsEmbedding bool
 }
@@ -105,6 +107,8 @@ type OpenAIConfig struct {
 	InitialDelay   time.Duration
 	BackoffFactor  float64
 	HTTPClient     *http.Client
+	ExtraParams    map[string]any
+	Instruction    string
 }
 
 // NewOpenAIProviderFromConfig creates a provider from configuration.
@@ -157,6 +161,7 @@ func NewOpenAIProviderFromConfig(cfg OpenAIConfig) *OpenAIProvider {
 		maxRetries:        maxRetries,
 		initialDelay:      initialDelay,
 		backoffFactor:     backoffFactor,
+		extraParams:       cfg.ExtraParams,
 		supportsText:      true,
 		supportsEmbedding: true,
 	}
@@ -201,6 +206,12 @@ func (p *OpenAIProvider) ChatCompletion(ctx context.Context, req ChatCompletionR
 	}
 	if req.Temperature() > 0 {
 		openaiReq.Temperature = float32(req.Temperature())
+	}
+
+	if len(p.extraParams) > 0 {
+		if err := applyExtraParams(&openaiReq, p.extraParams); err != nil {
+			return ChatCompletionResponse{}, fmt.Errorf("apply extra params: %w", err)
+		}
 	}
 
 	var resp openai.ChatCompletionResponse
@@ -385,6 +396,44 @@ func (p *OpenAIProvider) wrapError(operation string, err error) error {
 	}
 
 	return NewProviderError(operation, 0, err.Error(), err)
+}
+
+// applyExtraParams merges arbitrary key-value pairs into an
+// openai.ChatCompletionRequest via JSON round-trip. This lets callers set any
+// field the go-openai library supports (e.g. chat_template_kwargs,
+// reasoning_effort) without the provider needing per-field wiring.
+func applyExtraParams(req *openai.ChatCompletionRequest, params map[string]any) error {
+	base, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("marshal request: %w", err)
+	}
+
+	extra, err := json.Marshal(params)
+	if err != nil {
+		return fmt.Errorf("marshal extra params: %w", err)
+	}
+
+	merged, err := jsonMerge(base, extra)
+	if err != nil {
+		return fmt.Errorf("merge: %w", err)
+	}
+
+	return json.Unmarshal(merged, req)
+}
+
+// jsonMerge shallow-merges two JSON objects. Keys from b override keys in a.
+func jsonMerge(a, b []byte) ([]byte, error) {
+	var am, bm map[string]json.RawMessage
+	if err := json.Unmarshal(a, &am); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(b, &bm); err != nil {
+		return nil, err
+	}
+	for k, v := range bm {
+		am[k] = v
+	}
+	return json.Marshal(am)
 }
 
 // Ensure OpenAIProvider implements the interfaces.
