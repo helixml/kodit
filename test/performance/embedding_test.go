@@ -30,21 +30,6 @@ const (
 	embeddingDimension = 768
 )
 
-// fixedDimensionEmbedder is a fake search.Embedder that returns zero vectors
-// of a fixed dimension. It is used in tests that need a specific vector size
-// without a real model.
-type fixedDimensionEmbedder struct {
-	dimension int
-}
-
-func (e fixedDimensionEmbedder) Embed(_ context.Context, items []search.EmbeddingItem) ([][]float64, error) {
-	result := make([][]float64, len(items))
-	for i := range items {
-		result[i] = make([]float64, e.dimension)
-	}
-	return result, nil
-}
-
 // testDB connects to the VectorChord PostgreSQL instance and drops any
 // leftover performance test tables. Returns the database and a cleanup function.
 func testDB(t *testing.T) database.Database {
@@ -125,7 +110,7 @@ func TestEmbeddingPipeline(t *testing.T) {
 	embedder := testEmbedder(t)
 	logger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
 
-	store := persistence.NewVectorChordEmbeddingStore(db, "perf", embedder, nil, logger)
+	store := persistence.NewVectorChordEmbeddingStore(db, "perf", nil, logger)
 
 	svc, err := domainservice.NewEmbedding(store, embedder, search.DefaultTokenBudget(), 1)
 	require.NoError(t, err)
@@ -294,7 +279,7 @@ func TestEmbeddingPipelineCPUProfile(t *testing.T) {
 	embedder := testEmbedder(t)
 	logger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
 
-	store := persistence.NewVectorChordEmbeddingStore(db, "perf", embedder, nil, logger)
+	store := persistence.NewVectorChordEmbeddingStore(db, "perf", nil, logger)
 
 	svc, err := domainservice.NewEmbedding(store, embedder, search.DefaultTokenBudget(), 1)
 	require.NoError(t, err)
@@ -345,7 +330,7 @@ func TestEmbeddingPipelineMemProfile(t *testing.T) {
 	embedder := testEmbedder(t)
 	logger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
 
-	store := persistence.NewVectorChordEmbeddingStore(db, "perf", embedder, nil, logger)
+	store := persistence.NewVectorChordEmbeddingStore(db, "perf", nil, logger)
 
 	svc, err := domainservice.NewEmbedding(store, embedder, search.DefaultTokenBudget(), 1)
 	require.NoError(t, err)
@@ -423,7 +408,6 @@ func TestVectorCopyOverhead(t *testing.T) {
 func TestConcurrentSaveAll(t *testing.T) {
 	ctx := context.Background()
 	db := testDB(t)
-	embedder := fixedDimensionEmbedder{dimension: embeddingDimension}
 	logger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
 
 	const tableName = "vectorchord_perf_embeddings"
@@ -436,7 +420,7 @@ func TestConcurrentSaveAll(t *testing.T) {
 		raw := db.Session(ctx)
 		raw.Exec(fmt.Sprintf("DROP INDEX IF EXISTS %s_idx", tableName))
 
-		store := persistence.NewVectorChordEmbeddingStore(db, "perf", embedder, nil, logger)
+		store := persistence.NewVectorChordEmbeddingStore(db, "perf", nil, logger)
 
 		// Pre-build embeddings so goroutines reach ensureIndex at nearly the same time.
 		batches := make([][]search.Embedding, goroutines)
@@ -477,10 +461,9 @@ func TestConcurrentSaveAll(t *testing.T) {
 func TestSaveAllBatching(t *testing.T) {
 	ctx := context.Background()
 	db := testDB(t)
-	embedder := fixedDimensionEmbedder{dimension: embeddingDimension}
 	logger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
 
-	store := persistence.NewVectorChordEmbeddingStore(db, "perf", embedder, nil, logger)
+	store := persistence.NewVectorChordEmbeddingStore(db, "perf", nil, logger)
 
 	counts := []int{10, 50, 100, 200, 500}
 	for _, count := range counts {
@@ -506,18 +489,16 @@ func TestSaveAllBatching(t *testing.T) {
 }
 
 // TestDimensionMismatch_RebuildTable verifies that creating a
-// VectorChordEmbeddingStore with a different dimension than the existing
-// table drops the old table, recreates it with the new dimension, and
-// fires the onRebuilt callback.
+// VectorChordEmbeddingStore and writing embeddings with a different dimension
+// than the existing table drops the old table, recreates it with the new
+// dimension, and fires the onRebuilt callback.
 func TestDimensionMismatch_RebuildTable(t *testing.T) {
 	ctx := context.Background()
 	db := testDB(t)
 	logger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
 
-	// Create store with dimension 4 and insert data.
-	store := persistence.NewVectorChordEmbeddingStore(
-		db, "perf", fixedDimensionEmbedder{dimension: 4}, nil, logger,
-	)
+	// Create store and insert data with dimension 4.
+	store := persistence.NewVectorChordEmbeddingStore(db, "perf", nil, logger)
 
 	err := store.SaveAll(ctx, []search.Embedding{
 		search.NewEmbedding("s1", []float64{1, 2, 3, 4}),
@@ -529,18 +510,22 @@ func TestDimensionMismatch_RebuildTable(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(2), count, "two rows should exist before rebuild")
 
-	// Re-create with a different dimension and verify callback fires.
+	// New store writing embeddings with dimension 8 triggers rebuild.
 	var rebuilt bool
 	onRebuilt := func(_ context.Context) { rebuilt = true }
-	store2 := persistence.NewVectorChordEmbeddingStore(
-		db, "perf", fixedDimensionEmbedder{dimension: 8}, onRebuilt, logger,
-	)
+	store2 := persistence.NewVectorChordEmbeddingStore(db, "perf", onRebuilt, logger)
 
-	// Trigger lazy init by calling Count.
-	count, err = store2.Count(ctx)
+	// SaveAll with a different dimension triggers table rebuild.
+	err = store2.SaveAll(ctx, []search.Embedding{
+		search.NewEmbedding("s3", []float64{1, 2, 3, 4, 5, 6, 7, 8}),
+	})
 	require.NoError(t, err)
 	require.True(t, rebuilt, "dimension change should trigger onRebuilt callback")
-	require.Equal(t, int64(0), count, "table should be empty after rebuild")
+
+	// Old data is gone, only the new row exists.
+	count, err = store2.Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), count, "only new row should exist after rebuild")
 
 	// Column dimension matches the new value.
 	var dim int
@@ -552,14 +537,4 @@ func TestDimensionMismatch_RebuildTable(t *testing.T) {
 		AND a.attname = 'embedding'`,
 	).Scan(&dim)
 	require.Equal(t, 8, dim, "pg_attribute dimension should match new value")
-
-	// New data can be inserted with the new dimension.
-	err = store2.SaveAll(ctx, []search.Embedding{
-		search.NewEmbedding("s3", []float64{1, 2, 3, 4, 5, 6, 7, 8}),
-	})
-	require.NoError(t, err)
-
-	count, err = store2.Count(ctx)
-	require.NoError(t, err)
-	require.Equal(t, int64(1), count, "should accept data with new dimension")
 }

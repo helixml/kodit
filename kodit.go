@@ -346,7 +346,7 @@ func New(opts ...Option) (*Client, error) {
 		}
 		visionEmbeddingStore = vs
 	case databasePostgresVectorchord:
-		visionEmbeddingStore = persistence.NewVectorChordEmbeddingStore(db, persistence.TaskNameVision, visionEmbedder, nil, logger)
+		visionEmbeddingStore = persistence.NewVectorChordEmbeddingStore(db, persistence.TaskNameVision, nil, logger)
 	}
 	visionIndex := handler.VectorIndex{
 		Store: visionEmbeddingStore,
@@ -638,8 +638,8 @@ func buildSearchStores(cfg *clientConfig, db database.Database, onRebuilt func(c
 			return nil, nil, nil, fmt.Errorf("bm25 store: %w", err)
 		}
 		if cfg.embeddingProvider != nil {
-			textEmbeddingStore = persistence.NewVectorChordEmbeddingStore(db, persistence.TaskNameText, cfg.embeddingProvider, onRebuilt, logger)
-			codeEmbeddingStore = persistence.NewVectorChordEmbeddingStore(db, persistence.TaskNameCode, cfg.embeddingProvider, onRebuilt, logger)
+			textEmbeddingStore = persistence.NewVectorChordEmbeddingStore(db, persistence.TaskNameText, onRebuilt, logger)
+			codeEmbeddingStore = persistence.NewVectorChordEmbeddingStore(db, persistence.TaskNameCode, onRebuilt, logger)
 		}
 	}
 	return
