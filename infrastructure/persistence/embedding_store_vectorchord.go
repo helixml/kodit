@@ -120,6 +120,14 @@ CREATE TABLE IF NOT EXISTS %s (
 		if err := rawDB.Exec(createTableSQL).Error; err != nil {
 			return errors.Join(ErrVectorInitializationFailed, fmt.Errorf("recreate table: %w", err))
 		}
+
+		// Force pooled connections to close so subsequent queries use fresh
+		// connections that see the new table, not stale cached state.
+		if sqlDB, dbErr := rawDB.DB(); dbErr == nil {
+			sqlDB.SetMaxIdleConns(0)
+			sqlDB.SetMaxIdleConns(10)
+		}
+
 		if s.onRebuilt != nil {
 			s.onRebuilt(ctx)
 		}
