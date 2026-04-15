@@ -110,10 +110,7 @@ func TestEmbeddingPipeline(t *testing.T) {
 	embedder := testEmbedder(t)
 	logger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
 
-	store, _, err := persistence.NewVectorChordEmbeddingStore(
-		ctx, db, "perf", embeddingDimension, logger,
-	)
-	require.NoError(t, err)
+	store := persistence.NewVectorChordEmbeddingStore(db, "perf", nil, logger)
 
 	svc, err := domainservice.NewEmbedding(store, embedder, search.DefaultTokenBudget(), 1)
 	require.NoError(t, err)
@@ -282,10 +279,7 @@ func TestEmbeddingPipelineCPUProfile(t *testing.T) {
 	embedder := testEmbedder(t)
 	logger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
 
-	store, _, err := persistence.NewVectorChordEmbeddingStore(
-		ctx, db, "perf", embeddingDimension, logger,
-	)
-	require.NoError(t, err)
+	store := persistence.NewVectorChordEmbeddingStore(db, "perf", nil, logger)
 
 	svc, err := domainservice.NewEmbedding(store, embedder, search.DefaultTokenBudget(), 1)
 	require.NoError(t, err)
@@ -336,10 +330,7 @@ func TestEmbeddingPipelineMemProfile(t *testing.T) {
 	embedder := testEmbedder(t)
 	logger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
 
-	store, _, err := persistence.NewVectorChordEmbeddingStore(
-		ctx, db, "perf", embeddingDimension, logger,
-	)
-	require.NoError(t, err)
+	store := persistence.NewVectorChordEmbeddingStore(db, "perf", nil, logger)
 
 	svc, err := domainservice.NewEmbedding(store, embedder, search.DefaultTokenBudget(), 1)
 	require.NoError(t, err)
@@ -429,10 +420,7 @@ func TestConcurrentSaveAll(t *testing.T) {
 		raw := db.Session(ctx)
 		raw.Exec(fmt.Sprintf("DROP INDEX IF EXISTS %s_idx", tableName))
 
-		store, _, err := persistence.NewVectorChordEmbeddingStore(
-			ctx, db, "perf", embeddingDimension, logger,
-		)
-		require.NoError(t, err)
+		store := persistence.NewVectorChordEmbeddingStore(db, "perf", nil, logger)
 
 		// Pre-build embeddings so goroutines reach ensureIndex at nearly the same time.
 		batches := make([][]search.Embedding, goroutines)
@@ -475,10 +463,7 @@ func TestSaveAllBatching(t *testing.T) {
 	db := testDB(t)
 	logger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
 
-	store, _, err := persistence.NewVectorChordEmbeddingStore(
-		ctx, db, "perf", embeddingDimension, logger,
-	)
-	require.NoError(t, err)
+	store := persistence.NewVectorChordEmbeddingStore(db, "perf", nil, logger)
 
 	counts := []int{10, 50, 100, 200, 500}
 	for _, count := range counts {
@@ -504,20 +489,18 @@ func TestSaveAllBatching(t *testing.T) {
 }
 
 // TestDimensionMismatch_RebuildTable verifies that creating a
-// VectorChordEmbeddingStore with a different dimension than the existing
-// table drops the old table, recreates it with the new dimension, and
-// returns rebuilt=true.
+// VectorChordEmbeddingStore and writing embeddings with a different dimension
+// than the existing table drops the old table, recreates it with the new
+// dimension, and fires the onRebuilt callback.
 func TestDimensionMismatch_RebuildTable(t *testing.T) {
 	ctx := context.Background()
 	db := testDB(t)
 	logger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
 
-	// Create store with dimension 4 and insert data.
-	store, rebuilt, err := persistence.NewVectorChordEmbeddingStore(ctx, db, "perf", 4, logger)
-	require.NoError(t, err)
-	require.False(t, rebuilt, "fresh table should not be rebuilt")
+	// Create store and insert data with dimension 4.
+	store := persistence.NewVectorChordEmbeddingStore(db, "perf", nil, logger)
 
-	err = store.SaveAll(ctx, []search.Embedding{
+	err := store.SaveAll(ctx, []search.Embedding{
 		search.NewEmbedding("s1", []float64{1, 2, 3, 4}),
 		search.NewEmbedding("s2", []float64{5, 6, 7, 8}),
 	})
@@ -527,15 +510,22 @@ func TestDimensionMismatch_RebuildTable(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(2), count, "two rows should exist before rebuild")
 
-	// Re-create with a different dimension.
-	store2, rebuilt2, err := persistence.NewVectorChordEmbeddingStore(ctx, db, "perf", 8, logger)
-	require.NoError(t, err)
-	require.True(t, rebuilt2, "dimension change should trigger rebuild")
+	// New store writing embeddings with dimension 8 triggers rebuild.
+	var rebuilt bool
+	onRebuilt := func(_ context.Context) { rebuilt = true }
+	store2 := persistence.NewVectorChordEmbeddingStore(db, "perf", onRebuilt, logger)
 
-	// Old data is gone.
+	// SaveAll with a different dimension triggers table rebuild.
+	err = store2.SaveAll(ctx, []search.Embedding{
+		search.NewEmbedding("s3", []float64{1, 2, 3, 4, 5, 6, 7, 8}),
+	})
+	require.NoError(t, err)
+	require.True(t, rebuilt, "dimension change should trigger onRebuilt callback")
+
+	// Old data is gone, only the new row exists.
 	count, err = store2.Count(ctx)
 	require.NoError(t, err)
-	require.Equal(t, int64(0), count, "table should be empty after rebuild")
+	require.Equal(t, int64(1), count, "only new row should exist after rebuild")
 
 	// Column dimension matches the new value.
 	var dim int
@@ -547,14 +537,4 @@ func TestDimensionMismatch_RebuildTable(t *testing.T) {
 		AND a.attname = 'embedding'`,
 	).Scan(&dim)
 	require.Equal(t, 8, dim, "pg_attribute dimension should match new value")
-
-	// New data can be inserted with the new dimension.
-	err = store2.SaveAll(ctx, []search.Embedding{
-		search.NewEmbedding("s3", []float64{1, 2, 3, 4, 5, 6, 7, 8}),
-	})
-	require.NoError(t, err)
-
-	count, err = store2.Count(ctx)
-	require.NoError(t, err)
-	require.Equal(t, int64(1), count, "should accept data with new dimension")
 }

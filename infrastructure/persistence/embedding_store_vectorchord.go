@@ -39,30 +39,55 @@ WHERE c.relname = '%s_idx'`
 var ErrVectorInitializationFailed = errors.New("failed to initialize VectorChord vector repository")
 
 // VectorChordEmbeddingStore implements search.EmbeddingStore using VectorChord PostgreSQL extension.
+// Table creation is deferred to the first SaveAll call, using the actual
+// embedding dimension. Read methods work against whatever table state exists;
+// if no data has been written yet they return empty results.
 type VectorChordEmbeddingStore struct {
 	database.Repository[search.Embedding, PgEmbeddingModel]
 	logger  zerolog.Logger
 	indexMu sync.Mutex
+
+	onRebuilt  func(context.Context)
+	tableMu    sync.Mutex
+	tableReady bool
 }
 
-// NewVectorChordEmbeddingStore creates a new VectorChordEmbeddingStore, eagerly
-// initializing the extension, table, index, and verifying the dimension.
-// The returned bool is true when the table was dropped and recreated due to a
-// dimension mismatch (e.g. the user switched embedding providers).
-func NewVectorChordEmbeddingStore(ctx context.Context, db database.Database, taskName TaskName, dimension int, logger zerolog.Logger) (*VectorChordEmbeddingStore, bool, error) {
+// NewVectorChordEmbeddingStore creates a new VectorChordEmbeddingStore.
+// Construction is side-effect-free; the VectorChord extension and table are
+// created lazily on the first SaveAll call using the actual embedding dimension.
+//
+// onRebuilt is called (at most once) if an existing table had to be dropped
+// and recreated due to a dimension mismatch; pass nil if no action is needed.
+func NewVectorChordEmbeddingStore(db database.Database, taskName TaskName, onRebuilt func(context.Context), logger zerolog.Logger) *VectorChordEmbeddingStore {
 	tableName := fmt.Sprintf("vectorchord_%s_embeddings", taskName)
-	s := &VectorChordEmbeddingStore{
+	return &VectorChordEmbeddingStore{
 		Repository: database.NewRepositoryForTable[search.Embedding, PgEmbeddingModel](
 			db, pgEmbeddingMapper{}, "embedding", tableName,
 		),
-		logger: logger,
+		onRebuilt: onRebuilt,
+		logger:    logger,
+	}
+}
+
+// ensureTable creates the VectorChord extension and embedding table if they
+// do not already exist. If the table exists with a different vector dimension
+// it is dropped and recreated, and the onRebuilt callback fires.
+//
+// Called from SaveAll only — dimension is derived from the embeddings
+// themselves, so no probe call is needed.
+func (s *VectorChordEmbeddingStore) ensureTable(ctx context.Context, dimension int) error {
+	s.tableMu.Lock()
+	defer s.tableMu.Unlock()
+	if s.tableReady {
+		return nil
 	}
 
-	rawDB := db.Session(ctx)
+	tableName := s.Table()
+	rawDB := s.DB(ctx)
 
-	// Create extension
+	// Create extension.
 	if err := rawDB.Exec(vcCreateVChordExtension).Error; err != nil {
-		return nil, false, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("create extension: %w", err))
+		return errors.Join(ErrVectorInitializationFailed, fmt.Errorf("create extension: %w", err))
 	}
 
 	createTableSQL := fmt.Sprintf(`
@@ -72,34 +97,36 @@ CREATE TABLE IF NOT EXISTS %s (
     embedding VECTOR(%d) NOT NULL
 )`, tableName, dimension)
 
-	// Create table (dynamic dimension requires raw SQL)
+	// Create table (dynamic dimension requires raw SQL).
 	if err := rawDB.Exec(createTableSQL).Error; err != nil {
-		return nil, false, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("create table: %w", err))
+		return errors.Join(ErrVectorInitializationFailed, fmt.Errorf("create table: %w", err))
 	}
 
-	// Check whether the existing table dimension matches the provider.
+	// Check whether the existing table dimension matches the embeddings.
 	var dbDimension int
 	checkDimensionSQL := fmt.Sprintf(vcCheckDimensionTemplate, tableName)
 	result := rawDB.Raw(checkDimensionSQL).Scan(&dbDimension)
 	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return nil, false, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("check dimension: %w", result.Error))
+		return errors.Join(ErrVectorInitializationFailed, fmt.Errorf("check dimension: %w", result.Error))
 	}
 
-	rebuilt := false
 	if result.RowsAffected > 0 && dbDimension != dimension {
-		logger.Warn().Str("table", tableName).Int("old_dimension", dbDimension).Int("new_dimension", dimension).Msg("embedding dimension changed, dropping old table for re-indexing")
+		s.logger.Warn().Str("table", tableName).Int("old_dimension", dbDimension).Int("new_dimension", dimension).Msg("embedding dimension changed, dropping old table for re-indexing")
 
 		dropSQL := fmt.Sprintf("DROP TABLE %s CASCADE", tableName)
 		if err := rawDB.Exec(dropSQL).Error; err != nil {
-			return nil, false, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("drop table: %w", err))
+			return errors.Join(ErrVectorInitializationFailed, fmt.Errorf("drop table: %w", err))
 		}
 		if err := rawDB.Exec(createTableSQL).Error; err != nil {
-			return nil, false, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("recreate table: %w", err))
+			return errors.Join(ErrVectorInitializationFailed, fmt.Errorf("recreate table: %w", err))
 		}
-		rebuilt = true
+		if s.onRebuilt != nil {
+			s.onRebuilt(ctx)
+		}
 	}
 
-	return s, rebuilt, nil
+	s.tableReady = true
+	return nil
 }
 
 // SaveAll persists pre-computed embeddings using batched upsert, then ensures
@@ -107,6 +134,9 @@ CREATE TABLE IF NOT EXISTS %s (
 func (s *VectorChordEmbeddingStore) SaveAll(ctx context.Context, embeddings []search.Embedding) error {
 	if len(embeddings) == 0 {
 		return nil
+	}
+	if err := s.ensureTable(ctx, len(embeddings[0].Vector())); err != nil {
+		return err
 	}
 
 	models := make([]PgEmbeddingModel, len(embeddings))
