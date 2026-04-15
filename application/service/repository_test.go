@@ -283,10 +283,24 @@ func TestRepository_RescanAll(t *testing.T) {
 	deps := newRepositoryTestDeps(t)
 	ctx := context.Background()
 
-	saveRepoWithDefaults(t, deps, "https://github.com/test/repo1")
-	saveRepoWithDefaults(t, deps, "https://github.com/test/repo2")
+	now := time.Now()
+	repo1 := saveRepoWithDefaults(t, deps, "https://github.com/test/repo1")
+	_, err := deps.stores.commits.Save(ctx, repository.NewCommit(
+		"aaa111", repo1.ID(), "first",
+		repository.NewAuthor("A", "a@a.com"), repository.NewAuthor("A", "a@a.com"),
+		now, now,
+	))
+	require.NoError(t, err)
 
-	err := deps.service.RescanAll(ctx)
+	repo2 := saveRepoWithDefaults(t, deps, "https://github.com/test/repo2")
+	_, err = deps.stores.commits.Save(ctx, repository.NewCommit(
+		"bbb222", repo2.ID(), "first",
+		repository.NewAuthor("B", "b@b.com"), repository.NewAuthor("B", "b@b.com"),
+		now, now,
+	))
+	require.NoError(t, err)
+
+	err = deps.service.RescanAll(ctx)
 	require.NoError(t, err)
 
 	tasks := savedTasks(t, deps)
@@ -297,6 +311,21 @@ func TestRepository_RescanAll(t *testing.T) {
 		}
 	}
 	assert.GreaterOrEqual(t, rescanCount, 2)
+}
+
+func TestRepository_RescanAll_SkipsReposWithNoCommits(t *testing.T) {
+	deps := newRepositoryTestDeps(t)
+	ctx := context.Background()
+
+	saveRepoWithDefaults(t, deps, "https://github.com/test/empty-repo")
+
+	err := deps.service.RescanAll(ctx)
+	require.NoError(t, err)
+
+	tasks := savedTasks(t, deps)
+	for _, tsk := range tasks {
+		assert.NotEqual(t, task.OperationRescanCommit, tsk.Operation())
+	}
 }
 
 func TestRepository_UpdateTrackingConfig(t *testing.T) {
