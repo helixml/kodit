@@ -120,6 +120,20 @@ CREATE TABLE IF NOT EXISTS %s (
 		if err := rawDB.Exec(createTableSQL).Error; err != nil {
 			return errors.Join(ErrVectorInitializationFailed, fmt.Errorf("recreate table: %w", err))
 		}
+
+		// Recreating the table changes its column type OIDs. pgx connections
+		// in the pool cache prepared statements against the *old* OIDs — the
+		// next SELECT on one of those connections fails with SQLSTATE 0A000
+		// "cached plan must not change result type". Closing every pooled
+		// connection forces pgx to prepare fresh statements against the new
+		// schema. See PR #XXX for context.
+		if sqlDB, dbErr := rawDB.DB(); dbErr == nil {
+			sqlDB.SetMaxIdleConns(0)
+			sqlDB.SetMaxIdleConns(10)
+		} else {
+			s.logger.Warn().Err(dbErr).Msg("failed to access underlying sql.DB for pool invalidation after dim change")
+		}
+
 		if s.onRebuilt != nil {
 			s.onRebuilt(ctx)
 		}
