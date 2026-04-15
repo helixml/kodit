@@ -198,13 +198,30 @@ func (s *Repository) Rescan(ctx context.Context, params *RescanParams) error {
 }
 
 func (s *Repository) RescanAll(ctx context.Context) error {
-	repos, err := s.repoStore.Find(ctx)
-	if err != nil {
-		return fmt.Errorf("find repositories: %w", err)
-	}
-	for _, repo := range repos {
-		if err := s.enqueueRescan(ctx, repo, ""); err != nil {
-			return fmt.Errorf("enqueue rescan: %w", err)
+	const pageSize = 500
+	for offset := 0; ; offset += pageSize {
+		repos, err := s.repoStore.Find(ctx, repository.WithLimit(pageSize), repository.WithOffset(offset))
+		if err != nil {
+			return fmt.Errorf("find repositories: %w", err)
+		}
+		for _, repo := range repos {
+			commits, err := s.commitStore.Find(ctx,
+				repository.WithRepoID(repo.ID()),
+				repository.WithOrderDesc("date"),
+				repository.WithLimit(1),
+			)
+			if err != nil {
+				return fmt.Errorf("find latest commit for repo %d: %w", repo.ID(), err)
+			}
+			if len(commits) == 0 {
+				continue
+			}
+			if err := s.enqueueRescan(ctx, repo, commits[0].SHA()); err != nil {
+				return fmt.Errorf("enqueue rescan for repo %d: %w", repo.ID(), err)
+			}
+		}
+		if len(repos) < pageSize {
+			break
 		}
 	}
 	return nil
