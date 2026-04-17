@@ -16,7 +16,7 @@ Change two default values so that `max_tokens` is omitted from OpenAI API reques
 - `openai.go:209-211` — the `if req.MaxTokens() > 0` guard already does the right thing
 - `provider.go:70` — `ChatCompletionRequest` already defaults to `0`
 - `WithMaxTokens()` methods — callers can still override to any positive value
-- `env.go:158` — `MAX_TOKENS` env var still works; operators who need a cap can set it explicitly
+- `env.go:158` — `MAX_TOKENS` env var still works; operators who need a cap can set it explicitly (note: the struct tag default was also updated from `4000` to `0`)
 - `anthropic.go:219-221` — Anthropic provider defaults `0` to `4096` independently; unaffected
 
 ## Rationale
@@ -28,3 +28,9 @@ Change two default values so that `max_tokens` is omitted from OpenAI API reques
 
 - **Runaway token usage**: without a cap, responses could be longer and cost more. Mitigated by the fact that operators can still set `MAX_TOKENS` explicitly.
 - **Anthropic provider unaffected**: it has its own fallback to `4096` when `maxTokens == 0`, so this change doesn't alter Anthropic behaviour.
+
+## Implementation Notes
+
+- Three defaults needed changing, not two: the constant (`config.go`), the enricher struct (`enricher.go`), and the env struct tag (`env.go`). The struct tag default must match the constant or `TestEnvDefaults_MatchConfigDefaults` fails.
+- The enricher is wired up in `kodit.go:411` without calling `WithMaxTokens()`, so it always uses its own hardcoded default — changing the config constant alone would not fix the enricher path.
+- `make tools` must be run first to install `golangci-lint` into `~/go/bin`; the Makefile expects it on PATH.
