@@ -7,6 +7,7 @@ import (
 	"math"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/rs/zerolog"
 
@@ -40,8 +41,8 @@ var ErrVectorInitializationFailed = errors.New("failed to initialize VectorChord
 
 // VectorChordEmbeddingStore implements search.EmbeddingStore using VectorChord PostgreSQL extension.
 // Table creation is deferred to the first SaveAll call, using the actual
-// embedding dimension. Read methods work against whatever table state exists;
-// if no data has been written yet they return empty results.
+// embedding dimension. Read/delete methods return empty results when the
+// table does not yet exist.
 type VectorChordEmbeddingStore struct {
 	database.Repository[search.Embedding, PgEmbeddingModel]
 	logger  zerolog.Logger
@@ -49,24 +50,62 @@ type VectorChordEmbeddingStore struct {
 
 	onRebuilt  func(context.Context)
 	tableMu    sync.Mutex
-	tableReady bool
+	tableReady atomic.Bool
 }
 
 // NewVectorChordEmbeddingStore creates a new VectorChordEmbeddingStore.
-// Construction is side-effect-free; the VectorChord extension and table are
-// created lazily on the first SaveAll call using the actual embedding dimension.
+// The VectorChord extension and table are created lazily on the first SaveAll
+// call using the actual embedding dimension. On construction, we probe
+// pg_class to determine whether the table already exists so that read/delete
+// methods can return early without hitting a missing-relation error.
 //
 // onRebuilt is called (at most once) if an existing table had to be dropped
 // and recreated due to a dimension mismatch; pass nil if no action is needed.
 func NewVectorChordEmbeddingStore(db database.Database, taskName TaskName, onRebuilt func(context.Context), logger zerolog.Logger) *VectorChordEmbeddingStore {
 	tableName := fmt.Sprintf("vectorchord_%s_embeddings", taskName)
-	return &VectorChordEmbeddingStore{
+	s := &VectorChordEmbeddingStore{
 		Repository: database.NewRepositoryForTable[search.Embedding, PgEmbeddingModel](
 			db, pgEmbeddingMapper{}, "embedding", tableName,
 		),
 		onRebuilt: onRebuilt,
 		logger:    logger,
 	}
+
+	var count int64
+	s.DB(context.Background()).Raw(
+		"SELECT count(*) FROM pg_class WHERE relname = ? AND relkind = 'r'", tableName,
+	).Scan(&count)
+	if count > 0 {
+		s.tableReady.Store(true)
+	} else {
+		logger.Warn().Str("table", tableName).Msg("embedding table does not exist yet; read/delete operations will return empty until first SaveAll creates it")
+	}
+
+	return s
+}
+
+// Find retrieves embeddings, returning an empty slice if the table hasn't been created yet.
+func (s *VectorChordEmbeddingStore) Find(ctx context.Context, options ...repository.Option) ([]search.Embedding, error) {
+	if !s.tableReady.Load() {
+		return nil, nil
+	}
+	return s.Repository.Find(ctx, options...)
+}
+
+// DeleteBy removes embeddings, silently succeeding if the table hasn't been created yet.
+func (s *VectorChordEmbeddingStore) DeleteBy(ctx context.Context, options ...repository.Option) error {
+	if !s.tableReady.Load() {
+		return nil
+	}
+	return s.Repository.DeleteBy(ctx, options...)
+}
+
+// Exists checks for matching embeddings, returning false if the table hasn't been created yet.
+func (s *VectorChordEmbeddingStore) Exists(ctx context.Context, options ...repository.Option) (bool, error) {
+	if !s.tableReady.Load() {
+		return false, nil
+	}
+	return s.Repository.Exists(ctx, options...)
 }
 
 // ensureTable creates the VectorChord extension and embedding table if they
@@ -78,7 +117,7 @@ func NewVectorChordEmbeddingStore(db database.Database, taskName TaskName, onReb
 func (s *VectorChordEmbeddingStore) ensureTable(ctx context.Context, dimension int) error {
 	s.tableMu.Lock()
 	defer s.tableMu.Unlock()
-	if s.tableReady {
+	if s.tableReady.Load() {
 		return nil
 	}
 
@@ -133,7 +172,7 @@ CREATE TABLE IF NOT EXISTS %s (
 		}
 	}
 
-	s.tableReady = true
+	s.tableReady.Store(true)
 	return nil
 }
 
@@ -232,6 +271,9 @@ func probeCount(rows int64) int {
 // Search performs vector similarity search within a transaction so that
 // the vchordrq.probes session variable is visible to the query.
 func (s *VectorChordEmbeddingStore) Search(ctx context.Context, options ...repository.Option) ([]search.Result, error) {
+	if !s.tableReady.Load() {
+		return nil, nil
+	}
 	var count int64
 	db := s.DB(ctx)
 	if err := db.Table(s.Table()).Count(&count).Error; err != nil {
