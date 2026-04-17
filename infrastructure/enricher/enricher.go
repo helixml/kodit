@@ -24,7 +24,7 @@ type ProviderEnricher struct {
 func NewProviderEnricher(generator provider.TextGenerator) *ProviderEnricher {
 	return &ProviderEnricher{
 		generator:   generator,
-		maxTokens:   2048,
+		maxTokens:   0,
 		temperature: 0.7,
 		parallelism: 1,
 	}

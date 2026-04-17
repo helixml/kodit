@@ -24,7 +24,7 @@ const (
 	DefaultEndpointMaxRetries        = 5
 	DefaultEndpointInitialDelay      = 2 * time.Second
 	DefaultEndpointBackoffFactor     = 2.0
-	DefaultEndpointMaxTokens         = 4000
+	DefaultEndpointMaxTokens         = 0
 	DefaultPeriodicSyncInterval      = 1800.0 // seconds
 	DefaultPeriodicSyncCheckInterval = 10.0   // seconds
 	DefaultPeriodicSyncRetries       = 3

@@ -40,8 +40,8 @@ func TestDefaultConstants(t *testing.T) {
 	if DefaultEndpointBackoffFactor != 2.0 {
 		t.Errorf("DefaultEndpointBackoffFactor = %v, want 2.0", DefaultEndpointBackoffFactor)
 	}
-	if DefaultEndpointMaxTokens != 4000 {
-		t.Errorf("DefaultEndpointMaxTokens = %v, want 4000", DefaultEndpointMaxTokens)
+	if DefaultEndpointMaxTokens != 0 {
+		t.Errorf("DefaultEndpointMaxTokens = %v, want 0", DefaultEndpointMaxTokens)
 	}
 	if DefaultPeriodicSyncInterval != 1800.0 {
 		t.Errorf("DefaultPeriodicSyncInterval = %v, want 1800.0", DefaultPeriodicSyncInterval)
