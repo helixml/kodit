@@ -225,7 +225,44 @@ for _, snippet := range results.Snippets() {
 | `WithDataDir(dir)` | Data directory (default: `~/.kodit`) |
 | `WithCloneDir(dir)` | Repository clone directory |
 | `WithAPIKeys(keys...)` | API keys for HTTP authentication |
+| `WithWorkerCount(n)` | Number of background workers (default: 1) |
 | `WithPeriodicSyncConfig(cfg)` | Automatic repository sync settings |
+
+### Search options
+
+| Option | Description |
+|--------|-------------|
+| `WithSemanticWeight(w)` | Weight for semantic vs keyword search (0.0 to 1.0) |
+| `WithLimit(n)` | Maximum number of results |
+| `WithOffset(n)` | Offset for pagination |
+| `WithLanguages(langs...)` | Filter by programming languages |
+| `WithRepositories(ids...)` | Filter by repository IDs |
+| `WithMinScore(score)` | Minimum score threshold |
+
+### Go HTTP client
+
+A generated HTTP client is available for calling a remote Kodit server from Go:
+
+```sh
+go get github.com/helixml/kodit/clients/go
+```
+
+```go
+import koditclient "github.com/helixml/kodit/clients/go"
+
+client, err := koditclient.NewClient("https://kodit.example.com")
+
+// List repositories
+resp, err := client.GetApiV1Repositories(ctx)
+
+// Search
+resp, err := client.PostApiV1SearchMulti(ctx, koditclient.PostApiV1SearchMultiJSONRequestBody{
+    TextQuery: "create a deployment",
+    TopK:      10,
+})
+```
+
+Types are auto-generated from the OpenAPI spec. See the interactive API docs at `/docs` for the full endpoint list.
 
 ## Production Deployment
 
@@ -276,11 +313,95 @@ volumes:
   vectorchord-data:
 ```
 
+### Kubernetes
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vectorchord
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vectorchord
+  template:
+    metadata:
+      labels:
+        app: vectorchord
+    spec:
+      containers:
+        - name: vectorchord
+          image: tensorchord/vchord-suite:pg17-20250601
+          env:
+            - name: POSTGRES_DB
+              value: kodit
+            - name: POSTGRES_PASSWORD
+              value: mysecretpassword
+          ports:
+            - containerPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vectorchord
+spec:
+  selector:
+    app: vectorchord
+  ports:
+    - port: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kodit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kodit
+  template:
+    metadata:
+      labels:
+        app: kodit
+    spec:
+      containers:
+        - name: kodit
+          image: registry.helix.ml/helix/kodit:latest # pin to a specific version
+          args: ["serve", "--host", "0.0.0.0", "--port", "8080"]
+          env: [] # see Configuration Reference for environment variables
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kodit
+spec:
+  type: LoadBalancer
+  selector:
+    app: kodit
+  ports:
+    - port: 8080
+```
+
 ### Authentication
 
 Set the `API_KEYS` environment variable to a comma-separated list of keys. Write endpoints (creating repositories, triggering syncs) require a valid key in the `Authorization: Bearer <key>` header. Search endpoints are open by default.
 
 ## Configuration Reference
+
+Configuration is done through environment variables. You can also use a `.env` file:
+
+```sh
+kodit serve --env-file .env
+```
 
 ### Server
 
@@ -293,6 +414,9 @@ Set the `API_KEYS` environment variable to a comma-separated list of keys. Write
 | `LOG_LEVEL` | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARN`, `ERROR` |
 | `LOG_FORMAT` | `pretty` | Log format: `pretty` or `json` |
 | `API_KEYS` | (empty) | Comma-separated API keys for write endpoints |
+| `WORKER_COUNT` | `1` | Number of background workers |
+| `SEARCH_LIMIT` | `10` | Default search result limit |
+| `DISABLE_TELEMETRY` | `false` | Disable anonymous usage telemetry |
 
 ### Embedding Provider
 
@@ -318,6 +442,9 @@ These configure an LLM for generating architecture docs, API docs, database sche
 | `ENRICHMENT_ENDPOINT_API_KEY` | (empty) | API key |
 | `ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS` | `1` | Concurrent enrichment requests |
 | `ENRICHMENT_ENDPOINT_TIMEOUT` | `60` | Request timeout in seconds |
+| `ENRICHMENT_ENDPOINT_EXTRA_PARAMS` | (empty) | JSON-encoded extra parameters for the LLM |
+
+Enrichment is typically the slowest part of indexing because each enrichment requires a round-trip to the LLM provider. Increase `NUM_PARALLEL_TASKS` to speed things up, but respect your provider's rate limits. Start low and increase over time.
 
 Provider examples:
 
@@ -389,7 +516,19 @@ Kodit tracks which files have changed between syncs and only reprocesses modifie
 
 ### Supported sources
 
-Kodit indexes any Git repository accessible via HTTPS, SSH, or the Git protocol. This includes GitHub, GitLab, Bitbucket, Azure DevOps, and self-hosted servers. Private repositories are supported through personal access tokens or SSH keys.
+Kodit indexes any Git repository accessible via HTTPS, SSH, or the Git protocol. This includes GitHub, GitLab, Bitbucket, Azure DevOps, and self-hosted servers.
+
+### Private repositories
+
+Private repositories are supported through personal access tokens or SSH keys:
+
+```sh
+# HTTPS with token
+https://username:token@github.com/username/repo.git
+
+# SSH (ensure your SSH key is configured)
+git@github.com:username/repo.git
+```
 
 ### Privacy
 
@@ -424,6 +563,22 @@ Run the tests:
 make test                         # All tests
 make test PKG=./internal/foo/...  # Specific package
 make check                        # Format, vet, lint, and test
+```
+
+## Troubleshooting
+
+**MCP connection error after restart:** If you see `No valid session ID provided` after restarting the Kodit server, reload the MCP client in your assistant. MCP sessions do not survive server restarts.
+
+**No search results:** Check that indexing has completed by calling `GET /api/v1/repositories/{id}/status`. If status shows errors, check the server logs with `LOG_LEVEL=DEBUG`.
+
+**Enrichments not generating:** Enrichments require an LLM provider. Check that `ENRICHMENT_ENDPOINT_BASE_URL` and `ENRICHMENT_ENDPOINT_MODEL` are set. Without these, Kodit indexes and searches code but does not generate AI documentation.
+
+## Telemetry
+
+Kodit collects limited anonymous telemetry (usage metadata only, no user data) to guide development. Disable it with:
+
+```sh
+DISABLE_TELEMETRY=true
 ```
 
 ## Commercial Support
