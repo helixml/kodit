@@ -4,6 +4,7 @@ import (
 	"image"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -60,5 +61,49 @@ func TestPdfiumRasterizer_RenderWhitePage(t *testing.T) {
 				t.Fatalf("pixel (%d,%d) is not white: RGBA(%d,%d,%d,%d) — possible corrupted WASM memory", x, y, r, g, b, a)
 			}
 		}
+	}
+}
+
+// TestPdfiumRasterizer_ConcurrentRenders ensures the rasterizer serialises calls
+// to its underlying WASM instance. Without a mutex, concurrent Render/PageCount
+// calls corrupt the shared pdfium.Pdfium state (out-of-bounds memory access,
+// invalid table access, indirect call type mismatch) and every subsequent call
+// 500s until the process restarts.
+func TestPdfiumRasterizer_ConcurrentRenders(t *testing.T) {
+	rast, err := NewPdfiumRasterizer()
+	require.NoError(t, err)
+	defer func() { _ = rast.Close() }()
+
+	path := filepath.Join(t.TempDir(), "white.pdf")
+	require.NoError(t, os.WriteFile(path, whitePDF(), 0o644))
+
+	const goroutines = 8
+	const iterations = 5
+
+	var wg sync.WaitGroup
+	errs := make(chan error, goroutines*iterations*2)
+
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < iterations; j++ {
+				if _, err := rast.PageCount(path); err != nil {
+					errs <- err
+					return
+				}
+				if _, err := rast.Render(path, 1); err != nil {
+					errs <- err
+					return
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		t.Fatalf("concurrent rasterization failed: %v", err)
 	}
 }

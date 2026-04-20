@@ -3,6 +3,7 @@ package rasterization
 import (
 	"fmt"
 	"image"
+	"sync"
 	"time"
 
 	"github.com/klippa-app/go-pdfium"
@@ -16,9 +17,15 @@ const renderDPI = 150
 // PdfiumRasterizer renders PDF pages using the PDFium library via WebAssembly
 // (Wazero). No CGO or system libraries are required — the PDFium WASM binary
 // is embedded in the go-pdfium module.
+//
+// The underlying pdfium.Pdfium instance wraps a single WASM module whose
+// internal state is not safe for concurrent use: parallel calls corrupt the
+// module's memory and function tables, after which every subsequent call
+// fails until the process restarts. mu serialises all calls into the instance.
 type PdfiumRasterizer struct {
 	pool     pdfium.Pool
 	instance pdfium.Pdfium
+	mu       sync.Mutex
 }
 
 // NewPdfiumRasterizer initialises PDFium via the Wazero WebAssembly runtime
@@ -43,6 +50,9 @@ func NewPdfiumRasterizer() (*PdfiumRasterizer, error) {
 
 // PageCount returns the number of pages in the PDF at the given path.
 func (r *PdfiumRasterizer) PageCount(path string) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	doc, err := r.instance.OpenDocument(&requests.OpenDocument{
 		FilePath: &path,
 	})
@@ -66,6 +76,9 @@ func (r *PdfiumRasterizer) PageCount(path string) (int, error) {
 
 // Render returns the given 1-based page of the PDF as an image.
 func (r *PdfiumRasterizer) Render(path string, page int) (image.Image, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	doc, err := r.instance.OpenDocument(&requests.OpenDocument{
 		FilePath: &path,
 	})
