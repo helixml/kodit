@@ -436,6 +436,24 @@ These configure an external embedding model. If unset, Kodit uses its built-in m
 | `EMBEDDING_ENDPOINT_QUERY_INSTRUCTION` | (empty) | Instruction prepended to queries for asymmetric retrieval |
 | `EMBEDDING_ENDPOINT_DOCUMENT_INSTRUCTION` | (empty) | Instruction prepended to documents for asymmetric retrieval |
 
+### Vision Embedding Provider
+
+These configure a remote service for image and text vision embeddings. If unset, Kodit uses its built-in SigLIP2 model.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VISION_EMBEDDING_ENDPOINT_BASE_URL` | (empty) | Base URL of vision embedding service |
+| `VISION_EMBEDDING_ENDPOINT_MODEL` | (empty) | Model identifier |
+| `VISION_EMBEDDING_ENDPOINT_API_KEY` | (empty) | API key |
+| `VISION_EMBEDDING_ENDPOINT_MAX_TOKENS` | `0` | Max tokens per request (0 = provider default) |
+| `VISION_EMBEDDING_ENDPOINT_MAX_BATCH_CHARS` | `16000` | Max total characters per embedding batch |
+| `VISION_EMBEDDING_ENDPOINT_MAX_BATCH_SIZE` | `1` | Max items per batch |
+| `VISION_EMBEDDING_ENDPOINT_TIMEOUT` | `60` | Request timeout in seconds |
+| `VISION_EMBEDDING_ENDPOINT_NUM_PARALLEL_TASKS` | `1` | Concurrent vision embedding requests |
+| `VISION_EMBEDDING_ENDPOINT_EXTRA_PARAMS` | (empty) | JSON-encoded extra parameters for the vision embedding provider |
+| `VISION_EMBEDDING_ENDPOINT_QUERY_INSTRUCTION` | (empty) | Instruction prepended to queries for asymmetric retrieval |
+| `VISION_EMBEDDING_ENDPOINT_DOCUMENT_INSTRUCTION` | (empty) | Instruction prepended to documents for asymmetric retrieval |
+
 ### Enrichment Providers
 
 These configure an LLM for generating architecture docs, API docs, database schemas, cookbooks, commit summaries, and wiki pages. Without this, Kodit indexes and searches code but does not generate any AI documentation.
@@ -559,6 +577,7 @@ cd kodit
 make tools          # Install development tools
 make download-model # Download the built-in embedding model
 make build          # Build the binary
+./bin/kodit version
 ./bin/kodit serve
 ```
 
