@@ -178,7 +178,7 @@ Kodit exposes these tools to connected AI assistants:
 | `kodit_wiki_page` | Read a specific wiki page |
 | `kodit_version` | Server version |
 
-The enrichment tools (`architecture_docs`, `api_docs`, `database_schema`, `cookbook`, `wiki`, `commit_description`) require an LLM provider to be configured. See [Enrichment Providers](#enrichment-providers).
+The enrichment tools (`architecture_docs`, `api_docs`, `database_schema`, `cookbook`, `wiki`, `commit_description`) require an LLM provider to be configured. See Enrichment Providers under Configuration Reference.
 
 ## Go Library
 
@@ -278,7 +278,7 @@ services:
     image: registry.helix.ml/helix/kodit:latest
     ports:
       - "8080:8080"
-    command: ["serve", "--host", "0.0.0.0", "--port", "8080"]
+    command: ["serve"]
     restart: unless-stopped
     depends_on:
       - vectorchord
@@ -368,7 +368,7 @@ spec:
       containers:
         - name: kodit
           image: registry.helix.ml/helix/kodit:latest # pin to a specific version
-          args: ["serve", "--host", "0.0.0.0", "--port", "8080"]
+          args: ["serve"]
           env: [] # see Configuration Reference for environment variables
           ports:
             - containerPort: 8080
@@ -428,6 +428,7 @@ These configure an external embedding model. If unset, Kodit uses its built-in m
 | `EMBEDDING_ENDPOINT_MODEL` | (empty) | Model identifier |
 | `EMBEDDING_ENDPOINT_API_KEY` | (empty) | API key |
 | `EMBEDDING_ENDPOINT_MAX_TOKENS` | `0` | Max tokens per request (0 = provider default) |
+| `EMBEDDING_ENDPOINT_MAX_BATCH_CHARS` | `16000` | Max total characters per embedding batch |
 | `EMBEDDING_ENDPOINT_MAX_BATCH_SIZE` | `1` | Max items per batch |
 | `EMBEDDING_ENDPOINT_TIMEOUT` | `60` | Request timeout in seconds |
 
