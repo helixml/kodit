@@ -431,6 +431,10 @@ These configure an external embedding model. If unset, Kodit uses its built-in m
 | `EMBEDDING_ENDPOINT_MAX_BATCH_CHARS` | `16000` | Max total characters per embedding batch |
 | `EMBEDDING_ENDPOINT_MAX_BATCH_SIZE` | `1` | Max items per batch |
 | `EMBEDDING_ENDPOINT_TIMEOUT` | `60` | Request timeout in seconds |
+| `EMBEDDING_ENDPOINT_NUM_PARALLEL_TASKS` | `1` | Concurrent embedding requests |
+| `EMBEDDING_ENDPOINT_EXTRA_PARAMS` | (empty) | JSON-encoded extra parameters for the embedding provider |
+| `EMBEDDING_ENDPOINT_QUERY_INSTRUCTION` | (empty) | Instruction prepended to queries for asymmetric retrieval |
+| `EMBEDDING_ENDPOINT_DOCUMENT_INSTRUCTION` | (empty) | Instruction prepended to documents for asymmetric retrieval |
 
 ### Enrichment Providers
 
