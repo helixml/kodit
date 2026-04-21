@@ -2,6 +2,7 @@ package repository
 
 import (
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -127,6 +128,10 @@ func (r Repository) UpdatedAt() time.Time { return r.updatedAt }
 
 // HasWorkingCopy returns true if a working copy exists.
 func (r Repository) HasWorkingCopy() bool { return !r.workingCopy.IsEmpty() }
+
+// IsLocal returns true if the repository uses a file:// URI, meaning the
+// working copy directory is owned by the user and was not cloned by Kodit.
+func (r Repository) IsLocal() bool { return strings.HasPrefix(r.remoteURL, "file://") }
 
 // HasTrackingConfig returns true if tracking is configured.
 func (r Repository) HasTrackingConfig() bool { return !r.trackingConfig.IsEmpty() }

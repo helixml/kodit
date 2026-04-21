@@ -85,7 +85,7 @@ func (h *Delete) Execute(ctx context.Context, payload map[string]any) error {
 	// Remove working copy from disk
 	tracker.SetCurrent(ctx, 1, "Removing working copy")
 
-	if repo.HasWorkingCopy() {
+	if repo.HasWorkingCopy() && !repo.IsLocal() {
 		clonedPath := repo.WorkingCopy().Path()
 		if err := os.RemoveAll(clonedPath); err != nil {
 			h.logger.Warn().Str("path", clonedPath).Str("error", err.Error()).Msg("failed to remove working copy")
