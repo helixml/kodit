@@ -417,6 +417,7 @@ kodit serve --env-file .env
 | `WORKER_COUNT` | `1` | Number of background workers |
 | `SEARCH_LIMIT` | `10` | Default search result limit |
 | `DISABLE_TELEMETRY` | `false` | Disable anonymous usage telemetry |
+| `HTTP_CACHE_DIR` | (empty) | Directory for caching HTTP POST responses to disk; avoids repeated API calls during development |
 
 ### Embedding Provider
 
@@ -435,6 +436,10 @@ These configure an external embedding model. If unset, Kodit uses its built-in m
 | `EMBEDDING_ENDPOINT_EXTRA_PARAMS` | (empty) | JSON-encoded extra parameters for the embedding provider |
 | `EMBEDDING_ENDPOINT_QUERY_INSTRUCTION` | (empty) | Instruction prepended to queries for asymmetric retrieval |
 | `EMBEDDING_ENDPOINT_DOCUMENT_INSTRUCTION` | (empty) | Instruction prepended to documents for asymmetric retrieval |
+| `EMBEDDING_ENDPOINT_SOCKET_PATH` | (empty) | Unix socket path for local provider (alternative to BASE_URL) |
+| `EMBEDDING_ENDPOINT_MAX_RETRIES` | `5` | Maximum retry attempts on request failure |
+| `EMBEDDING_ENDPOINT_INITIAL_DELAY` | `2.0` | Initial retry delay in seconds |
+| `EMBEDDING_ENDPOINT_BACKOFF_FACTOR` | `2.0` | Retry backoff multiplier |
 
 ### Vision Embedding Provider
 
@@ -453,6 +458,10 @@ These configure a remote service for image and text vision embeddings. If unset,
 | `VISION_EMBEDDING_ENDPOINT_EXTRA_PARAMS` | (empty) | JSON-encoded extra parameters for the vision embedding provider |
 | `VISION_EMBEDDING_ENDPOINT_QUERY_INSTRUCTION` | (empty) | Instruction prepended to queries for asymmetric retrieval |
 | `VISION_EMBEDDING_ENDPOINT_DOCUMENT_INSTRUCTION` | (empty) | Instruction prepended to documents for asymmetric retrieval |
+| `VISION_EMBEDDING_ENDPOINT_SOCKET_PATH` | (empty) | Unix socket path for local provider (alternative to BASE_URL) |
+| `VISION_EMBEDDING_ENDPOINT_MAX_RETRIES` | `5` | Maximum retry attempts on request failure |
+| `VISION_EMBEDDING_ENDPOINT_INITIAL_DELAY` | `2.0` | Initial retry delay in seconds |
+| `VISION_EMBEDDING_ENDPOINT_BACKOFF_FACTOR` | `2.0` | Retry backoff multiplier |
 
 ### Enrichment Providers
 
@@ -466,6 +475,11 @@ These configure an LLM for generating architecture docs, API docs, database sche
 | `ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS` | `1` | Concurrent enrichment requests |
 | `ENRICHMENT_ENDPOINT_TIMEOUT` | `60` | Request timeout in seconds |
 | `ENRICHMENT_ENDPOINT_EXTRA_PARAMS` | (empty) | JSON-encoded extra parameters for the LLM |
+| `ENRICHMENT_ENDPOINT_MAX_TOKENS` | `0` | Max tokens per response (0 = provider default) |
+| `ENRICHMENT_ENDPOINT_SOCKET_PATH` | (empty) | Unix socket path for local provider (alternative to BASE_URL) |
+| `ENRICHMENT_ENDPOINT_MAX_RETRIES` | `5` | Maximum retry attempts on request failure |
+| `ENRICHMENT_ENDPOINT_INITIAL_DELAY` | `2.0` | Initial retry delay in seconds |
+| `ENRICHMENT_ENDPOINT_BACKOFF_FACTOR` | `2.0` | Retry backoff multiplier |
 
 Enrichment is typically the slowest part of indexing because each enrichment requires a round-trip to the LLM provider. Increase `NUM_PARALLEL_TASKS` to speed things up, but respect your provider's rate limits. Start low and increase over time.
 
