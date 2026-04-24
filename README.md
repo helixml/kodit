@@ -205,8 +205,8 @@ results, err := client.Search.Query(ctx, "create a deployment",
     service.WithLimit(10),
 )
 
-for _, snippet := range results.Snippets() {
-    fmt.Println(snippet.Path(), snippet.Name())
+for _, result := range results.Enrichments() {
+    fmt.Println(result.Subtype(), result.Content())
 }
 ```
 
@@ -238,6 +238,9 @@ for _, snippet := range results.Snippets() {
 | `WithLanguages(langs...)` | Filter by programming languages |
 | `WithRepositories(ids...)` | Filter by repository IDs |
 | `WithMinScore(score)` | Minimum score threshold |
+| `WithEnrichmentTypes(types...)` | Filter results to specific enrichment types |
+| `WithSnippets(include)` | Include code snippets in results |
+| `WithDocuments(include)` | Include enrichment documents in results |
 
 ### Go HTTP client
 
