@@ -205,8 +205,8 @@ results, err := client.Search.Query(ctx, "create a deployment",
     service.WithLimit(10),
 )
 
-for _, snippet := range results.Snippets() {
-    fmt.Println(snippet.Path(), snippet.Name())
+for _, result := range results.Enrichments() {
+    fmt.Println(result.Subtype(), result.Content())
 }
 ```
 
@@ -238,6 +238,9 @@ for _, snippet := range results.Snippets() {
 | `WithLanguages(langs...)` | Filter by programming languages |
 | `WithRepositories(ids...)` | Filter by repository IDs |
 | `WithMinScore(score)` | Minimum score threshold |
+| `WithEnrichmentTypes(types...)` | Filter results to specific enrichment types |
+| `WithSnippets(include)` | Include code snippets in results |
+| `WithDocuments(include)` | Include enrichment documents in results |
 
 ### Go HTTP client
 
@@ -253,12 +256,16 @@ import koditclient "github.com/helixml/kodit/clients/go"
 client, err := koditclient.NewClient("https://kodit.example.com")
 
 // List repositories
-resp, err := client.GetApiV1Repositories(ctx)
+resp, err := client.GetRepositories(ctx, nil)
 
 // Search
-resp, err := client.PostApiV1SearchMulti(ctx, koditclient.PostApiV1SearchMultiJSONRequestBody{
-    TextQuery: "create a deployment",
-    TopK:      10,
+text := "create a deployment"
+resp, err := client.PostSearch(ctx, koditclient.PostSearchJSONRequestBody{
+    Data: &koditclient.DtoSearchData{
+        Attributes: &koditclient.DtoSearchAttributes{
+            Text: &text,
+        },
+    },
 })
 ```
 
@@ -418,6 +425,7 @@ kodit serve --env-file .env
 | `SEARCH_LIMIT` | `10` | Default search result limit |
 | `DISABLE_TELEMETRY` | `false` | Disable anonymous usage telemetry |
 | `HTTP_CACHE_DIR` | (empty) | Directory for caching HTTP POST responses to disk; avoids repeated API calls during development |
+| `REPORTING_LOG_TIME_INTERVAL` | `5` | Progress reporting interval in seconds |
 
 ### Embedding Provider
 
