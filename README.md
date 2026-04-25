@@ -488,6 +488,10 @@ These configure an LLM for generating architecture docs, API docs, database sche
 | `ENRICHMENT_ENDPOINT_MAX_RETRIES` | `5` | Maximum retry attempts on request failure |
 | `ENRICHMENT_ENDPOINT_INITIAL_DELAY` | `2.0` | Initial retry delay in seconds |
 | `ENRICHMENT_ENDPOINT_BACKOFF_FACTOR` | `2.0` | Retry backoff multiplier |
+| `ENRICHMENT_ENDPOINT_MAX_BATCH_CHARS` | `16000` | Max total characters per batch |
+| `ENRICHMENT_ENDPOINT_MAX_BATCH_SIZE` | `1` | Max items per batch |
+| `ENRICHMENT_ENDPOINT_QUERY_INSTRUCTION` | (empty) | Instruction prepended to queries for asymmetric retrieval |
+| `ENRICHMENT_ENDPOINT_DOCUMENT_INSTRUCTION` | (empty) | Instruction prepended to documents for asymmetric retrieval |
 
 Enrichment is typically the slowest part of indexing because each enrichment requires a round-trip to the LLM provider. Increase `NUM_PARALLEL_TASKS` to speed things up, but respect your provider's rate limits. Start low and increase over time.
 
