@@ -196,7 +196,7 @@ if err != nil {
 defer client.Close()
 
 // Index a repository
-repo, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{
+_, _, err = client.Repositories.Add(ctx, &service.RepositoryAddParams{
     URL: "https://github.com/kubernetes/kubernetes",
 })
 
