@@ -70,6 +70,12 @@ func (s *BM25) Find(ctx context.Context, query string, options ...repository.Opt
 	return s.store.Find(ctx, combined...)
 }
 
+// ExistingIDs returns the subset of ids whose snippet IDs already have
+// BM25 entries in the underlying store.
+func (s *BM25) ExistingIDs(ctx context.Context, ids []string) (map[string]struct{}, error) {
+	return s.store.ExistingIDs(ctx, ids)
+}
+
 // DeleteBy removes documents matching the given options.
 func (s *BM25) DeleteBy(ctx context.Context, options ...repository.Option) error {
 	return s.store.DeleteBy(ctx, options...)

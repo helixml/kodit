@@ -74,7 +74,9 @@ func (s *SQLiteBM25Store) createTable(ctx context.Context) error {
 	return nil
 }
 
-func (s *SQLiteBM25Store) existingIDs(ctx context.Context, ids []string) (map[string]struct{}, error) {
+// ExistingIDs returns the subset of ids whose snippet IDs already have
+// BM25 entries in the store.
+func (s *SQLiteBM25Store) ExistingIDs(ctx context.Context, ids []string) (map[string]struct{}, error) {
 	if len(ids) == 0 {
 		return map[string]struct{}{}, nil
 	}
@@ -115,7 +117,7 @@ func (s *SQLiteBM25Store) Index(ctx context.Context, request search.IndexRequest
 		ids[i] = doc.SnippetID()
 	}
 
-	existing, err := s.existingIDs(ctx, ids)
+	existing, err := s.ExistingIDs(ctx, ids)
 	if err != nil {
 		return err
 	}

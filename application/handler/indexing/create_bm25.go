@@ -63,10 +63,19 @@ func (h *CreateBM25Index) Execute(ctx context.Context, payload map[string]any) e
 		return nil
 	}
 
-	tracker.SetTotal(ctx, len(enrichments))
+	newEnrichments, err := h.filterNew(ctx, enrichments)
+	if err != nil {
+		h.logger.Error().Str("error", err.Error()).Msg("failed to filter new enrichments")
+		return err
+	}
 
-	documents := make([]search.Document, 0, len(enrichments))
-	for _, e := range enrichments {
+	if len(newEnrichments) == 0 {
+		tracker.Skip(ctx, "All snippets already have BM25 entries")
+		return nil
+	}
+
+	documents := make([]search.Document, 0, len(newEnrichments))
+	for _, e := range newEnrichments {
 		if e.Content() != "" {
 			doc := search.NewDocument(strconv.FormatInt(e.ID(), 10), e.Content())
 			documents = append(documents, doc)
@@ -78,15 +87,38 @@ func (h *CreateBM25Index) Execute(ctx context.Context, payload map[string]any) e
 		return nil
 	}
 
+	tracker.SetTotal(ctx, len(documents))
+
 	request := search.NewIndexRequest(documents)
 	if err := h.bm25Service.Index(ctx, request); err != nil {
 		h.logger.Error().Str("error", err.Error()).Msg("failed to index documents")
 		return err
 	}
 
-	tracker.SetCurrent(ctx, len(enrichments), "BM25 index created for commit")
+	tracker.SetCurrent(ctx, len(documents), "BM25 index created for commit")
 
 	h.logger.Info().Int("documents", len(documents)).Str("commit", handler.ShortSHA(cp.CommitSHA())).Msg("BM25 index created")
 
 	return nil
+}
+
+func (h *CreateBM25Index) filterNew(ctx context.Context, enrichments []enrichment.Enrichment) ([]enrichment.Enrichment, error) {
+	ids := make([]string, len(enrichments))
+	for i, e := range enrichments {
+		ids[i] = strconv.FormatInt(e.ID(), 10)
+	}
+
+	existing, err := h.bm25Service.ExistingIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]enrichment.Enrichment, 0, len(enrichments))
+	for i, e := range enrichments {
+		if _, ok := existing[ids[i]]; !ok {
+			result = append(result, e)
+		}
+	}
+
+	return result, nil
 }
