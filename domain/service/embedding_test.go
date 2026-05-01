@@ -71,6 +71,9 @@ func (f *fakeEmbeddingStore) Find(_ context.Context, options ...repository.Optio
 			result = append(result, e)
 		}
 	}
+	if limit := q.LimitValue(); limit > 0 && len(result) > limit {
+		result = result[:limit]
+	}
 	return result, nil
 }
 
@@ -221,6 +224,31 @@ func TestEmbeddingService_Index_Deduplication(t *testing.T) {
 
 	require.Len(t, embedder.calls, 1)
 	require.Len(t, embedder.calls[0], 2, "only 2 new documents embedded")
+}
+
+func TestEmbeddingService_Index_DeduplicatesBeyondMaxSnippetIDsPerFind(t *testing.T) {
+	embedder := &fakeEmbedder{errAt: -1}
+
+	total := search.MaxSnippetIDsPerFind + 50
+	existing := make(map[string]search.Embedding, total)
+	documents := make([]search.Document, total)
+	for i := range total {
+		id := fmt.Sprintf("id-%d", i)
+		existing[id] = search.NewEmbedding(id, []float64{0.1, 0.2, 0.3})
+		documents[i] = search.NewDocument(id, fmt.Sprintf("text %d", i))
+	}
+
+	store := &fakeEmbeddingStore{existing: existing, saveErr: -1}
+	svc, err := NewEmbedding(store, embedder, testBudget(), 1)
+	require.NoError(t, err)
+
+	err = svc.Index(context.Background(), search.NewIndexRequest(documents))
+	require.NoError(t, err)
+
+	require.Empty(t, embedder.calls,
+		"all %d documents already exist, embedder must not be called", total)
+	require.Empty(t, store.saved,
+		"all %d documents already exist, save must not be called", total)
 }
 
 func TestEmbeddingService_Index_EmbedErrorMidBatch(t *testing.T) {

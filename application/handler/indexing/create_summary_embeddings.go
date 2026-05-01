@@ -152,14 +152,9 @@ func (h *CreateSummaryEmbeddings) filterNewEnrichments(ctx context.Context, enri
 		return nil, nil
 	}
 
-	found, err := h.textIndex.Store.Find(ctx, search.WithSnippetIDs(snippetSHAs), repository.WithLimit(search.MaxSnippetIDsPerFind))
+	existing, err := search.ExistingSnippetIDs(ctx, h.textIndex.Store, snippetSHAs)
 	if err != nil {
 		return nil, err
-	}
-
-	existing := make(map[string]bool, len(found))
-	for _, emb := range found {
-		existing[emb.SnippetID()] = true
 	}
 
 	result := make([]enrichment.Enrichment, 0, len(enrichments))
@@ -171,7 +166,7 @@ func (h *CreateSummaryEmbeddings) filterNewEnrichments(ctx context.Context, enri
 		if snippetSHA == "" {
 			continue
 		}
-		if !existing[snippetSHA] {
+		if _, ok := existing[snippetSHA]; !ok {
 			result = append(result, e)
 		}
 	}
