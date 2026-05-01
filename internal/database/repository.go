@@ -12,6 +12,11 @@ import (
 // ErrNotFound indicates the requested entity was not found.
 var ErrNotFound = errors.New("entity not found")
 
+// ErrUnscopedDelete indicates DeleteBy was called with no filters,
+// which would wipe the entire table. Callers must supply at least
+// one condition or raw clause.
+var ErrUnscopedDelete = errors.New("delete refused: no filters supplied")
+
 // EntityMapper defines the interface for mapping between domain and database model types.
 type EntityMapper[D any, E any] interface {
 	ToDomain(entity E) D
@@ -131,7 +136,15 @@ func (r Repository[D, E]) Exists(ctx context.Context, options ...repository.Opti
 }
 
 // DeleteBy removes entities matching the given options.
+//
+// Refuses to run if no filters are supplied — an unscoped DELETE would
+// wipe the entire table. Callers must pass at least one condition or
+// raw WHERE clause.
 func (r Repository[D, E]) DeleteBy(ctx context.Context, options ...repository.Option) error {
+	q := repository.Build(options...)
+	if len(q.Conditions()) == 0 && len(q.Clauses()) == 0 {
+		return fmt.Errorf("%w: %s", ErrUnscopedDelete, r.label)
+	}
 	db := ApplyOptions(r.sessionDB(ctx), options...)
 	result := db.Delete(new(E))
 	if result.Error != nil {

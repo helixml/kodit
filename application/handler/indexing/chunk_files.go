@@ -164,9 +164,9 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 			}
 
 			// Try per-page extraction for page tracking.
+			var perPageErr error
 			if h.textRenderers != nil {
 				if renderer, ok := h.textRenderers.For(ext); ok {
-					var perPageErr error
 					text, pageBoundaries, perPageErr = extractPerPage(renderer, diskPath)
 					if perPageErr != nil {
 						h.logger.Warn().Str("path", f.Path()).Str("error", perPageErr.Error()).Msg("per-page extraction failed, falling back")
@@ -178,13 +178,17 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 
 			// Fall back to whole-document extraction.
 			if text == "" {
-				var extractErr error
-				text, extractErr = h.documentText.Text(diskPath)
+				fallbackText, extractErr := h.documentText.Text(diskPath)
 				if extractErr != nil {
-					h.logger.Warn().Str("path", f.Path()).Str("error", extractErr.Error()).Msg("failed to extract document text")
-					processed++
-					continue
+					// Both per-page and fallback failed — surface the failure rather than
+					// continue silently. Otherwise indexing reports success while no chunks
+					// are written, leaving search hits with empty content (issue #553).
+					if perPageErr != nil {
+						return fmt.Errorf("extract document text from %s: per-page: %v: fallback: %w", f.Path(), perPageErr, extractErr)
+					}
+					return fmt.Errorf("extract document text from %s: %w", f.Path(), extractErr)
 				}
+				text = fallbackText
 			}
 		} else {
 			content, readErr := h.fileContent.FileContent(ctx, clonedPath, cp.CommitSHA(), relPath)

@@ -337,7 +337,7 @@ func New(opts ...Option) (*Client, error) {
 	}
 
 	// Create vision embedding store and index.
-	var visionEmbeddingStore search.EmbeddingStore
+	var visionEmbeddingStore search.Store
 	switch cfg.database {
 	case databaseSQLite:
 		vs, vsErr := persistence.NewSQLiteEmbeddingStore(db, persistence.TaskNameVision, logger)
@@ -451,7 +451,11 @@ func New(opts ...Option) (*Client, error) {
 
 	// Create text renderer registry for document-to-text conversion.
 	textRenderers := extraction.NewTextRendererRegistry()
-	textRenderers.Register(".pdf", extraction.NewPDFTextRenderer())
+	pdfTextRenderer, err := extraction.NewPDFiumTextRenderer()
+	if err != nil {
+		return nil, fmt.Errorf("init pdfium text renderer: %w", err)
+	}
+	textRenderers.Register(".pdf", pdfTextRenderer)
 	textRenderers.Register(".xlsx", extraction.NewXLSXTextRenderer())
 	textRenderers.Register(".pptx", extraction.NewPPTXTextRenderer())
 	textRenderers.Register(".docx", extraction.NewSinglePageTextRenderer())
@@ -613,7 +617,7 @@ func (c *Client) Rasterizers() *rasterization.Registry {
 // buildSearchStores creates the search stores based on config.
 // VectorChord embedding stores are constructed without touching the database;
 // their dimension probe and DDL run lazily on first use.
-func buildSearchStores(cfg *clientConfig, db database.Database, onRebuilt func(context.Context), logger zerolog.Logger) (textEmbeddingStore, codeEmbeddingStore search.EmbeddingStore, bm25Store search.BM25Store, err error) {
+func buildSearchStores(cfg *clientConfig, db database.Database, onRebuilt func(context.Context), logger zerolog.Logger) (textEmbeddingStore, codeEmbeddingStore search.Store, bm25Store search.Store, err error) {
 	switch cfg.database {
 	case databaseSQLite:
 		bm25Store, err = persistence.NewSQLiteBM25Store(db, logger)

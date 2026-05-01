@@ -13,8 +13,8 @@ import (
 
 // Embedding provides domain logic for embedding operations.
 type Embedding interface {
-	// Index indexes documents using domain business rules.
-	Index(ctx context.Context, request search.IndexRequest, opts ...search.IndexOption) error
+	// Index embeds documents and persists their vectors.
+	Index(ctx context.Context, docs []search.Document, opts ...search.IndexOption) error
 
 	// Find embeds the query text and performs vector similarity search.
 	Find(ctx context.Context, query string, options ...repository.Option) ([]search.Result, error)
@@ -25,7 +25,7 @@ type Embedding interface {
 
 // EmbeddingService implements domain logic for embedding operations.
 type EmbeddingService struct {
-	store       search.EmbeddingStore
+	store       search.Store
 	embedder    search.Embedder
 	budget      search.TokenBudget
 	parallelism int
@@ -35,7 +35,7 @@ type EmbeddingService struct {
 // The budget controls text truncation and adaptive batching.
 // Parallelism controls how many batches are dispatched concurrently;
 // values <= 0 are clamped to 1.
-func NewEmbedding(store search.EmbeddingStore, embedder search.Embedder, budget search.TokenBudget, parallelism int) (*EmbeddingService, error) {
+func NewEmbedding(store search.Store, embedder search.Embedder, budget search.TokenBudget, parallelism int) (*EmbeddingService, error) {
 	if store == nil {
 		return nil, fmt.Errorf("NewEmbedding: nil store")
 	}
@@ -50,21 +50,17 @@ func NewEmbedding(store search.EmbeddingStore, embedder search.Embedder, budget 
 	}, nil
 }
 
-// Index indexes documents using domain business rules:
+// Index embeds documents and persists their vectors:
 // validate → deduplicate against store → batch embed → batch save.
-func (s *EmbeddingService) Index(ctx context.Context, request search.IndexRequest, opts ...search.IndexOption) error {
+func (s *EmbeddingService) Index(ctx context.Context, docs []search.Document, opts ...search.IndexOption) error {
 	cfg := search.NewIndexConfig(opts...)
 
-	documents := request.Documents()
-
-	// Skip if empty
-	if len(documents) == 0 {
+	if len(docs) == 0 {
 		return nil
 	}
 
-	// Filter out invalid documents
-	valid := make([]search.Document, 0, len(documents))
-	for _, doc := range documents {
+	valid := make([]search.Document, 0, len(docs))
+	for _, doc := range docs {
 		if doc.SnippetID() != "" && strings.TrimSpace(doc.Text()) != "" {
 			valid = append(valid, doc)
 		}
@@ -74,20 +70,14 @@ func (s *EmbeddingService) Index(ctx context.Context, request search.IndexReques
 		return nil
 	}
 
-	// Deduplicate: find which snippet IDs already exist
 	ids := make([]string, len(valid))
 	for i, doc := range valid {
 		ids[i] = doc.SnippetID()
 	}
 
-	found, err := s.store.Find(ctx, search.WithSnippetIDs(ids), repository.WithLimit(search.MaxSnippetIDsPerFind))
+	existing, err := search.ExistingSnippetIDs(ctx, s.store, ids)
 	if err != nil {
 		return fmt.Errorf("check existing: %w", err)
-	}
-
-	existing := make(map[string]struct{}, len(found))
-	for _, emb := range found {
-		existing[emb.SnippetID()] = struct{}{}
 	}
 
 	var toEmbed []search.Document
@@ -101,7 +91,6 @@ func (s *EmbeddingService) Index(ctx context.Context, request search.IndexReques
 		return nil
 	}
 
-	// Embed
 	if s.embedder == nil {
 		return fmt.Errorf("Index: nil embedder")
 	}
@@ -109,7 +98,6 @@ func (s *EmbeddingService) Index(ctx context.Context, request search.IndexReques
 	batches := s.budget.Batches(toEmbed)
 	total := len(toEmbed)
 
-	// Precompute batch offsets.
 	offsets := make([]int, len(batches))
 	off := 0
 	for i, batch := range batches {
@@ -177,12 +165,12 @@ func (s *EmbeddingService) Index(ctx context.Context, request search.IndexReques
 				return
 			}
 
-			embeddings := make([]search.Embedding, len(batch))
+			vectorDocs := make([]search.Document, len(batch))
 			for j, doc := range batch {
-				embeddings[j] = search.NewEmbedding(doc.SnippetID(), vectors[j])
+				vectorDocs[j] = search.NewVectorDocument(doc.SnippetID(), vectors[j])
 			}
 
-			if err := s.store.SaveAll(ctx, embeddings); err != nil {
+			if err := s.store.Index(ctx, vectorDocs); err != nil {
 				batchErr := fmt.Errorf("save batch [%d:%d]: %w", start, end, err)
 				mu.Lock()
 				batchErrors = append(batchErrors, batchErr)
@@ -231,7 +219,7 @@ func (s *EmbeddingService) Find(ctx context.Context, query string, options ...re
 	combined = append(combined, search.WithEmbedding(embeddings[0]))
 	combined = append(combined, options...)
 
-	return s.store.Search(ctx, combined...)
+	return s.store.Find(ctx, combined...)
 }
 
 // Exists checks whether any row matches the given options.

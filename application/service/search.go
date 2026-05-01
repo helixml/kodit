@@ -207,11 +207,11 @@ func (r MultiSearchResult) Count() int {
 // Search orchestrates hybrid code search across text and code vector indexes.
 type Search struct {
 	embedder          search.Embedder
-	textVectorStore   search.EmbeddingStore
-	codeVectorStore   search.EmbeddingStore
-	bm25Store         search.BM25Store
+	textVectorStore   search.Store
+	codeVectorStore   search.Store
+	bm25Store         search.Store
 	visionEmbedder    search.Embedder
-	visionVectorStore search.EmbeddingStore
+	visionVectorStore search.Store
 	enrichmentStore   enrichment.EnrichmentStore
 	fusion            search.Fusion
 	closed            *atomic.Bool
@@ -221,11 +221,11 @@ type Search struct {
 // NewSearch creates a new Search service.
 func NewSearch(
 	embedder search.Embedder,
-	textVectorStore search.EmbeddingStore,
-	codeVectorStore search.EmbeddingStore,
-	bm25Store search.BM25Store,
+	textVectorStore search.Store,
+	codeVectorStore search.Store,
+	bm25Store search.Store,
 	visionEmbedder search.Embedder,
-	visionVectorStore search.EmbeddingStore,
+	visionVectorStore search.Store,
 	enrichmentStore enrichment.EnrichmentStore,
 	closed *atomic.Bool,
 	logger zerolog.Logger,
@@ -333,7 +333,7 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 
 	if len(textEmbedding) > 0 && s.textVectorStore != nil {
 		g.Go(func() error {
-			results, err := s.textVectorStore.Search(gctx,
+			results, err := s.textVectorStore.Find(gctx,
 				filterOpt,
 				search.WithEmbedding(textEmbedding),
 				repository.WithLimit(topK*2),
@@ -352,7 +352,7 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 
 	if len(codeEmbedding) > 0 && s.codeVectorStore != nil {
 		g.Go(func() error {
-			results, err := s.codeVectorStore.Search(gctx,
+			results, err := s.codeVectorStore.Find(gctx,
 				filterOpt,
 				search.WithEmbedding(codeEmbedding),
 				repository.WithLimit(topK*2),
@@ -452,7 +452,7 @@ func (s Search) SearchText(ctx context.Context, query string, topK int) ([]enric
 		return nil, nil
 	}
 
-	results, err := s.textVectorStore.Search(ctx,
+	results, err := s.textVectorStore.Find(ctx,
 		search.WithEmbedding(embeddings[0]),
 		repository.WithLimit(topK),
 	)
@@ -490,7 +490,7 @@ func (s Search) SearchCode(ctx context.Context, query string, topK int) ([]enric
 		return nil, nil
 	}
 
-	results, err := s.codeVectorStore.Search(ctx,
+	results, err := s.codeVectorStore.Find(ctx,
 		search.WithEmbedding(embeddings[0]),
 		repository.WithLimit(topK),
 	)
@@ -529,7 +529,7 @@ func (s Search) SearchCodeWithScores(ctx context.Context, query string, topK int
 		return nil, nil, nil
 	}
 
-	results, err := s.codeVectorStore.Search(ctx,
+	results, err := s.codeVectorStore.Find(ctx,
 		search.WithEmbedding(embeddings[0]),
 		search.WithFilters(filters),
 		repository.WithLimit(topK),
@@ -622,7 +622,7 @@ func (s Search) SearchVisualWithScores(ctx context.Context, query string, topK i
 		return nil, nil, nil
 	}
 
-	results, err := s.visionVectorStore.Search(ctx,
+	results, err := s.visionVectorStore.Find(ctx,
 		search.WithEmbedding(embeddings[0]),
 		search.WithFilters(filters),
 		repository.WithLimit(topK),
