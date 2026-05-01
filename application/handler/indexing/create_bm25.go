@@ -63,7 +63,7 @@ func (h *CreateBM25Index) Execute(ctx context.Context, payload map[string]any) e
 		return nil
 	}
 
-	newEnrichments, err := h.filterNew(ctx, enrichments)
+	newEnrichments, err := filterNewEnrichments(ctx, h.bm25Service.ExistingIDs, enrichments)
 	if err != nil {
 		h.logger.Error().Str("error", err.Error()).Msg("failed to filter new enrichments")
 		return err
@@ -100,25 +100,4 @@ func (h *CreateBM25Index) Execute(ctx context.Context, payload map[string]any) e
 	h.logger.Info().Int("documents", len(documents)).Str("commit", handler.ShortSHA(cp.CommitSHA())).Msg("BM25 index created")
 
 	return nil
-}
-
-func (h *CreateBM25Index) filterNew(ctx context.Context, enrichments []enrichment.Enrichment) ([]enrichment.Enrichment, error) {
-	ids := make([]string, len(enrichments))
-	for i, e := range enrichments {
-		ids[i] = strconv.FormatInt(e.ID(), 10)
-	}
-
-	existing, err := h.bm25Service.ExistingIDs(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-
-	result := make([]enrichment.Enrichment, 0, len(enrichments))
-	for i, e := range enrichments {
-		if _, ok := existing[ids[i]]; !ok {
-			result = append(result, e)
-		}
-	}
-
-	return result, nil
 }
