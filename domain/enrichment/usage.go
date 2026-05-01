@@ -12,6 +12,24 @@ func NewAPIDocs(content, language string) Enrichment {
 	return NewEnrichmentWithLanguage(TypeUsage, SubtypeAPIDocs, EntityTypeCommit, content, language)
 }
 
+// NewAPIDocsAttempt creates a sentinel enrichment marking that API doc
+// extraction has been attempted for a commit. It distinguishes "we tried and
+// got nothing" from "we haven't tried yet" so the handler skips on the next
+// run instead of re-running extraction every cycle.
+//
+// The marker uses EntityTypeCommit (real per-file API docs use
+// EntityTypeSnippet) and empty content. Consumers reading API docs filter
+// markers out by skipping empty-content enrichments.
+func NewAPIDocsAttempt() Enrichment {
+	return NewEnrichment(TypeUsage, SubtypeAPIDocs, EntityTypeCommit, "")
+}
+
+// IsAPIDocsAttempt returns true if the enrichment is the per-commit attempt
+// marker (empty content, EntityTypeCommit) rather than real per-file API docs.
+func IsAPIDocsAttempt(e Enrichment) bool {
+	return IsAPIDocs(e) && e.EntityTypeKey() == EntityTypeCommit && e.Content() == ""
+}
+
 // IsUsageEnrichment returns true if the enrichment is a usage type.
 func IsUsageEnrichment(e Enrichment) bool {
 	return e.Type() == TypeUsage

@@ -368,6 +368,125 @@ func TestWikiHandler(t *testing.T) {
 	})
 }
 
+type countingAPIDocExtractor struct {
+	calls     int
+	responses []enrichment.Enrichment
+}
+
+func (c *countingAPIDocExtractor) Extract(_ context.Context, _ []repository.File, _ string, _ bool) ([]enrichment.Enrichment, error) {
+	c.calls++
+	return c.responses, nil
+}
+
+func TestAPIDocsHandler(t *testing.T) {
+	ctx := context.Background()
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
+
+	t.Run("skips on second run when extractor produced nothing", func(t *testing.T) {
+		db := testdb.New(t)
+		repoStore := persistence.NewRepositoryStore(db)
+		commitStore := persistence.NewCommitStore(db)
+		fileStore := persistence.NewFileStore(db)
+		enrichmentStore := persistence.NewEnrichmentStore(db)
+		associationStore := persistence.NewAssociationStore(db)
+
+		enricher := &fakeEnricher{}
+		enrichCtx := newEnrichmentContext(enrichmentStore, associationStore, enricher, logger)
+
+		repo, err := repository.NewRepository("https://github.com/test/api-docs-repo")
+		require.NoError(t, err)
+		repo = repo.WithWorkingCopy(repository.NewWorkingCopy("/tmp/api-docs-repo", "https://github.com/test/api-docs-repo"))
+		savedRepo, err := repoStore.Save(ctx, repo)
+		require.NoError(t, err)
+
+		now := time.Now()
+		author := repository.NewAuthor("Test", "test@test.com")
+		commit := repository.NewCommit("emptysha", savedRepo.ID(), "test commit", author, author, now, now)
+		_, err = commitStore.Save(ctx, commit)
+		require.NoError(t, err)
+
+		// Seed a file so the handler doesn't take the "no files" early-out.
+		_, err = fileStore.Save(ctx, repository.NewFile("emptysha", "main.go", "go", 100))
+		require.NoError(t, err)
+
+		extractor := &countingAPIDocExtractor{responses: nil}
+		h := NewAPIDocs(fileStore, enrichCtx, extractor)
+
+		payload := map[string]any{
+			"repository_id": savedRepo.ID(),
+			"commit_sha":    "emptysha",
+		}
+
+		require.NoError(t, h.Execute(ctx, payload))
+		require.Equal(t, 1, extractor.calls, "first run should call the extractor")
+
+		require.NoError(t, h.Execute(ctx, payload))
+		assert.Equal(t, 1, extractor.calls, "second run should skip — extractor must not be called again")
+	})
+
+	t.Run("saves real enrichments when extractor produces output", func(t *testing.T) {
+		db := testdb.New(t)
+		repoStore := persistence.NewRepositoryStore(db)
+		commitStore := persistence.NewCommitStore(db)
+		fileStore := persistence.NewFileStore(db)
+		enrichmentStore := persistence.NewEnrichmentStore(db)
+		associationStore := persistence.NewAssociationStore(db)
+
+		enricher := &fakeEnricher{}
+		enrichCtx := newEnrichmentContext(enrichmentStore, associationStore, enricher, logger)
+
+		repo, err := repository.NewRepository("https://github.com/test/api-docs-real")
+		require.NoError(t, err)
+		repo = repo.WithWorkingCopy(repository.NewWorkingCopy("/tmp/api-docs-real", "https://github.com/test/api-docs-real"))
+		savedRepo, err := repoStore.Save(ctx, repo)
+		require.NoError(t, err)
+
+		now := time.Now()
+		author := repository.NewAuthor("Test", "test@test.com")
+		commit := repository.NewCommit("realsha", savedRepo.ID(), "test commit", author, author, now, now)
+		_, err = commitStore.Save(ctx, commit)
+		require.NoError(t, err)
+
+		_, err = fileStore.Save(ctx, repository.NewFile("realsha", "main.go", "go", 100))
+		require.NoError(t, err)
+
+		realDoc := enrichment.NewEnrichment(
+			enrichment.TypeUsage,
+			enrichment.SubtypeAPIDocs,
+			enrichment.EntityTypeSnippet,
+			"### main.go (go)\n\nfunc Foo()",
+		)
+		extractor := &countingAPIDocExtractor{responses: []enrichment.Enrichment{realDoc}}
+		h := NewAPIDocs(fileStore, enrichCtx, extractor)
+
+		payload := map[string]any{
+			"repository_id": savedRepo.ID(),
+			"commit_sha":    "realsha",
+		}
+
+		require.NoError(t, h.Execute(ctx, payload))
+
+		stored, err := enrichmentStore.Find(ctx,
+			enrichment.WithCommitSHA("realsha"),
+			enrichment.WithType(enrichment.TypeUsage),
+			enrichment.WithSubtype(enrichment.SubtypeAPIDocs),
+		)
+		require.NoError(t, err)
+
+		// Expect the real enrichment plus the attempt marker.
+		var realCount, markerCount int
+		for _, e := range stored {
+			if enrichment.IsAPIDocsAttempt(e) {
+				markerCount++
+			} else {
+				realCount++
+			}
+		}
+		assert.Equal(t, 1, realCount, "real API docs should be saved")
+		assert.Equal(t, 1, markerCount, "attempt marker should be saved")
+	})
+}
+
 func TestTruncateDiff(t *testing.T) {
 	t.Run("returns short diff unchanged", func(t *testing.T) {
 		diff := "short diff"

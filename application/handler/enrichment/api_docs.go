@@ -64,11 +64,6 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 		return fmt.Errorf("get files: %w", err)
 	}
 
-	if len(files) == 0 {
-		tracker.Skip(ctx, "No files to extract API docs from")
-		return nil
-	}
-
 	langFiles := groupFilesByLanguage(files)
 
 	tracker.SetTotal(ctx, len(langFiles))
@@ -107,6 +102,17 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 		if _, err := h.enrichCtx.Associations.Save(ctx, commitAssoc); err != nil {
 			return fmt.Errorf("save commit association: %w", err)
 		}
+	}
+
+	// Persist a sentinel marking the extraction attempt so the next run can
+	// distinguish "we tried, got nothing" from "we haven't tried yet" and
+	// skip rather than re-run extraction every cycle.
+	marker, err := h.enrichCtx.Enrichments.Save(ctx, enrichment.NewAPIDocsAttempt())
+	if err != nil {
+		return fmt.Errorf("save API docs attempt marker: %w", err)
+	}
+	if _, err := h.enrichCtx.Associations.Save(ctx, enrichment.CommitAssociation(marker.ID(), cp.CommitSHA())); err != nil {
+		return fmt.Errorf("save API docs attempt association: %w", err)
 	}
 
 	return nil
