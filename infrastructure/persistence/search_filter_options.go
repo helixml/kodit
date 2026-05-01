@@ -1,7 +1,10 @@
 package persistence
 
 import (
+	"context"
 	"fmt"
+
+	"github.com/rs/zerolog"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
@@ -58,4 +61,53 @@ func filterJoinOptions(filters search.Filters, castType string) []repository.Opt
 	}
 
 	return opts
+}
+
+// appendSearchFilters appends the filter-and-snippet options derived from q
+// to opts. Used by store Find overrides to consolidate the common pattern of
+// translating search.Filters into JOIN/WHERE options and forwarding any
+// snippet-ID restrictions.
+func appendSearchFilters(opts []repository.Option, q repository.Query, castType string) []repository.Option {
+	if filters, ok := search.FiltersFrom(q); ok {
+		opts = append(opts, filterJoinOptions(filters, castType)...)
+	}
+	if snippetIDs := search.SnippetIDsFrom(q); len(snippetIDs) > 0 {
+		opts = append(opts, search.WithSnippetIDs(snippetIDs))
+	}
+	return opts
+}
+
+// filterNewDocuments returns documents that have non-empty snippet IDs and
+// non-empty text and are not already present in the store. Used by BM25
+// stores to skip duplicates before INSERT — re-indexing the same passage
+// would either error or pointlessly re-tokenize.
+func filterNewDocuments(ctx context.Context, store search.Store, docs []search.Document, logger zerolog.Logger) ([]search.Document, error) {
+	valid := make([]search.Document, 0, len(docs))
+	for _, doc := range docs {
+		if doc.SnippetID() != "" && doc.Text() != "" {
+			valid = append(valid, doc)
+		}
+	}
+	if len(valid) == 0 {
+		logger.Warn().Msg("corpus is empty, skipping bm25 index")
+		return nil, nil
+	}
+
+	ids := make([]string, len(valid))
+	for i, doc := range valid {
+		ids[i] = doc.SnippetID()
+	}
+
+	existing, err := search.ExistingSnippetIDs(ctx, store, ids)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]search.Document, 0, len(valid))
+	for _, doc := range valid {
+		if _, dup := existing[doc.SnippetID()]; !dup {
+			out = append(out, doc)
+		}
+	}
+	return out, nil
 }

@@ -89,7 +89,7 @@ func TestCosineSimilarity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := CosineSimilarity(tt.a, tt.b)
+			result := cosineSimilarity(tt.a, tt.b)
 			assert.InDelta(t, tt.expected, result, 0.001)
 		})
 	}
@@ -97,56 +97,47 @@ func TestCosineSimilarity(t *testing.T) {
 
 func TestTopKSimilar(t *testing.T) {
 	query := []float64{1, 0, 0}
-	vectors := []StoredVector{
-		NewStoredVector("exact", []float64{1, 0, 0}),
-		NewStoredVector("similar", []float64{0.9, 0.1, 0}),
-		NewStoredVector("orthogonal", []float64{0, 1, 0}),
-		NewStoredVector("opposite", []float64{-1, 0, 0}),
+	vectors := []vectorRow{
+		{snippetID: "exact", embedding: []float64{1, 0, 0}},
+		{snippetID: "similar", embedding: []float64{0.9, 0.1, 0}},
+		{snippetID: "orthogonal", embedding: []float64{0, 1, 0}},
+		{snippetID: "opposite", embedding: []float64{-1, 0, 0}},
 	}
 
 	t.Run("top 2", func(t *testing.T) {
-		results := TopKSimilar(query, vectors, 2)
+		results := topKSimilar(query, vectors, 2, nil)
 		require.Len(t, results, 2)
 		assert.Equal(t, "exact", results[0].SnippetID())
-		assert.InDelta(t, 1.0, results[0].Similarity(), 0.001)
+		assert.InDelta(t, 1.0, results[0].Score(), 0.001)
 		assert.Equal(t, "similar", results[1].SnippetID())
 	})
 
 	t.Run("top k larger than results", func(t *testing.T) {
-		results := TopKSimilar(query, vectors, 10)
+		results := topKSimilar(query, vectors, 10, nil)
 		require.Len(t, results, 4)
 	})
 
 	t.Run("k is zero", func(t *testing.T) {
-		results := TopKSimilar(query, vectors, 0)
+		results := topKSimilar(query, vectors, 0, nil)
 		assert.Empty(t, results)
 	})
 
 	t.Run("empty vectors", func(t *testing.T) {
-		results := TopKSimilar(query, []StoredVector{}, 5)
+		results := topKSimilar(query, []vectorRow{}, 5, nil)
 		assert.Empty(t, results)
 	})
-}
-
-func TestTopKSimilarFiltered(t *testing.T) {
-	query := []float64{1, 0, 0}
-	vectors := []StoredVector{
-		NewStoredVector("exact", []float64{1, 0, 0}),
-		NewStoredVector("similar", []float64{0.9, 0.1, 0}),
-		NewStoredVector("orthogonal", []float64{0, 1, 0}),
-	}
 
 	t.Run("filter to subset", func(t *testing.T) {
-		allowedIDs := map[string]struct{}{"similar": {}, "orthogonal": {}}
-		results := TopKSimilarFiltered(query, vectors, 5, allowedIDs)
+		allowed := map[string]struct{}{"similar": {}, "orthogonal": {}}
+		results := topKSimilar(query, vectors, 5, allowed)
 		require.Len(t, results, 2)
 		assert.Equal(t, "similar", results[0].SnippetID())
 		assert.Equal(t, "orthogonal", results[1].SnippetID())
 	})
 
 	t.Run("empty filter returns all", func(t *testing.T) {
-		results := TopKSimilarFiltered(query, vectors, 5, map[string]struct{}{})
-		require.Len(t, results, 3)
+		results := topKSimilar(query, vectors, 5, map[string]struct{}{})
+		require.Len(t, results, 4)
 	})
 }
 

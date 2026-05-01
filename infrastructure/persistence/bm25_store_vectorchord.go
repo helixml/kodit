@@ -91,7 +91,6 @@ func (vchordBM25Mapper) ToModel(r search.Result) VchordBM25Model {
 // VectorChordBM25Store implements search.Store using VectorChord PostgreSQL extension.
 type VectorChordBM25Store struct {
 	database.Repository[search.Result, VchordBM25Model]
-	db     *gorm.DB
 	logger zerolog.Logger
 }
 
@@ -100,7 +99,6 @@ type VectorChordBM25Store struct {
 func NewVectorChordBM25Store(db database.Database, logger zerolog.Logger) (*VectorChordBM25Store, error) {
 	s := &VectorChordBM25Store{
 		Repository: database.NewRepository[search.Result, VchordBM25Model](db, vchordBM25Mapper{}, "bm25 document"),
-		db:         db.GORM(),
 		logger:     logger,
 	}
 
@@ -122,7 +120,7 @@ func NewVectorChordBM25Store(db database.Database, logger zerolog.Logger) (*Vect
 }
 
 func (s *VectorChordBM25Store) createExtensions(ctx context.Context) error {
-	db := s.db.WithContext(ctx)
+	db := s.DB(ctx)
 
 	if err := db.Exec(vcCreateVChordExtension).Error; err != nil {
 		return fmt.Errorf("create vchord extension: %w", err)
@@ -137,7 +135,7 @@ func (s *VectorChordBM25Store) createExtensions(ctx context.Context) error {
 }
 
 func (s *VectorChordBM25Store) createTokenizerIfNotExists(ctx context.Context) error {
-	db := s.db.WithContext(ctx)
+	db := s.DB(ctx)
 
 	var exists int
 	result := db.Raw(tokenizerExistsQuery).Scan(&exists)
@@ -155,7 +153,7 @@ func (s *VectorChordBM25Store) createTokenizerIfNotExists(ctx context.Context) e
 }
 
 func (s *VectorChordBM25Store) createTables(ctx context.Context) error {
-	db := s.db.WithContext(ctx)
+	db := s.DB(ctx)
 
 	if err := db.Exec(createBM25Table).Error; err != nil {
 		return fmt.Errorf("create bm25 table: %w", err)
@@ -185,12 +183,7 @@ func (s *VectorChordBM25Store) Find(ctx context.Context, opts ...repository.Opti
 		repository.WithRawOrder("score ASC"),
 		repository.WithLimit(limit),
 	}
-	if filters, ok := search.FiltersFrom(q); ok {
-		augmented = append(augmented, filterJoinOptions(filters, "bigint")...)
-	}
-	if snippetIDs := search.SnippetIDsFrom(q); len(snippetIDs) > 0 {
-		augmented = append(augmented, search.WithSnippetIDs(snippetIDs))
-	}
+	augmented = appendSearchFilters(augmented, q, "bigint")
 
 	return s.Repository.Find(ctx, augmented...)
 }
@@ -200,7 +193,7 @@ func (s *VectorChordBM25Store) Find(ctx context.Context, opts ...repository.Opti
 // Filters out invalid (empty id or text) and already-indexed documents
 // before INSERTing the remainder; duplicates would unnecessarily re-tokenize.
 func (s *VectorChordBM25Store) Index(ctx context.Context, docs []search.Document) error {
-	toIndex, err := s.newDocuments(ctx, docs)
+	toIndex, err := filterNewDocuments(ctx, s, docs, s.logger)
 	if err != nil {
 		return err
 	}
@@ -209,43 +202,12 @@ func (s *VectorChordBM25Store) Index(ctx context.Context, docs []search.Document
 		return nil
 	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return s.DB(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := s.batchInsert(tx, toIndex); err != nil {
 			return err
 		}
 		return tx.Exec(bm25UpdateEmbeddingsQuery).Error
 	})
-}
-
-func (s *VectorChordBM25Store) newDocuments(ctx context.Context, docs []search.Document) ([]search.Document, error) {
-	valid := make([]search.Document, 0, len(docs))
-	for _, doc := range docs {
-		if doc.SnippetID() != "" && doc.Text() != "" {
-			valid = append(valid, doc)
-		}
-	}
-	if len(valid) == 0 {
-		s.logger.Warn().Msg("corpus is empty, skipping bm25 index")
-		return nil, nil
-	}
-
-	ids := make([]string, len(valid))
-	for i, doc := range valid {
-		ids[i] = doc.SnippetID()
-	}
-
-	existing, err := search.ExistingSnippetIDs(ctx, s, ids)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make([]search.Document, 0, len(valid))
-	for _, doc := range valid {
-		if _, dup := existing[doc.SnippetID()]; !dup {
-			out = append(out, doc)
-		}
-	}
-	return out, nil
 }
 
 func (s *VectorChordBM25Store) batchInsert(tx *gorm.DB, documents []search.Document) error {

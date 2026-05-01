@@ -90,38 +90,25 @@ func (s *SQLiteEmbeddingStore) Find(ctx context.Context, opts ...repository.Opti
 		limit = 10
 	}
 
-	vectors, err := s.loadVectors(ctx, opts...)
+	rows, err := s.loadRows(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(vectors) == 0 {
-		return []search.Result{}, nil
-	}
-
-	snippetIDs := search.SnippetIDsFrom(q)
-	var matches []SimilarityMatch
-	if len(snippetIDs) > 0 {
-		filterSet := make(map[string]struct{}, len(snippetIDs))
-		for _, id := range snippetIDs {
-			filterSet[id] = struct{}{}
+	var allowed map[string]struct{}
+	if ids := search.SnippetIDsFrom(q); len(ids) > 0 {
+		allowed = make(map[string]struct{}, len(ids))
+		for _, id := range ids {
+			allowed[id] = struct{}{}
 		}
-		matches = TopKSimilarFiltered(queryEmbedding, vectors, limit, filterSet)
-	} else {
-		matches = TopKSimilar(queryEmbedding, vectors, limit)
 	}
 
-	results := make([]search.Result, len(matches))
-	for i, m := range matches {
-		results[i] = search.NewResult(m.SnippetID(), m.Similarity())
-	}
-
-	return results, nil
+	return topKSimilar(queryEmbedding, rows, limit, allowed), nil
 }
 
-// loadVectors loads embedding vectors from the database, applying any
-// search filters via JOINs.
-func (s *SQLiteEmbeddingStore) loadVectors(ctx context.Context, opts ...repository.Option) ([]StoredVector, error) {
+// loadRows loads embedding rows from the database, applying any search
+// filters via JOINs.
+func (s *SQLiteEmbeddingStore) loadRows(ctx context.Context, opts ...repository.Option) ([]vectorRow, error) {
 	var entities []SQLiteEmbeddingModel
 
 	q := repository.Build(opts...)
@@ -138,14 +125,14 @@ func (s *SQLiteEmbeddingStore) loadVectors(ctx context.Context, opts ...reposito
 		return nil, err
 	}
 
-	vectors := make([]StoredVector, 0, len(entities))
+	rows := make([]vectorRow, 0, len(entities))
 	for _, e := range entities {
 		if len(e.Embedding) == 0 {
 			s.logger.Warn().Str("snippet_id", e.SnippetID).Msg("skipping empty embedding")
 			continue
 		}
-		vectors = append(vectors, NewStoredVector(e.SnippetID, e.Embedding))
+		rows = append(rows, vectorRow{snippetID: e.SnippetID, embedding: e.Embedding})
 	}
 
-	return vectors, nil
+	return rows, nil
 }

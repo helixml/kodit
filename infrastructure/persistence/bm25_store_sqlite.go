@@ -60,7 +60,6 @@ func (sqliteBM25Mapper) ToModel(r search.Result) SQLiteBM25Model {
 // SQLiteBM25Store implements search.Store using SQLite FTS5.
 type SQLiteBM25Store struct {
 	database.Repository[search.Result, SQLiteBM25Model]
-	db        *gorm.DB
 	logger    zerolog.Logger
 	nextRowID int64
 }
@@ -70,18 +69,17 @@ type SQLiteBM25Store struct {
 func NewSQLiteBM25Store(db database.Database, logger zerolog.Logger) (*SQLiteBM25Store, error) {
 	s := &SQLiteBM25Store{
 		Repository: database.NewRepository[search.Result, SQLiteBM25Model](db, sqliteBM25Mapper{}, "bm25 document"),
-		db:         db.GORM(),
 		logger:     logger,
 	}
 
 	ctx := context.Background()
 
-	if err := s.db.WithContext(ctx).Exec(sqliteCreateFTS5Table).Error; err != nil {
+	if err := s.DB(ctx).Exec(sqliteCreateFTS5Table).Error; err != nil {
 		return nil, errors.Join(ErrSQLiteBM25InitializationFailed, fmt.Errorf("create fts5 table: %w", err))
 	}
 
 	var maxRowID int64
-	if err := s.db.WithContext(ctx).Raw(sqliteMaxRowIDQuery).Scan(&maxRowID).Error; err != nil {
+	if err := s.DB(ctx).Raw(sqliteMaxRowIDQuery).Scan(&maxRowID).Error; err != nil {
 		return nil, errors.Join(ErrSQLiteBM25InitializationFailed, fmt.Errorf("read max rowid: %w", err))
 	}
 	s.nextRowID = maxRowID + 1
@@ -110,12 +108,7 @@ func (s *SQLiteBM25Store) Find(ctx context.Context, opts ...repository.Option) (
 		repository.WithRawOrder("score ASC"),
 		repository.WithLimit(limit),
 	}
-	if filters, ok := search.FiltersFrom(q); ok {
-		augmented = append(augmented, filterJoinOptions(filters, "INTEGER")...)
-	}
-	if snippetIDs := search.SnippetIDsFrom(q); len(snippetIDs) > 0 {
-		augmented = append(augmented, search.WithSnippetIDs(snippetIDs))
-	}
+	augmented = appendSearchFilters(augmented, q, "INTEGER")
 
 	return s.Repository.Find(ctx, augmented...)
 }
@@ -125,7 +118,7 @@ func (s *SQLiteBM25Store) Find(ctx context.Context, opts ...repository.Option) (
 // Filters out invalid (empty id or text) and already-indexed documents
 // before INSERTing the remainder in a single transaction.
 func (s *SQLiteBM25Store) Index(ctx context.Context, docs []search.Document) error {
-	toIndex, err := s.newDocuments(ctx, docs)
+	toIndex, err := filterNewDocuments(ctx, s, docs, s.logger)
 	if err != nil {
 		return err
 	}
@@ -134,7 +127,7 @@ func (s *SQLiteBM25Store) Index(ctx context.Context, docs []search.Document) err
 		return nil
 	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return s.DB(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, doc := range toIndex {
 			rowID := s.nextRowID
 			s.nextRowID++
@@ -144,39 +137,6 @@ func (s *SQLiteBM25Store) Index(ctx context.Context, docs []search.Document) err
 		}
 		return nil
 	})
-}
-
-// newDocuments returns documents that have valid content and are not
-// already indexed.
-func (s *SQLiteBM25Store) newDocuments(ctx context.Context, docs []search.Document) ([]search.Document, error) {
-	valid := make([]search.Document, 0, len(docs))
-	for _, doc := range docs {
-		if doc.SnippetID() != "" && doc.Text() != "" {
-			valid = append(valid, doc)
-		}
-	}
-	if len(valid) == 0 {
-		s.logger.Warn().Msg("corpus is empty, skipping bm25 index")
-		return nil, nil
-	}
-
-	ids := make([]string, len(valid))
-	for i, doc := range valid {
-		ids[i] = doc.SnippetID()
-	}
-
-	existing, err := search.ExistingSnippetIDs(ctx, s, ids)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make([]search.Document, 0, len(valid))
-	for _, doc := range valid {
-		if _, dup := existing[doc.SnippetID()]; !dup {
-			out = append(out, doc)
-		}
-	}
-	return out, nil
 }
 
 // escapeFTS5Query escapes special characters for FTS5 queries.
