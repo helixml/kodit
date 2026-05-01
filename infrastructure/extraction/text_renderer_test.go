@@ -13,25 +13,25 @@ import (
 
 func TestTextRendererRegistry_ForUnregistered(t *testing.T) {
 	reg := NewTextRendererRegistry()
-	_, ok := reg.For(".pdf")
+	_, ok := reg.For(".docx")
 	assert.False(t, ok)
 }
 
 func TestTextRendererRegistry_RegisterAndRetrieve(t *testing.T) {
 	reg := NewTextRendererRegistry()
-	renderer := NewPDFTextRenderer()
-	reg.Register(".pdf", renderer)
+	renderer := NewSinglePageTextRenderer()
+	reg.Register(".docx", renderer)
 
-	got, ok := reg.For(".pdf")
+	got, ok := reg.For(".docx")
 	assert.True(t, ok)
 	assert.Equal(t, renderer, got)
 }
 
 func TestTextRendererRegistry_CaseInsensitive(t *testing.T) {
 	reg := NewTextRendererRegistry()
-	reg.Register(".PDF", NewPDFTextRenderer())
+	reg.Register(".DOCX", NewSinglePageTextRenderer())
 
-	_, ok := reg.For(".pdf")
+	_, ok := reg.For(".docx")
 	assert.True(t, ok)
 }
 
@@ -45,7 +45,7 @@ func TestTextRendererRegistry_Supports(t *testing.T) {
 
 func TestTextRendererRegistry_Close(t *testing.T) {
 	reg := NewTextRendererRegistry()
-	reg.Register(".pdf", NewPDFTextRenderer())
+	reg.Register(".docx", NewSinglePageTextRenderer())
 	reg.Register(".xlsx", NewXLSXTextRenderer())
 	assert.NoError(t, reg.Close())
 }
@@ -60,25 +60,19 @@ func TestTextRendererRegistry_CloseDeduplicatesSharedInstances(t *testing.T) {
 	assert.NoError(t, reg.Close())
 }
 
-// --- PDFTextRenderer ---
+// --- PDFiumTextRenderer (size limit) ---
 
-func TestPDFTextRenderer_ErrorOnMissingFile(t *testing.T) {
-	r := NewPDFTextRenderer()
-	_, err := r.PageCount("/nonexistent/file.pdf")
-	assert.Error(t, err)
-
-	_, err = r.Render("/nonexistent/file.pdf", 1)
-	assert.Error(t, err)
-}
-
-func TestPDFTextRenderer_ErrorOnOversizedFile(t *testing.T) {
+func TestPDFiumTextRenderer_ErrorOnOversizedFile(t *testing.T) {
 	tmp := filepath.Join(t.TempDir(), "huge.pdf")
 	f, err := os.Create(tmp)
 	require.NoError(t, err)
 	require.NoError(t, f.Truncate(maxDocumentSize+1))
 	require.NoError(t, f.Close())
 
-	r := NewPDFTextRenderer()
+	r, err := NewPDFiumTextRenderer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = r.Close() })
+
 	_, err = r.PageCount(tmp)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "exceeds maximum document size")
