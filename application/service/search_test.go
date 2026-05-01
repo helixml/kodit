@@ -71,6 +71,9 @@ func (f fakeBM25Store) Find(_ context.Context, opts ...repository.Option) ([]sea
 	query, _ := search.QueryFrom(q)
 	return f.resultsByKeyword[query], nil
 }
+func (f fakeBM25Store) ExistingIDs(_ context.Context, _ []string) (map[string]struct{}, error) {
+	return map[string]struct{}{}, nil
+}
 func (f fakeBM25Store) DeleteBy(_ context.Context, _ ...repository.Option) error { return nil }
 
 // seedEnrichments creates enrichments in the real store and returns them in insertion order.

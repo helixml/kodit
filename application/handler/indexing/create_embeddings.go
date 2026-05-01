@@ -76,7 +76,9 @@ func (h *CreateCodeEmbeddings) Execute(ctx context.Context, payload map[string]a
 		return nil
 	}
 
-	newEnrichments, err := h.filterNew(ctx, enrichments)
+	newEnrichments, err := filterNewEnrichments(ctx, func(ctx context.Context, ids []string) (map[string]struct{}, error) {
+		return search.ExistingSnippetIDs(ctx, h.codeIndex.Store, ids)
+	}, enrichments)
 	if err != nil {
 		h.logger.Error().Str("error", err.Error()).Msg("failed to filter new enrichments")
 		return err
@@ -118,25 +120,4 @@ func (h *CreateCodeEmbeddings) Execute(ctx context.Context, payload map[string]a
 	h.logger.Info().Int("documents", len(documents)).Str("commit", handler.ShortSHA(cp.CommitSHA())).Msg("code embeddings created")
 
 	return nil
-}
-
-func (h *CreateCodeEmbeddings) filterNew(ctx context.Context, enrichments []enrichment.Enrichment) ([]enrichment.Enrichment, error) {
-	ids := make([]string, len(enrichments))
-	for i, e := range enrichments {
-		ids[i] = strconv.FormatInt(e.ID(), 10)
-	}
-
-	existing, err := search.ExistingSnippetIDs(ctx, h.codeIndex.Store, ids)
-	if err != nil {
-		return nil, err
-	}
-
-	result := make([]enrichment.Enrichment, 0, len(enrichments))
-	for i, e := range enrichments {
-		if _, ok := existing[ids[i]]; !ok {
-			result = append(result, e)
-		}
-	}
-
-	return result, nil
 }

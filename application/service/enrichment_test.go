@@ -23,6 +23,9 @@ func (r *recordingBM25Store) Index(_ context.Context, _ search.IndexRequest) err
 func (r *recordingBM25Store) Find(_ context.Context, _ ...repository.Option) ([]search.Result, error) {
 	return nil, nil
 }
+func (r *recordingBM25Store) ExistingIDs(_ context.Context, _ []string) (map[string]struct{}, error) {
+	return map[string]struct{}{}, nil
+}
 func (r *recordingBM25Store) DeleteBy(_ context.Context, opts ...repository.Option) error {
 	r.deleteCalled = true
 	r.deleteOpts = opts

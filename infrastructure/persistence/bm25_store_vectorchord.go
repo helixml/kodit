@@ -141,7 +141,10 @@ func (s *VectorChordBM25Store) createTables(ctx context.Context) error {
 	return nil
 }
 
-func (s *VectorChordBM25Store) existingIDs(ctx context.Context, ids []string) (map[string]struct{}, error) {
+// ExistingIDs returns the subset of ids whose snippet IDs already have
+// BM25 entries in the store. Lookups are chunked so the IN-clause bind
+// parameters stay within the PostgreSQL 65535 limit.
+func (s *VectorChordBM25Store) ExistingIDs(ctx context.Context, ids []string) (map[string]struct{}, error) {
 	if len(ids) == 0 {
 		return map[string]struct{}{}, nil
 	}
@@ -209,7 +212,7 @@ func (s *VectorChordBM25Store) Index(ctx context.Context, request search.IndexRe
 		ids[i] = doc.SnippetID()
 	}
 
-	existing, err := s.existingIDs(ctx, ids)
+	existing, err := s.ExistingIDs(ctx, ids)
 	if err != nil {
 		return err
 	}

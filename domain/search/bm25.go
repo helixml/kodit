@@ -15,6 +15,10 @@ type BM25Store interface {
 	// Query text must be passed via WithQuery.
 	Find(ctx context.Context, options ...repository.Option) ([]Result, error)
 
+	// ExistingIDs returns the subset of ids whose snippet IDs already
+	// have BM25 entries in the store.
+	ExistingIDs(ctx context.Context, ids []string) (map[string]struct{}, error)
+
 	// DeleteBy removes documents matching the given options.
 	DeleteBy(ctx context.Context, options ...repository.Option) error
 }
