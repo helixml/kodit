@@ -685,7 +685,21 @@ func (r *SearchRouter) resolveAndBuildResponse(
 		if hasLR {
 			lrPtr = &lr
 		}
-		data[i] = enrichmentToSearchResult(e, originalScores[idStr], related[idStr], fileMap[idStr], lrPtr, commits, repos)
+		files := fileMap[idStr]
+		if e.Content() == "" {
+			// Empty content on a search hit indicates that chunk persistence
+			// failed silently (e.g. unparseable PDF — issue #553). Surface
+			// the failure so it shows up in logs rather than as an empty
+			// string in the consumer's response.
+			event := r.logger.Warn().
+				Int64("enrichment_id", e.ID()).
+				Str("subtype", string(e.Subtype()))
+			if len(files) > 0 {
+				event = event.Str("path", files[0].Path()).Str("commit", files[0].CommitSHA())
+			}
+			event.Msg("search hit has empty content — source file may have failed extraction")
+		}
+		data[i] = enrichmentToSearchResult(e, originalScores[idStr], related[idStr], files, lrPtr, commits, repos)
 	}
 
 	return dto.SearchResponse{Data: data}, nil

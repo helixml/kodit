@@ -451,7 +451,11 @@ func New(opts ...Option) (*Client, error) {
 
 	// Create text renderer registry for document-to-text conversion.
 	textRenderers := extraction.NewTextRendererRegistry()
-	textRenderers.Register(".pdf", extraction.NewPDFTextRenderer())
+	pdfTextRenderer, err := extraction.NewPDFiumTextRenderer()
+	if err != nil {
+		return nil, fmt.Errorf("init pdfium text renderer: %w", err)
+	}
+	textRenderers.Register(".pdf", pdfTextRenderer)
 	textRenderers.Register(".xlsx", extraction.NewXLSXTextRenderer())
 	textRenderers.Register(".pptx", extraction.NewPPTXTextRenderer())
 	textRenderers.Register(".docx", extraction.NewSinglePageTextRenderer())
