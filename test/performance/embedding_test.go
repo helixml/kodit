@@ -145,16 +145,16 @@ func TestEmbeddingPipeline(t *testing.T) {
 		for _, count := range counts {
 			t.Run(fmt.Sprintf("save_%d", count), func(t *testing.T) {
 				// Generate pre-computed embeddings to isolate DB performance
-				embeddings := make([]search.Embedding, count)
+				embeddings := make([]search.Document, count)
 				for i := range embeddings {
-					embeddings[i] = search.NewEmbedding(
+					embeddings[i] = search.NewVectorDocument(
 						fmt.Sprintf("save-test-%d-%06d", count, i),
 						randomVector(embeddingDimension),
 					)
 				}
 
 				start := time.Now()
-				err := store.SaveAll(ctx, embeddings)
+				err := store.Index(ctx, embeddings)
 				elapsed := time.Since(start)
 				require.NoError(t, err)
 
@@ -169,14 +169,14 @@ func TestEmbeddingPipeline(t *testing.T) {
 	t.Run("vector_search", func(t *testing.T) {
 		// First, populate with a fixed dataset for search tests
 		const datasetSize = 500
-		embeddings := make([]search.Embedding, datasetSize)
+		embeddings := make([]search.Document, datasetSize)
 		for i := range embeddings {
-			embeddings[i] = search.NewEmbedding(
+			embeddings[i] = search.NewVectorDocument(
 				fmt.Sprintf("search-dataset-%06d", i),
 				randomVector(embeddingDimension),
 			)
 		}
-		err := store.SaveAll(ctx, embeddings)
+		err := store.Index(ctx, embeddings)
 		require.NoError(t, err)
 
 		queryVector := randomVector(embeddingDimension)
@@ -189,7 +189,7 @@ func TestEmbeddingPipeline(t *testing.T) {
 
 				for range iterations {
 					start := time.Now()
-					results, err := store.Search(ctx,
+					results, err := store.Find(ctx,
 						search.WithEmbedding(queryVector),
 						repository.WithLimit(limit),
 					)
@@ -220,10 +220,9 @@ func TestEmbeddingPipeline(t *testing.T) {
 						doc.Text(),
 					)
 				}
-				request := search.NewIndexRequest(unique)
 
 				start := time.Now()
-				err := svc.Index(ctx, request)
+				err := svc.Index(ctx, unique)
 				elapsed := time.Since(start)
 				require.NoError(t, err)
 
@@ -301,8 +300,8 @@ func TestEmbeddingPipelineCPUProfile(t *testing.T) {
 
 	// Profile: index 200 documents (mix of inference + DB writes)
 	documents := sampleCodeSnippets(200)
-	request := search.NewIndexRequest(documents)
-	err = svc.Index(ctx, request)
+
+	err = svc.Index(ctx, documents)
 	require.NoError(t, err)
 
 	// Profile: 50 search queries (mix of inference + DB reads)
@@ -341,8 +340,8 @@ func TestEmbeddingPipelineMemProfile(t *testing.T) {
 
 	// Allocate/index 200 documents
 	documents := sampleCodeSnippets(200)
-	request := search.NewIndexRequest(documents)
-	err = svc.Index(ctx, request)
+
+	err = svc.Index(ctx, documents)
 	require.NoError(t, err)
 
 	// Search 20 times
@@ -375,14 +374,14 @@ func TestVectorCopyOverhead(t *testing.T) {
 	t.Run("NewEmbedding_creation", func(t *testing.T) {
 		start := time.Now()
 		for range iterations {
-			_ = search.NewEmbedding("test", vec)
+			_ = search.NewVectorDocument("test", vec)
 		}
 		elapsed := time.Since(start)
 		t.Logf("iterations=%d  total=%v  per_op=%v", iterations, elapsed, elapsed/iterations)
 	})
 
 	t.Run("Embedding_Vector_read", func(t *testing.T) {
-		emb := search.NewEmbedding("test", vec)
+		emb := search.NewVectorDocument("test", vec)
 		start := time.Now()
 		for range iterations {
 			_ = emb.Vector()
@@ -423,11 +422,11 @@ func TestConcurrentSaveAll(t *testing.T) {
 		store := persistence.NewVectorChordEmbeddingStore(db, "perf", nil, logger)
 
 		// Pre-build embeddings so goroutines reach ensureIndex at nearly the same time.
-		batches := make([][]search.Embedding, goroutines)
+		batches := make([][]search.Document, goroutines)
 		for g := range goroutines {
-			batch := make([]search.Embedding, perGoroutine)
+			batch := make([]search.Document, perGoroutine)
 			for i := range batch {
-				batch[i] = search.NewEmbedding(
+				batch[i] = search.NewVectorDocument(
 					fmt.Sprintf("concurrent-r%d-g%d-%04d", round, g, i),
 					randomVector(embeddingDimension),
 				)
@@ -444,7 +443,7 @@ func TestConcurrentSaveAll(t *testing.T) {
 			go func(id int) {
 				defer wg.Done()
 				<-start
-				errs[id] = store.SaveAll(ctx, batches[id])
+				errs[id] = store.Index(ctx, batches[id])
 			}(g)
 		}
 		close(start)
@@ -468,16 +467,16 @@ func TestSaveAllBatching(t *testing.T) {
 	counts := []int{10, 50, 100, 200, 500}
 	for _, count := range counts {
 		t.Run(fmt.Sprintf("count_%d", count), func(t *testing.T) {
-			embeddings := make([]search.Embedding, count)
+			embeddings := make([]search.Document, count)
 			for i := range embeddings {
-				embeddings[i] = search.NewEmbedding(
+				embeddings[i] = search.NewVectorDocument(
 					fmt.Sprintf("batch-test-%d-%06d", count, i),
 					randomVector(embeddingDimension),
 				)
 			}
 
 			start := time.Now()
-			err := store.SaveAll(ctx, embeddings)
+			err := store.Index(ctx, embeddings)
 			elapsed := time.Since(start)
 			require.NoError(t, err)
 
@@ -500,9 +499,9 @@ func TestDimensionMismatch_RebuildTable(t *testing.T) {
 	// Create store and insert data with dimension 4.
 	store := persistence.NewVectorChordEmbeddingStore(db, "perf", nil, logger)
 
-	err := store.SaveAll(ctx, []search.Embedding{
-		search.NewEmbedding("s1", []float64{1, 2, 3, 4}),
-		search.NewEmbedding("s2", []float64{5, 6, 7, 8}),
+	err := store.Index(ctx, []search.Document{
+		search.NewVectorDocument("s1", []float64{1, 2, 3, 4}),
+		search.NewVectorDocument("s2", []float64{5, 6, 7, 8}),
 	})
 	require.NoError(t, err)
 
@@ -516,8 +515,8 @@ func TestDimensionMismatch_RebuildTable(t *testing.T) {
 	store2 := persistence.NewVectorChordEmbeddingStore(db, "perf", onRebuilt, logger)
 
 	// SaveAll with a different dimension triggers table rebuild.
-	err = store2.SaveAll(ctx, []search.Embedding{
-		search.NewEmbedding("s3", []float64{1, 2, 3, 4, 5, 6, 7, 8}),
+	err = store2.Index(ctx, []search.Document{
+		search.NewVectorDocument("s3", []float64{1, 2, 3, 4, 5, 6, 7, 8}),
 	})
 	require.NoError(t, err)
 	require.True(t, rebuilt, "dimension change should trigger onRebuilt callback")

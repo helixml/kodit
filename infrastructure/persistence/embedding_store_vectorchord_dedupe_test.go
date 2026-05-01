@@ -54,13 +54,13 @@ func TestVectorChordEmbeddingStore_ExistingSnippetIDsAcrossChunks(t *testing.T) 
 	// multiple lookups. The exact count mirrors the production scenario from
 	// the bug report (a repo with thousands of chunk enrichments).
 	total := search.MaxSnippetIDsPerFind*2 + 25
-	embeddings := make([]search.Embedding, total)
+	embeddings := make([]search.Document, total)
 	ids := make([]string, total)
 	for i := range total {
 		ids[i] = strconv.Itoa(i + 1)
-		embeddings[i] = search.NewEmbedding(ids[i], []float64{0.1, 0.2, 0.3, 0.4})
+		embeddings[i] = search.NewVectorDocument(ids[i], []float64{0.1, 0.2, 0.3, 0.4})
 	}
-	require.NoError(t, store.SaveAll(ctx, embeddings))
+	require.NoError(t, store.Index(ctx, embeddings))
 
 	existing, err := search.ExistingSnippetIDs(ctx, store, ids)
 	require.NoError(t, err)

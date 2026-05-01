@@ -7,10 +7,8 @@ import (
 	"math"
 	"sort"
 
-	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/internal/database"
-	"gorm.io/gorm"
 )
 
 // saveAllBatchSize controls how many rows are inserted per multi-row INSERT
@@ -33,24 +31,27 @@ var (
 )
 
 // PgEmbeddingModel is a GORM model for PostgreSQL vector embedding tables.
+// Score is populated transiently during ranked search (`embedding <=> ?`);
+// it is never written.
 type PgEmbeddingModel struct {
 	ID        int64             `gorm:"column:id;primaryKey;autoIncrement"`
 	SnippetID string            `gorm:"column:snippet_id;uniqueIndex"`
 	Embedding database.PgVector `gorm:"column:embedding;type:vector"`
+	Score     float64           `gorm:"->;-:migration"`
 }
 
-// pgEmbeddingMapper maps between search.Embedding and PgEmbeddingModel.
+// pgEmbeddingMapper maps PgEmbeddingModel to search.Result.
+//
+// pgvector's <=> operator returns cosine distance (0 = identical, 2 = opposite);
+// we convert to a similarity in [0, 1] using `1 - distance/2`.
 type pgEmbeddingMapper struct{}
 
-func (pgEmbeddingMapper) ToDomain(entity PgEmbeddingModel) search.Embedding {
-	return search.NewEmbedding(entity.SnippetID, entity.Embedding.Floats())
+func (pgEmbeddingMapper) ToDomain(e PgEmbeddingModel) search.Result {
+	return search.NewResult(e.SnippetID, 1.0-e.Score/2.0)
 }
 
-func (pgEmbeddingMapper) ToModel(domain search.Embedding) PgEmbeddingModel {
-	return PgEmbeddingModel{
-		SnippetID: domain.SnippetID(),
-		Embedding: database.NewPgVector(domain.Vector()),
-	}
+func (pgEmbeddingMapper) ToModel(r search.Result) PgEmbeddingModel {
+	return PgEmbeddingModel{SnippetID: r.SnippetID()}
 }
 
 // Float64Slice is a custom type for JSON serialization of []float64 in SQLite.
@@ -85,76 +86,26 @@ func (f Float64Slice) Value() (driver.Value, error) {
 }
 
 // SQLiteEmbeddingModel represents a vector embedding in SQLite.
+// Score is unused for SQLite (similarity is computed in-memory in the
+// store's Find override) but is included for symmetry with PgEmbeddingModel.
 type SQLiteEmbeddingModel struct {
 	ID        int64        `gorm:"column:id;primaryKey;autoIncrement"`
 	SnippetID string       `gorm:"column:snippet_id;uniqueIndex"`
 	Embedding Float64Slice `gorm:"column:embedding;type:json"`
 }
 
-// sqliteEmbeddingMapper maps between search.Embedding and SQLiteEmbeddingModel.
+// sqliteEmbeddingMapper maps SQLiteEmbeddingModel to search.Result.
+// SQLite's Find override populates Result.Score from in-memory similarity;
+// the mapper is only invoked for plain (non-ranked) lookups, where score
+// is not meaningful.
 type sqliteEmbeddingMapper struct{}
 
-func (sqliteEmbeddingMapper) ToDomain(entity SQLiteEmbeddingModel) search.Embedding {
-	return search.NewEmbedding(entity.SnippetID, []float64(entity.Embedding))
+func (sqliteEmbeddingMapper) ToDomain(e SQLiteEmbeddingModel) search.Result {
+	return search.NewResult(e.SnippetID, 0)
 }
 
-func (sqliteEmbeddingMapper) ToModel(domain search.Embedding) SQLiteEmbeddingModel {
-	vec := domain.Vector()
-	cp := make(Float64Slice, len(vec))
-	copy(cp, vec)
-	return SQLiteEmbeddingModel{
-		SnippetID: domain.SnippetID(),
-		Embedding: cp,
-	}
-}
-
-// cosineSearch performs a cosine-distance similarity search against a PG vector
-// table and returns results sorted by similarity (highest first).
-func cosineSearch(
-	db *gorm.DB,
-	tableName string,
-	options ...repository.Option,
-) ([]search.Result, error) {
-	q := repository.Build(options...)
-	embedding, ok := search.EmbeddingFrom(q)
-	if !ok || len(embedding) == 0 {
-		return []search.Result{}, nil
-	}
-
-	limit := q.LimitValue()
-	if limit <= 0 {
-		limit = 10
-	}
-
-	queryEmbedding := database.NewPgVector(embedding).String()
-
-	tx := db.Table(tableName).
-		Select("snippet_id, embedding <=> ? as score", queryEmbedding)
-	tx = database.ApplyConditions(tx, options...)
-
-	if filters, ok := search.FiltersFrom(q); ok {
-		tx = database.ApplySearchFilters(tx, filters)
-	}
-
-	tx = tx.Order("score ASC").Limit(limit)
-
-	var rows []struct {
-		SnippetID string  `gorm:"column:snippet_id"`
-		Score     float64 `gorm:"column:score"`
-	}
-	if err := tx.Scan(&rows).Error; err != nil {
-		return nil, err
-	}
-
-	results := make([]search.Result, len(rows))
-	for i, row := range rows {
-		// Cosine distance: 0 = identical, 2 = opposite.
-		// Convert to similarity: 1 - distance/2 for 0-1 range.
-		similarity := 1.0 - row.Score/2.0
-		results[i] = search.NewResult(row.SnippetID, similarity)
-	}
-
-	return results, nil
+func (sqliteEmbeddingMapper) ToModel(r search.Result) SQLiteEmbeddingModel {
+	return SQLiteEmbeddingModel{SnippetID: r.SnippetID()}
 }
 
 // StoredVector holds an embedding vector with its snippet ID.

@@ -18,15 +18,15 @@ import (
 	"github.com/helixml/kodit/internal/testdb"
 )
 
-// noopEmbeddingStore satisfies search.EmbeddingStore with no-op methods.
+// noopEmbeddingStore satisfies search.Store with no-op methods.
 type noopEmbeddingStore struct{}
 
-func (noopEmbeddingStore) SaveAll(_ context.Context, _ []search.Embedding) error { return nil }
-func (noopEmbeddingStore) Find(_ context.Context, _ ...repository.Option) ([]search.Embedding, error) {
+func (noopEmbeddingStore) Index(_ context.Context, _ []search.Document) error { return nil }
+func (noopEmbeddingStore) Find(_ context.Context, _ ...repository.Option) ([]search.Result, error) {
 	return nil, nil
 }
-func (noopEmbeddingStore) Search(_ context.Context, _ ...repository.Option) ([]search.Result, error) {
-	return nil, nil
+func (noopEmbeddingStore) Count(_ context.Context, _ ...repository.Option) (int64, error) {
+	return 0, nil
 }
 func (noopEmbeddingStore) Exists(_ context.Context, _ ...repository.Option) (bool, error) {
 	return false, nil

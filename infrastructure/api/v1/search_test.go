@@ -50,7 +50,7 @@ func TestSearchRouter_LineRanges(t *testing.T) {
 	}
 	snippetID := fmt.Sprintf("%d", saved.ID())
 	doc := search.NewDocument(snippetID, "func hello")
-	err = bm25Store.Index(ctx, search.NewIndexRequest([]search.Document{doc}))
+	err = bm25Store.Index(ctx, []search.Document{doc})
 	if err != nil {
 		t.Fatalf("index bm25: %v", err)
 	}

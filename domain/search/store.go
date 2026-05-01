@@ -6,21 +6,19 @@ import (
 	"github.com/helixml/kodit/domain/repository"
 )
 
-// EmbeddingStore defines persistence operations for vector embeddings.
-type EmbeddingStore interface {
-	// SaveAll persists pre-computed embeddings.
-	SaveAll(ctx context.Context, embeddings []Embedding) error
-
-	// Find retrieves embeddings matching the given options.
-	Find(ctx context.Context, options ...repository.Option) ([]Embedding, error)
-
-	// Search performs vector similarity search using options.
-	// Embedding must be passed via WithEmbedding.
-	Search(ctx context.Context, options ...repository.Option) ([]Result, error)
-
-	// Exists checks whether any row matches the given options.
-	Exists(ctx context.Context, options ...repository.Option) (bool, error)
-
-	// DeleteBy removes documents matching the given options.
-	DeleteBy(ctx context.Context, options ...repository.Option) error
+// Store persists searchable documents and supports ranked retrieval.
+// Both BM25 keyword stores and vector embedding stores share this contract.
+//
+// Index is bespoke per implementation (FTS5 INSERT, vchord_bm25 tokenize,
+// or pgvector upsert). All other operations go through the embedded
+// database.Repository so query/delete/exist semantics stay consistent.
+//
+// Find returns ranked results when WithQuery / WithEmbedding is supplied,
+// or a plain lookup (Result.Score == 0) when neither is present.
+type Store interface {
+	Index(ctx context.Context, docs []Document) error
+	Find(ctx context.Context, opts ...repository.Option) ([]Result, error)
+	Count(ctx context.Context, opts ...repository.Option) (int64, error)
+	Exists(ctx context.Context, opts ...repository.Option) (bool, error)
+	DeleteBy(ctx context.Context, opts ...repository.Option) error
 }

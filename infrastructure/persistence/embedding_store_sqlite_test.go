@@ -157,16 +157,16 @@ func TestSQLiteEmbeddingStore_SaveAllAndSearch(t *testing.T) {
 	ctx := context.Background()
 
 	// Pre-computed embeddings (simulates what EmbeddingService would provide)
-	embeddings := []search.Embedding{
-		search.NewEmbedding("snippet1", []float64{1.0, 0.5, 0.0, 0.0}),
-		search.NewEmbedding("snippet2", []float64{0.0, 1.0, 0.5, 0.0}),
-		search.NewEmbedding("snippet3", []float64{0.0, 0.0, 1.0, 0.5}),
+	embeddings := []search.Document{
+		search.NewVectorDocument("snippet1", []float64{1.0, 0.5, 0.0, 0.0}),
+		search.NewVectorDocument("snippet2", []float64{0.0, 1.0, 0.5, 0.0}),
+		search.NewVectorDocument("snippet3", []float64{0.0, 0.0, 1.0, 0.5}),
 	}
-	err = store.SaveAll(ctx, embeddings)
+	err = store.Index(ctx, embeddings)
 	require.NoError(t, err)
 
 	// Search should return results
-	results, err := store.Search(ctx, search.WithEmbedding([]float64{1.0, 0.5, 0.0, 0.0}), repository.WithLimit(10))
+	results, err := store.Find(ctx, search.WithEmbedding([]float64{1.0, 0.5, 0.0, 0.0}), repository.WithLimit(10))
 	require.NoError(t, err)
 	assert.NotEmpty(t, results)
 
@@ -186,7 +186,7 @@ func TestSQLiteEmbeddingStore_SaveAllEmpty(t *testing.T) {
 	require.NoError(t, err)
 	ctx := context.Background()
 
-	err = store.SaveAll(ctx, []search.Embedding{})
+	err = store.Index(ctx, []search.Document{})
 	require.NoError(t, err)
 }
 
@@ -196,7 +196,7 @@ func TestSQLiteEmbeddingStore_Search_NoEmbedding(t *testing.T) {
 	require.NoError(t, err)
 	ctx := context.Background()
 
-	results, err := store.Search(ctx)
+	results, err := store.Find(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, results)
 }
@@ -207,17 +207,17 @@ func TestSQLiteEmbeddingStore_SaveAllDuplicates(t *testing.T) {
 	require.NoError(t, err)
 	ctx := context.Background()
 
-	embeddings := []search.Embedding{
-		search.NewEmbedding("snippet1", []float64{1.0, 0.0, 0.0, 0.0}),
+	embeddings := []search.Document{
+		search.NewVectorDocument("snippet1", []float64{1.0, 0.0, 0.0, 0.0}),
 	}
-	err = store.SaveAll(ctx, embeddings)
+	err = store.Index(ctx, embeddings)
 	require.NoError(t, err)
 
 	// Save the same ID again with a different vector — should upsert, not error
-	embeddings2 := []search.Embedding{
-		search.NewEmbedding("snippet1", []float64{0.0, 1.0, 0.0, 0.0}),
+	embeddings2 := []search.Document{
+		search.NewVectorDocument("snippet1", []float64{0.0, 1.0, 0.0, 0.0}),
 	}
-	err = store.SaveAll(ctx, embeddings2)
+	err = store.Index(ctx, embeddings2)
 	require.NoError(t, err)
 }
 
@@ -233,8 +233,8 @@ func TestSQLiteEmbeddingStore_Exists(t *testing.T) {
 	assert.False(t, has)
 
 	// Save an embedding
-	err = store.SaveAll(ctx, []search.Embedding{
-		search.NewEmbedding("snippet1", []float64{1.0, 0.0, 0.0, 0.0}),
+	err = store.Index(ctx, []search.Document{
+		search.NewVectorDocument("snippet1", []float64{1.0, 0.0, 0.0, 0.0}),
 	})
 	require.NoError(t, err)
 
@@ -251,9 +251,9 @@ func TestSQLiteEmbeddingStore_DeleteBy(t *testing.T) {
 	ctx := context.Background()
 
 	// Save embeddings
-	err = store.SaveAll(ctx, []search.Embedding{
-		search.NewEmbedding("snippet1", []float64{1.0, 0.0, 0.0, 0.0}),
-		search.NewEmbedding("snippet2", []float64{0.0, 1.0, 0.0, 0.0}),
+	err = store.Index(ctx, []search.Document{
+		search.NewVectorDocument("snippet1", []float64{1.0, 0.0, 0.0, 0.0}),
+		search.NewVectorDocument("snippet2", []float64{0.0, 1.0, 0.0, 0.0}),
 	})
 	require.NoError(t, err)
 
@@ -279,15 +279,15 @@ func TestSQLiteEmbeddingStore_SearchWithFilter(t *testing.T) {
 	ctx := context.Background()
 
 	// Save embeddings
-	err = store.SaveAll(ctx, []search.Embedding{
-		search.NewEmbedding("snippet1", []float64{1.0, 0.0, 0.0, 0.0}),
-		search.NewEmbedding("snippet2", []float64{0.0, 1.0, 0.0, 0.0}),
-		search.NewEmbedding("snippet3", []float64{0.0, 0.0, 1.0, 0.0}),
+	err = store.Index(ctx, []search.Document{
+		search.NewVectorDocument("snippet1", []float64{1.0, 0.0, 0.0, 0.0}),
+		search.NewVectorDocument("snippet2", []float64{0.0, 1.0, 0.0, 0.0}),
+		search.NewVectorDocument("snippet3", []float64{0.0, 0.0, 1.0, 0.0}),
 	})
 	require.NoError(t, err)
 
 	// Search with filter
-	results, err := store.Search(ctx,
+	results, err := store.Find(ctx,
 		search.WithEmbedding([]float64{1.0, 0.0, 0.0, 0.0}),
 		search.WithSnippetIDs([]string{"snippet1", "snippet3"}),
 		repository.WithLimit(10),
@@ -312,9 +312,9 @@ func TestSQLiteEmbeddingStore_Find(t *testing.T) {
 	ctx := context.Background()
 
 	// Save embeddings
-	err = store.SaveAll(ctx, []search.Embedding{
-		search.NewEmbedding("snippet1", []float64{1.0, 0.0, 0.0, 0.0}),
-		search.NewEmbedding("snippet2", []float64{0.0, 1.0, 0.0, 0.0}),
+	err = store.Index(ctx, []search.Document{
+		search.NewVectorDocument("snippet1", []float64{1.0, 0.0, 0.0, 0.0}),
+		search.NewVectorDocument("snippet2", []float64{0.0, 1.0, 0.0, 0.0}),
 	})
 	require.NoError(t, err)
 

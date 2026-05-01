@@ -39,12 +39,12 @@ WHERE c.relname = '%s_idx'`
 // ErrVectorInitializationFailed indicates VectorChord vector initialization failed.
 var ErrVectorInitializationFailed = errors.New("failed to initialize VectorChord vector repository")
 
-// VectorChordEmbeddingStore implements search.EmbeddingStore using VectorChord PostgreSQL extension.
-// Table creation is deferred to the first SaveAll call, using the actual
-// embedding dimension. Read/delete methods return empty results when the
-// table does not yet exist.
+// VectorChordEmbeddingStore implements search.Store using the VectorChord
+// PostgreSQL extension. Table creation is deferred to the first Index call,
+// using the actual embedding dimension. Read/delete methods return empty
+// results when the table does not yet exist.
 type VectorChordEmbeddingStore struct {
-	database.Repository[search.Embedding, PgEmbeddingModel]
+	database.Repository[search.Result, PgEmbeddingModel]
 	logger  zerolog.Logger
 	indexMu sync.Mutex
 
@@ -54,7 +54,7 @@ type VectorChordEmbeddingStore struct {
 }
 
 // NewVectorChordEmbeddingStore creates a new VectorChordEmbeddingStore.
-// The VectorChord extension and table are created lazily on the first SaveAll
+// The VectorChord extension and table are created lazily on the first Index
 // call using the actual embedding dimension. On construction, we probe
 // pg_class to determine whether the table already exists so that read/delete
 // methods can return early without hitting a missing-relation error.
@@ -64,7 +64,7 @@ type VectorChordEmbeddingStore struct {
 func NewVectorChordEmbeddingStore(db database.Database, taskName TaskName, onRebuilt func(context.Context), logger zerolog.Logger) *VectorChordEmbeddingStore {
 	tableName := fmt.Sprintf("vectorchord_%s_embeddings", taskName)
 	s := &VectorChordEmbeddingStore{
-		Repository: database.NewRepositoryForTable[search.Embedding, PgEmbeddingModel](
+		Repository: database.NewRepositoryForTable[search.Result, PgEmbeddingModel](
 			db, pgEmbeddingMapper{}, "embedding", tableName,
 		),
 		onRebuilt: onRebuilt,
@@ -78,42 +78,94 @@ func NewVectorChordEmbeddingStore(db database.Database, taskName TaskName, onReb
 	if count > 0 {
 		s.tableReady.Store(true)
 	} else {
-		logger.Warn().Str("table", tableName).Msg("embedding table does not exist yet; read/delete operations will return empty until first SaveAll creates it")
+		logger.Warn().Str("table", tableName).Msg("embedding table does not exist yet; read/delete operations will return empty until first Index creates it")
 	}
 
 	return s
 }
 
-// Find retrieves embeddings, returning an empty slice if the table hasn't been created yet.
-func (s *VectorChordEmbeddingStore) Find(ctx context.Context, options ...repository.Option) ([]search.Embedding, error) {
+// Find performs vector similarity search when WithEmbedding is supplied;
+// otherwise delegates to the embedded Repository for plain snippet_id lookups.
+//
+// Returns nil if the table has not yet been created.
+func (s *VectorChordEmbeddingStore) Find(ctx context.Context, opts ...repository.Option) ([]search.Result, error) {
 	if !s.tableReady.Load() {
 		return nil, nil
 	}
-	return s.Repository.Find(ctx, options...)
+
+	q := repository.Build(opts...)
+	embedding, ok := search.EmbeddingFrom(q)
+	if !ok || len(embedding) == 0 {
+		return s.Repository.Find(ctx, opts...)
+	}
+
+	limit := q.LimitValue()
+	if limit <= 0 {
+		limit = 10
+	}
+
+	queryEmbedding := database.NewPgVector(embedding).String()
+	augmented := []repository.Option{
+		repository.WithSelect("snippet_id, embedding <=> ? AS score", queryEmbedding),
+		repository.WithRawOrder("score ASC"),
+		repository.WithLimit(limit),
+	}
+	if filters, ok := search.FiltersFrom(q); ok {
+		augmented = append(augmented, filterJoinOptions(filters, "bigint")...)
+	}
+	if snippetIDs := search.SnippetIDsFrom(q); len(snippetIDs) > 0 {
+		augmented = append(augmented, search.WithSnippetIDs(snippetIDs))
+	}
+
+	// vchordrq.probes must be set within a transaction so the SET LOCAL
+	// is visible to the SELECT that follows.
+	var count int64
+	if err := s.DB(ctx).Table(s.Table()).Count(&count).Error; err != nil {
+		return nil, fmt.Errorf("count for probes: %w", err)
+	}
+	probes := probeCount(count)
+
+	var results []search.Result
+	err := s.DB(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(fmt.Sprintf("SET LOCAL vchordrq.probes = %d", probes)).Error; err != nil {
+			return fmt.Errorf("set vchordrq.probes: %w", err)
+		}
+		var entities []PgEmbeddingModel
+		db := database.ApplyOptions(tx.Table(s.Table()), augmented...)
+		if err := db.Scan(&entities).Error; err != nil {
+			return err
+		}
+		results = make([]search.Result, len(entities))
+		for i, e := range entities {
+			results[i] = s.Mapper().ToDomain(e)
+		}
+		return nil
+	})
+	return results, err
 }
 
 // DeleteBy removes embeddings, silently succeeding if the table hasn't been created yet.
-func (s *VectorChordEmbeddingStore) DeleteBy(ctx context.Context, options ...repository.Option) error {
+func (s *VectorChordEmbeddingStore) DeleteBy(ctx context.Context, opts ...repository.Option) error {
 	if !s.tableReady.Load() {
 		return nil
 	}
-	return s.Repository.DeleteBy(ctx, options...)
+	return s.Repository.DeleteBy(ctx, opts...)
 }
 
 // Exists checks for matching embeddings, returning false if the table hasn't been created yet.
-func (s *VectorChordEmbeddingStore) Exists(ctx context.Context, options ...repository.Option) (bool, error) {
+func (s *VectorChordEmbeddingStore) Exists(ctx context.Context, opts ...repository.Option) (bool, error) {
 	if !s.tableReady.Load() {
 		return false, nil
 	}
-	return s.Repository.Exists(ctx, options...)
+	return s.Repository.Exists(ctx, opts...)
 }
 
 // ensureTable creates the VectorChord extension and embedding table if they
 // do not already exist. If the table exists with a different vector dimension
 // it is dropped and recreated, and the onRebuilt callback fires.
 //
-// Called from SaveAll only — dimension is derived from the embeddings
-// themselves, so no probe call is needed.
+// Called from Index only — dimension is derived from the documents themselves,
+// so no probe call is needed.
 func (s *VectorChordEmbeddingStore) ensureTable(ctx context.Context, dimension int) error {
 	s.tableMu.Lock()
 	defer s.tableMu.Unlock()
@@ -124,7 +176,6 @@ func (s *VectorChordEmbeddingStore) ensureTable(ctx context.Context, dimension i
 	tableName := s.Table()
 	rawDB := s.DB(ctx)
 
-	// Create extension.
 	if err := rawDB.Exec(vcCreateVChordExtension).Error; err != nil {
 		return errors.Join(ErrVectorInitializationFailed, fmt.Errorf("create extension: %w", err))
 	}
@@ -136,12 +187,10 @@ CREATE TABLE IF NOT EXISTS %s (
     embedding VECTOR(%d) NOT NULL
 )`, tableName, dimension)
 
-	// Create table (dynamic dimension requires raw SQL).
 	if err := rawDB.Exec(createTableSQL).Error; err != nil {
 		return errors.Join(ErrVectorInitializationFailed, fmt.Errorf("create table: %w", err))
 	}
 
-	// Check whether the existing table dimension matches the embeddings.
 	var dbDimension int
 	checkDimensionSQL := fmt.Sprintf(vcCheckDimensionTemplate, tableName)
 	result := rawDB.Raw(checkDimensionSQL).Scan(&dbDimension)
@@ -176,22 +225,30 @@ CREATE TABLE IF NOT EXISTS %s (
 	return nil
 }
 
-// SaveAll persists pre-computed embeddings using batched upsert, then ensures
+// Index persists pre-computed vectors using batched upsert, then ensures
 // the vchordrq index exists (it requires data for K-means clustering).
-func (s *VectorChordEmbeddingStore) SaveAll(ctx context.Context, embeddings []search.Embedding) error {
-	if len(embeddings) == 0 {
+// Documents without a vector are skipped (this store does not index text).
+func (s *VectorChordEmbeddingStore) Index(ctx context.Context, docs []search.Document) error {
+	models := make([]PgEmbeddingModel, 0, len(docs))
+	var dimension int
+	for _, doc := range docs {
+		vec := doc.Vector()
+		if doc.SnippetID() == "" || len(vec) == 0 {
+			continue
+		}
+		if dimension == 0 {
+			dimension = len(vec)
+		}
+		models = append(models, PgEmbeddingModel{
+			SnippetID: doc.SnippetID(),
+			Embedding: database.NewPgVector(vec),
+		})
+	}
+	if len(models) == 0 {
 		return nil
 	}
-	if err := s.ensureTable(ctx, len(embeddings[0].Vector())); err != nil {
+	if err := s.ensureTable(ctx, dimension); err != nil {
 		return err
-	}
-
-	models := make([]PgEmbeddingModel, len(embeddings))
-	for i, emb := range embeddings {
-		models[i] = PgEmbeddingModel{
-			SnippetID: emb.SnippetID(),
-			Embedding: database.NewPgVector(emb.Vector()),
-		}
 	}
 
 	tableName := s.Table()
@@ -228,7 +285,7 @@ func (s *VectorChordEmbeddingStore) ensureIndex(ctx context.Context) error {
 		return fmt.Errorf("check index method: %w", result.Error)
 	}
 	if result.RowsAffected > 0 {
-		return nil // index already exists
+		return nil
 	}
 
 	var count int64
@@ -266,29 +323,4 @@ $$)`, tableName, tableName, lists)
 func probeCount(rows int64) int {
 	lists := max(rows/10, 1)
 	return max(int(math.Sqrt(float64(lists))), 10)
-}
-
-// Search performs vector similarity search within a transaction so that
-// the vchordrq.probes session variable is visible to the query.
-func (s *VectorChordEmbeddingStore) Search(ctx context.Context, options ...repository.Option) ([]search.Result, error) {
-	if !s.tableReady.Load() {
-		return nil, nil
-	}
-	var count int64
-	db := s.DB(ctx)
-	if err := db.Table(s.Table()).Count(&count).Error; err != nil {
-		return nil, fmt.Errorf("count for probes: %w", err)
-	}
-	probes := probeCount(count)
-
-	var results []search.Result
-	err := db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Exec(fmt.Sprintf("SET LOCAL vchordrq.probes = %d", probes)).Error; err != nil {
-			return fmt.Errorf("set vchordrq.probes: %w", err)
-		}
-		var searchErr error
-		results, searchErr = cosineSearch(tx, s.Table(), options...)
-		return searchErr
-	})
-	return results, err
 }

@@ -54,22 +54,22 @@ func (f *fakeVisionEmbedder) Embed(_ context.Context, items []search.EmbeddingIt
 	return result, nil
 }
 
-// fakeVisionStore is a fake search.EmbeddingStore that tracks saved embeddings.
+// fakeVisionStore is a fake search.Store that tracks saved vector documents.
 type fakeVisionStore struct {
-	saved []search.Embedding
+	saved []search.Document
 }
 
-func (s *fakeVisionStore) SaveAll(_ context.Context, embeddings []search.Embedding) error {
-	s.saved = append(s.saved, embeddings...)
+func (s *fakeVisionStore) Index(_ context.Context, docs []search.Document) error {
+	s.saved = append(s.saved, docs...)
 	return nil
 }
 
-func (s *fakeVisionStore) Find(_ context.Context, _ ...repository.Option) ([]search.Embedding, error) {
+func (s *fakeVisionStore) Find(_ context.Context, _ ...repository.Option) ([]search.Result, error) {
 	return nil, nil
 }
 
-func (s *fakeVisionStore) Search(_ context.Context, _ ...repository.Option) ([]search.Result, error) {
-	return nil, nil
+func (s *fakeVisionStore) Count(_ context.Context, _ ...repository.Option) (int64, error) {
+	return 0, nil
 }
 
 func (s *fakeVisionStore) Exists(_ context.Context, _ ...repository.Option) (bool, error) {

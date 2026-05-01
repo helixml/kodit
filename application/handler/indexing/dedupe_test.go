@@ -18,7 +18,7 @@ import (
 	"github.com/helixml/kodit/internal/testdb"
 )
 
-// dedupingEmbeddingStore is a fake search.EmbeddingStore that simulates
+// dedupingEmbeddingStore is a fake search.Store that simulates
 // PostgreSQL semantics: it returns matches for snippet IDs in the IN
 // condition, and honours the LIMIT option by truncating the result set.
 // This mirrors how the production store responds, so tests can exercise
@@ -26,28 +26,28 @@ import (
 type dedupingEmbeddingStore struct {
 	mu       sync.Mutex
 	existing map[string]struct{}
-	saved    []search.Embedding
+	saved    []search.Document
 }
 
-func (s *dedupingEmbeddingStore) SaveAll(_ context.Context, embeddings []search.Embedding) error {
+func (s *dedupingEmbeddingStore) Index(_ context.Context, docs []search.Document) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.saved = append(s.saved, embeddings...)
-	for _, e := range embeddings {
-		s.existing[e.SnippetID()] = struct{}{}
+	s.saved = append(s.saved, docs...)
+	for _, d := range docs {
+		s.existing[d.SnippetID()] = struct{}{}
 	}
 	return nil
 }
 
-func (s *dedupingEmbeddingStore) Find(_ context.Context, options ...repository.Option) ([]search.Embedding, error) {
+func (s *dedupingEmbeddingStore) Find(_ context.Context, options ...repository.Option) ([]search.Result, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	q := repository.Build(options...)
 	ids := search.SnippetIDsFrom(q)
-	var result []search.Embedding
+	var result []search.Result
 	for _, id := range ids {
 		if _, ok := s.existing[id]; ok {
-			result = append(result, search.NewEmbedding(id, nil))
+			result = append(result, search.NewResult(id, 0))
 		}
 	}
 	if limit := q.LimitValue(); limit > 0 && len(result) > limit {
@@ -56,8 +56,10 @@ func (s *dedupingEmbeddingStore) Find(_ context.Context, options ...repository.O
 	return result, nil
 }
 
-func (s *dedupingEmbeddingStore) Search(_ context.Context, _ ...repository.Option) ([]search.Result, error) {
-	return nil, nil
+func (s *dedupingEmbeddingStore) Count(_ context.Context, _ ...repository.Option) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return int64(len(s.existing)), nil
 }
 
 func (s *dedupingEmbeddingStore) Exists(_ context.Context, _ ...repository.Option) (bool, error) {
