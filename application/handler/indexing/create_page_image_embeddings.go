@@ -235,19 +235,14 @@ func (h *CreatePageImageEmbeddings) filterNew(ctx context.Context, enrichments [
 		ids[i] = strconv.FormatInt(e.ID(), 10)
 	}
 
-	found, err := h.store.Find(ctx, search.WithSnippetIDs(ids), repository.WithLimit(search.MaxSnippetIDsPerFind))
+	existing, err := search.ExistingSnippetIDs(ctx, h.store, ids)
 	if err != nil {
 		return nil, err
 	}
 
-	existing := make(map[string]bool, len(found))
-	for _, emb := range found {
-		existing[emb.SnippetID()] = true
-	}
-
 	result := make([]enrichment.Enrichment, 0, len(enrichments))
 	for i, e := range enrichments {
-		if !existing[ids[i]] {
+		if _, ok := existing[ids[i]]; !ok {
 			result = append(result, e)
 		}
 	}

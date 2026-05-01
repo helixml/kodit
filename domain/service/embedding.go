@@ -80,14 +80,9 @@ func (s *EmbeddingService) Index(ctx context.Context, request search.IndexReques
 		ids[i] = doc.SnippetID()
 	}
 
-	found, err := s.store.Find(ctx, search.WithSnippetIDs(ids), repository.WithLimit(search.MaxSnippetIDsPerFind))
+	existing, err := search.ExistingSnippetIDs(ctx, s.store, ids)
 	if err != nil {
 		return fmt.Errorf("check existing: %w", err)
-	}
-
-	existing := make(map[string]struct{}, len(found))
-	for _, emb := range found {
-		existing[emb.SnippetID()] = struct{}{}
 	}
 
 	var toEmbed []search.Document
