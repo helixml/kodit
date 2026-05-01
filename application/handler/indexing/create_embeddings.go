@@ -104,8 +104,7 @@ func (h *CreateCodeEmbeddings) Execute(ctx context.Context, payload map[string]a
 
 	tracker.SetTotal(ctx, len(documents))
 
-	request := search.NewIndexRequest(documents)
-	if err := h.codeIndex.Embedding.Index(ctx, request,
+	if err := h.codeIndex.Embedding.Index(ctx, documents,
 		search.WithProgress(func(completed, total int) {
 			tracker.SetCurrent(ctx, completed, "Creating code embeddings")
 		}),

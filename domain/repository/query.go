@@ -9,7 +9,10 @@ type Option func(Query) Query
 type Query struct {
 	conditions []Condition
 	clauses    []Clause
+	selects    []Select
+	joins      []Join
 	orders     []Order
+	rawOrders  []string
 	limit      int
 	offset     int
 	params     map[string]any
@@ -35,6 +38,27 @@ func (q Query) Conditions() []Condition {
 func (q Query) Clauses() []Clause {
 	result := make([]Clause, len(q.clauses))
 	copy(result, q.clauses)
+	return result
+}
+
+// Selects returns the SELECT expressions.
+func (q Query) Selects() []Select {
+	result := make([]Select, len(q.selects))
+	copy(result, q.selects)
+	return result
+}
+
+// Joins returns the JOIN clauses.
+func (q Query) Joins() []Join {
+	result := make([]Join, len(q.joins))
+	copy(result, q.joins)
+	return result
+}
+
+// RawOrders returns the raw ORDER BY expressions.
+func (q Query) RawOrders() []string {
+	result := make([]string, len(q.rawOrders))
+	copy(result, q.rawOrders)
 	return result
 }
 
@@ -90,6 +114,32 @@ func (c Clause) SQL() string { return c.sql }
 
 // Args returns the clause bind arguments.
 func (c Clause) Args() []any { return c.args }
+
+// Select represents a SELECT expression with bind arguments.
+// Used to inject custom column projections (e.g., similarity-score columns
+// for vector or BM25 search) into a Find query.
+type Select struct {
+	expr string
+	args []any
+}
+
+// Expr returns the SELECT expression.
+func (s Select) Expr() string { return s.expr }
+
+// Args returns the SELECT bind arguments.
+func (s Select) Args() []any { return s.args }
+
+// Join represents a JOIN clause with optional bind arguments.
+type Join struct {
+	expr string
+	args []any
+}
+
+// Expr returns the JOIN expression.
+func (j Join) Expr() string { return j.expr }
+
+// Args returns the JOIN bind arguments.
+func (j Join) Args() []any { return j.args }
 
 // Order represents a sort specification.
 type Order struct {
@@ -178,6 +228,38 @@ func WithPagination(limit, offset int) []Option {
 func WithWhere(sql string, args ...any) Option {
 	return func(q Query) Query {
 		q.clauses = append(q.clauses, Clause{sql: sql, args: args})
+		return q
+	}
+}
+
+// WithSelect adds a SELECT expression with optional bind arguments.
+// Multiple WithSelect options are concatenated with commas.
+//
+// Used for custom projections — e.g. injecting a similarity-score column
+// for vector or BM25 search:
+//
+//	repository.WithSelect("snippet_id, embedding <=> ? AS score", queryVec)
+func WithSelect(expr string, args ...any) Option {
+	return func(q Query) Query {
+		q.selects = append(q.selects, Select{expr: expr, args: args})
+		return q
+	}
+}
+
+// WithJoin adds a JOIN clause with optional bind arguments.
+func WithJoin(expr string, args ...any) Option {
+	return func(q Query) Query {
+		q.joins = append(q.joins, Join{expr: expr, args: args})
+		return q
+	}
+}
+
+// WithRawOrder adds a raw ORDER BY expression (e.g. "score DESC").
+// Use this when the ordering target is a SELECT-injected column or expression
+// that does not have a stable column name.
+func WithRawOrder(expr string) Option {
+	return func(q Query) Query {
+		q.rawOrders = append(q.rawOrders, expr)
 		return q
 	}
 }

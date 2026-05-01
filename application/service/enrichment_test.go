@@ -19,12 +19,15 @@ type recordingBM25Store struct {
 	deleteOpts   []repository.Option
 }
 
-func (r *recordingBM25Store) Index(_ context.Context, _ search.IndexRequest) error { return nil }
+func (r *recordingBM25Store) Index(_ context.Context, _ []search.Document) error { return nil }
 func (r *recordingBM25Store) Find(_ context.Context, _ ...repository.Option) ([]search.Result, error) {
 	return nil, nil
 }
-func (r *recordingBM25Store) ExistingIDs(_ context.Context, _ []string) (map[string]struct{}, error) {
-	return map[string]struct{}{}, nil
+func (r *recordingBM25Store) Count(_ context.Context, _ ...repository.Option) (int64, error) {
+	return 0, nil
+}
+func (r *recordingBM25Store) Exists(_ context.Context, _ ...repository.Option) (bool, error) {
+	return false, nil
 }
 func (r *recordingBM25Store) DeleteBy(_ context.Context, opts ...repository.Option) error {
 	r.deleteCalled = true
@@ -37,14 +40,14 @@ type recordingEmbeddingStore struct {
 	deleteOpts   []repository.Option
 }
 
-func (r *recordingEmbeddingStore) SaveAll(_ context.Context, _ []search.Embedding) error {
+func (r *recordingEmbeddingStore) Index(_ context.Context, _ []search.Document) error {
 	return nil
 }
-func (r *recordingEmbeddingStore) Find(_ context.Context, _ ...repository.Option) ([]search.Embedding, error) {
+func (r *recordingEmbeddingStore) Find(_ context.Context, _ ...repository.Option) ([]search.Result, error) {
 	return nil, nil
 }
-func (r *recordingEmbeddingStore) Search(_ context.Context, _ ...repository.Option) ([]search.Result, error) {
-	return nil, nil
+func (r *recordingEmbeddingStore) Count(_ context.Context, _ ...repository.Option) (int64, error) {
+	return 0, nil
 }
 func (r *recordingEmbeddingStore) Exists(_ context.Context, _ ...repository.Option) (bool, error) {
 	return false, nil

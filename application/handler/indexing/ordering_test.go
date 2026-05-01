@@ -20,14 +20,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// recordingEmbedding captures the IndexRequest it receives so tests can
+// recordingEmbedding captures the documents it receives so tests can
 // inspect the document order that was sent to the embedding service.
 type recordingEmbedding struct {
-	requests []search.IndexRequest
+	indexed [][]search.Document
 }
 
-func (r *recordingEmbedding) Index(_ context.Context, req search.IndexRequest, _ ...search.IndexOption) error {
-	r.requests = append(r.requests, req)
+func (r *recordingEmbedding) Index(_ context.Context, docs []search.Document, _ ...search.IndexOption) error {
+	r.indexed = append(r.indexed, docs)
 	return nil
 }
 
@@ -41,8 +41,8 @@ func (r *recordingEmbedding) Exists(_ context.Context, _ ...repository.Option) (
 
 func (r *recordingEmbedding) documents() []search.Document {
 	var docs []search.Document
-	for _, req := range r.requests {
-		docs = append(docs, req.Documents()...)
+	for _, batch := range r.indexed {
+		docs = append(docs, batch...)
 	}
 	return docs
 }
@@ -51,16 +51,16 @@ func (r *recordingEmbedding) documents() []search.Document {
 // appears "new" and reaches the embedding service.
 type emptyEmbeddingStore struct{}
 
-func (e *emptyEmbeddingStore) SaveAll(_ context.Context, _ []search.Embedding) error {
+func (e *emptyEmbeddingStore) Index(_ context.Context, _ []search.Document) error {
 	return nil
 }
 
-func (e *emptyEmbeddingStore) Find(_ context.Context, _ ...repository.Option) ([]search.Embedding, error) {
+func (e *emptyEmbeddingStore) Find(_ context.Context, _ ...repository.Option) ([]search.Result, error) {
 	return nil, nil
 }
 
-func (e *emptyEmbeddingStore) Search(_ context.Context, _ ...repository.Option) ([]search.Result, error) {
-	return nil, nil
+func (e *emptyEmbeddingStore) Count(_ context.Context, _ ...repository.Option) (int64, error) {
+	return 0, nil
 }
 
 func (e *emptyEmbeddingStore) Exists(_ context.Context, _ ...repository.Option) (bool, error) {

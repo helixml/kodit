@@ -117,8 +117,7 @@ func (h *CreateSummaryEmbeddings) Execute(ctx context.Context, payload map[strin
 
 	tracker.SetTotal(ctx, len(documents))
 
-	request := search.NewIndexRequest(documents)
-	if err := h.textIndex.Embedding.Index(ctx, request,
+	if err := h.textIndex.Embedding.Index(ctx, documents,
 		search.WithProgress(func(completed, total int) {
 			tracker.SetCurrent(ctx, completed, "Creating summary embeddings")
 		}),

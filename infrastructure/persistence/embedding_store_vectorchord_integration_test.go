@@ -62,7 +62,7 @@ func TestVectorChordEmbeddingStore_MissingTable(t *testing.T) {
 	})
 
 	t.Run("Search returns empty on missing table", func(t *testing.T) {
-		results, err := store.Search(ctx)
+		results, err := store.Find(ctx)
 		assert.NoError(t, err)
 		assert.Empty(t, results)
 	})
@@ -103,11 +103,11 @@ func TestVectorChordEmbeddingStore_SaveAllCreatesTable(t *testing.T) {
 	assert.Empty(t, results)
 
 	// SaveAll should create the table and insert data.
-	embeddings := []search.Embedding{
-		search.NewEmbedding("1", []float64{0.1, 0.2, 0.3, 0.4}),
-		search.NewEmbedding("2", []float64{0.5, 0.6, 0.7, 0.8}),
+	embeddings := []search.Document{
+		search.NewVectorDocument("1", []float64{0.1, 0.2, 0.3, 0.4}),
+		search.NewVectorDocument("2", []float64{0.5, 0.6, 0.7, 0.8}),
 	}
-	err = store.SaveAll(ctx, embeddings)
+	err = store.Index(ctx, embeddings)
 	require.NoError(t, err)
 
 	// Find should now return data.
@@ -121,7 +121,7 @@ func TestVectorChordEmbeddingStore_SaveAllCreatesTable(t *testing.T) {
 	assert.True(t, exists)
 
 	// Search should work.
-	searchResults, err := store.Search(ctx,
+	searchResults, err := store.Find(ctx,
 		search.WithEmbedding([]float64{0.1, 0.2, 0.3, 0.4}),
 		repository.WithLimit(10),
 	)

@@ -33,7 +33,7 @@ type CreatePageImageEmbeddings struct {
 	fileStore        repository.FileStore
 	rasterizers      *rasterization.Registry
 	embedder         search.Embedder
-	store            search.EmbeddingStore
+	store            search.Store
 	trackerFactory   handler.TrackerFactory
 	logger           zerolog.Logger
 }
@@ -47,7 +47,7 @@ func NewCreatePageImageEmbeddings(
 	fileStore repository.FileStore,
 	rasterizers *rasterization.Registry,
 	embedder search.Embedder,
-	store search.EmbeddingStore,
+	store search.Store,
 	trackerFactory handler.TrackerFactory,
 	logger zerolog.Logger,
 ) (*CreatePageImageEmbeddings, error) {
@@ -217,12 +217,12 @@ func (h *CreatePageImageEmbeddings) embedAndSave(ctx context.Context, ids []stri
 		return fmt.Errorf("embed page images: %w", err)
 	}
 
-	embeddings := make([]search.Embedding, len(vectors))
+	docs := make([]search.Document, len(vectors))
 	for i, vec := range vectors {
-		embeddings[i] = search.NewEmbedding(ids[i], vec)
+		docs[i] = search.NewVectorDocument(ids[i], vec)
 	}
 
-	if err := h.store.SaveAll(ctx, embeddings); err != nil {
+	if err := h.store.Index(ctx, docs); err != nil {
 		return fmt.Errorf("save vision embeddings: %w", err)
 	}
 

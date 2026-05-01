@@ -20,19 +20,19 @@ import (
 	"github.com/helixml/kodit/internal/testdb"
 )
 
-// dedupingBM25Store is a fake search.BM25Store that simulates the
+// dedupingBM25Store is a fake search.Store that simulates the
 // production stores: it tracks already-indexed snippet IDs and reports
-// them via ExistingIDs.
+// them through Find with WithSnippetIDs (the standard dedup path).
 type dedupingBM25Store struct {
 	mu       sync.Mutex
 	existing map[string]struct{}
 	indexed  []search.Document
 }
 
-func (s *dedupingBM25Store) Index(_ context.Context, req search.IndexRequest) error {
+func (s *dedupingBM25Store) Index(_ context.Context, docs []search.Document) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, doc := range req.Documents() {
+	for _, doc := range docs {
 		if _, ok := s.existing[doc.SnippetID()]; ok {
 			continue
 		}
@@ -42,20 +42,30 @@ func (s *dedupingBM25Store) Index(_ context.Context, req search.IndexRequest) er
 	return nil
 }
 
-func (s *dedupingBM25Store) Find(_ context.Context, _ ...repository.Option) ([]search.Result, error) {
-	return nil, nil
-}
-
-func (s *dedupingBM25Store) ExistingIDs(_ context.Context, ids []string) (map[string]struct{}, error) {
+func (s *dedupingBM25Store) Find(_ context.Context, opts ...repository.Option) ([]search.Result, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	result := make(map[string]struct{}, len(ids))
+	q := repository.Build(opts...)
+	ids := search.SnippetIDsFrom(q)
+	var result []search.Result
 	for _, id := range ids {
 		if _, ok := s.existing[id]; ok {
-			result[id] = struct{}{}
+			result = append(result, search.NewResult(id, 0))
 		}
 	}
 	return result, nil
+}
+
+func (s *dedupingBM25Store) Count(_ context.Context, _ ...repository.Option) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return int64(len(s.existing)), nil
+}
+
+func (s *dedupingBM25Store) Exists(_ context.Context, _ ...repository.Option) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.existing) > 0, nil
 }
 
 func (s *dedupingBM25Store) DeleteBy(_ context.Context, _ ...repository.Option) error {

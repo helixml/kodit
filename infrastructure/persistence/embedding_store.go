@@ -7,10 +7,8 @@ import (
 	"math"
 	"sort"
 
-	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/internal/database"
-	"gorm.io/gorm"
 )
 
 // saveAllBatchSize controls how many rows are inserted per multi-row INSERT
@@ -33,24 +31,27 @@ var (
 )
 
 // PgEmbeddingModel is a GORM model for PostgreSQL vector embedding tables.
+// Score is populated transiently during ranked search (`embedding <=> ?`);
+// it is never written.
 type PgEmbeddingModel struct {
 	ID        int64             `gorm:"column:id;primaryKey;autoIncrement"`
 	SnippetID string            `gorm:"column:snippet_id;uniqueIndex"`
 	Embedding database.PgVector `gorm:"column:embedding;type:vector"`
+	Score     float64           `gorm:"->;-:migration"`
 }
 
-// pgEmbeddingMapper maps between search.Embedding and PgEmbeddingModel.
+// pgEmbeddingMapper maps PgEmbeddingModel to search.Result.
+//
+// pgvector's <=> operator returns cosine distance (0 = identical, 2 = opposite);
+// we convert to a similarity in [0, 1] using `1 - distance/2`.
 type pgEmbeddingMapper struct{}
 
-func (pgEmbeddingMapper) ToDomain(entity PgEmbeddingModel) search.Embedding {
-	return search.NewEmbedding(entity.SnippetID, entity.Embedding.Floats())
+func (pgEmbeddingMapper) ToDomain(e PgEmbeddingModel) search.Result {
+	return search.NewResult(e.SnippetID, 1.0-e.Score/2.0)
 }
 
-func (pgEmbeddingMapper) ToModel(domain search.Embedding) PgEmbeddingModel {
-	return PgEmbeddingModel{
-		SnippetID: domain.SnippetID(),
-		Embedding: database.NewPgVector(domain.Vector()),
-	}
+func (pgEmbeddingMapper) ToModel(r search.Result) PgEmbeddingModel {
+	return PgEmbeddingModel{SnippetID: r.SnippetID()}
 }
 
 // Float64Slice is a custom type for JSON serialization of []float64 in SQLite.
@@ -85,192 +86,70 @@ func (f Float64Slice) Value() (driver.Value, error) {
 }
 
 // SQLiteEmbeddingModel represents a vector embedding in SQLite.
+// Score is unused for SQLite (similarity is computed in-memory in the
+// store's Find override) but is included for symmetry with PgEmbeddingModel.
 type SQLiteEmbeddingModel struct {
 	ID        int64        `gorm:"column:id;primaryKey;autoIncrement"`
 	SnippetID string       `gorm:"column:snippet_id;uniqueIndex"`
 	Embedding Float64Slice `gorm:"column:embedding;type:json"`
 }
 
-// sqliteEmbeddingMapper maps between search.Embedding and SQLiteEmbeddingModel.
+// sqliteEmbeddingMapper maps SQLiteEmbeddingModel to search.Result.
+// SQLite's Find override populates Result.Score from in-memory similarity;
+// the mapper is only invoked for plain (non-ranked) lookups, where score
+// is not meaningful.
 type sqliteEmbeddingMapper struct{}
 
-func (sqliteEmbeddingMapper) ToDomain(entity SQLiteEmbeddingModel) search.Embedding {
-	return search.NewEmbedding(entity.SnippetID, []float64(entity.Embedding))
+func (sqliteEmbeddingMapper) ToDomain(e SQLiteEmbeddingModel) search.Result {
+	return search.NewResult(e.SnippetID, 0)
 }
 
-func (sqliteEmbeddingMapper) ToModel(domain search.Embedding) SQLiteEmbeddingModel {
-	vec := domain.Vector()
-	cp := make(Float64Slice, len(vec))
-	copy(cp, vec)
-	return SQLiteEmbeddingModel{
-		SnippetID: domain.SnippetID(),
-		Embedding: cp,
-	}
+func (sqliteEmbeddingMapper) ToModel(r search.Result) SQLiteEmbeddingModel {
+	return SQLiteEmbeddingModel{SnippetID: r.SnippetID()}
 }
 
-// cosineSearch performs a cosine-distance similarity search against a PG vector
-// table and returns results sorted by similarity (highest first).
-func cosineSearch(
-	db *gorm.DB,
-	tableName string,
-	options ...repository.Option,
-) ([]search.Result, error) {
-	q := repository.Build(options...)
-	embedding, ok := search.EmbeddingFrom(q)
-	if !ok || len(embedding) == 0 {
-		return []search.Result{}, nil
-	}
-
-	limit := q.LimitValue()
-	if limit <= 0 {
-		limit = 10
-	}
-
-	queryEmbedding := database.NewPgVector(embedding).String()
-
-	tx := db.Table(tableName).
-		Select("snippet_id, embedding <=> ? as score", queryEmbedding)
-	tx = database.ApplyConditions(tx, options...)
-
-	if filters, ok := search.FiltersFrom(q); ok {
-		tx = database.ApplySearchFilters(tx, filters)
-	}
-
-	tx = tx.Order("score ASC").Limit(limit)
-
-	var rows []struct {
-		SnippetID string  `gorm:"column:snippet_id"`
-		Score     float64 `gorm:"column:score"`
-	}
-	if err := tx.Scan(&rows).Error; err != nil {
-		return nil, err
-	}
-
-	results := make([]search.Result, len(rows))
-	for i, row := range rows {
-		// Cosine distance: 0 = identical, 2 = opposite.
-		// Convert to similarity: 1 - distance/2 for 0-1 range.
-		similarity := 1.0 - row.Score/2.0
-		results[i] = search.NewResult(row.SnippetID, similarity)
-	}
-
-	return results, nil
-}
-
-// StoredVector holds an embedding vector with its snippet ID.
-type StoredVector struct {
+// vectorRow is an embedding loaded from SQLite for in-memory similarity
+// search — internal to SQLiteEmbeddingStore.
+type vectorRow struct {
 	snippetID string
 	embedding []float64
 }
 
-// NewStoredVector creates a new StoredVector.
-func NewStoredVector(snippetID string, embedding []float64) StoredVector {
-	vec := make([]float64, len(embedding))
-	copy(vec, embedding)
-	return StoredVector{
-		snippetID: snippetID,
-		embedding: vec,
-	}
-}
-
-// SnippetID returns the snippet identifier.
-func (v StoredVector) SnippetID() string { return v.snippetID }
-
-// Embedding returns the embedding vector (copy).
-func (v StoredVector) Embedding() []float64 {
-	result := make([]float64, len(v.embedding))
-	copy(result, v.embedding)
-	return result
-}
-
-// SimilarityMatch holds a snippet ID and its similarity score.
-type SimilarityMatch struct {
-	snippetID  string
-	similarity float64
-}
-
-// NewSimilarityMatch creates a new SimilarityMatch.
-func NewSimilarityMatch(snippetID string, similarity float64) SimilarityMatch {
-	return SimilarityMatch{
-		snippetID:  snippetID,
-		similarity: similarity,
-	}
-}
-
-// SnippetID returns the snippet identifier.
-func (m SimilarityMatch) SnippetID() string { return m.snippetID }
-
-// Similarity returns the similarity score.
-func (m SimilarityMatch) Similarity() float64 { return m.similarity }
-
-// CosineSimilarity computes the cosine similarity between two vectors.
-// Returns a value between -1 (opposite) and 1 (identical).
-// Returns 0 if either vector has zero magnitude.
-func CosineSimilarity(a, b []float64) float64 {
+// cosineSimilarity computes the cosine similarity of two vectors in [-1, 1].
+// Returns 0 when lengths mismatch or either vector has zero magnitude.
+func cosineSimilarity(a, b []float64) float64 {
 	if len(a) != len(b) || len(a) == 0 {
 		return 0
 	}
-
-	var dotProduct, magA, magB float64
+	var dot, magA, magB float64
 	for i := range a {
-		dotProduct += a[i] * b[i]
+		dot += a[i] * b[i]
 		magA += a[i] * a[i]
 		magB += b[i] * b[i]
 	}
-
 	if magA == 0 || magB == 0 {
 		return 0
 	}
-
-	return dotProduct / (math.Sqrt(magA) * math.Sqrt(magB))
+	return dot / (math.Sqrt(magA) * math.Sqrt(magB))
 }
 
-// TopKSimilar finds the top-k most similar vectors to the query.
-// Returns results sorted by similarity in descending order (highest similarity first).
-func TopKSimilar(query []float64, vectors []StoredVector, k int) []SimilarityMatch {
-	if len(vectors) == 0 || k <= 0 {
-		return []SimilarityMatch{}
+// topKSimilar returns the top-k rows by cosine similarity to query, sorted
+// descending. When allowed is non-empty, rows whose snippetID is not in the
+// set are skipped; an empty or nil set means no filter.
+func topKSimilar(query []float64, rows []vectorRow, k int, allowed map[string]struct{}) []search.Result {
+	if len(rows) == 0 || k <= 0 {
+		return nil
 	}
-
-	matches := make([]SimilarityMatch, 0, len(vectors))
-	for _, v := range vectors {
-		similarity := CosineSimilarity(query, v.embedding)
-		matches = append(matches, NewSimilarityMatch(v.snippetID, similarity))
-	}
-
-	sort.Slice(matches, func(i, j int) bool {
-		return matches[i].similarity > matches[j].similarity
-	})
-
-	if k > len(matches) {
-		k = len(matches)
-	}
-	return matches[:k]
-}
-
-// TopKSimilarFiltered finds the top-k most similar vectors, filtering by allowed snippet IDs.
-func TopKSimilarFiltered(query []float64, vectors []StoredVector, k int, allowedIDs map[string]struct{}) []SimilarityMatch {
-	if len(vectors) == 0 || k <= 0 {
-		return []SimilarityMatch{}
-	}
-
-	if len(allowedIDs) == 0 {
-		return TopKSimilar(query, vectors, k)
-	}
-
-	matches := make([]SimilarityMatch, 0, len(vectors))
-	for _, v := range vectors {
-		if _, ok := allowedIDs[v.snippetID]; !ok {
-			continue
+	matches := make([]search.Result, 0, len(rows))
+	for _, r := range rows {
+		if len(allowed) > 0 {
+			if _, ok := allowed[r.snippetID]; !ok {
+				continue
+			}
 		}
-		similarity := CosineSimilarity(query, v.embedding)
-		matches = append(matches, NewSimilarityMatch(v.snippetID, similarity))
+		matches = append(matches, search.NewResult(r.snippetID, cosineSimilarity(query, r.embedding)))
 	}
-
-	sort.Slice(matches, func(i, j int) bool {
-		return matches[i].similarity > matches[j].similarity
-	})
-
+	sort.Slice(matches, func(i, j int) bool { return matches[i].Score() > matches[j].Score() })
 	if k > len(matches) {
 		k = len(matches)
 	}
