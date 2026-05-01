@@ -11,10 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// helloPDF returns a minimal valid 1-page PDF whose content stream displays
-// the literal text "Hello PDFium 553". Built from raw bytes so no PDF
-// generation library is needed.
-func helloPDF(t *testing.T) []byte {
+// inlineTrailerPDF returns a minimal valid 1-page PDF whose content stream
+// displays the literal text "Hello PDFium 553". The trailer keyword is on the
+// same line as its dictionary (`trailer << ... >>`) — this is the structure
+// that breaks tabula's xref parser on the arxiv PDF reported in issue #553,
+// while remaining valid per the PDF spec.
+func inlineTrailerPDF(t *testing.T) []byte {
 	t.Helper()
 	stream := "BT /F1 12 Tf 100 700 Td (Hello PDFium 553) Tj ET\n"
 
@@ -40,7 +42,7 @@ func helloPDF(t *testing.T) []byte {
 	for i := 1; i <= 5; i++ {
 		fmt.Fprintf(&body, "%010d 00000 n \n", offsets[i])
 	}
-	fmt.Fprintf(&body, "trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xrefOffset)
+	fmt.Fprintf(&body, "trailer << /Size 6 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xrefOffset)
 	return body.Bytes()
 }
 
@@ -50,7 +52,7 @@ func TestPDFiumTextRenderer_PageCount(t *testing.T) {
 	t.Cleanup(func() { _ = r.Close() })
 
 	path := filepath.Join(t.TempDir(), "hello.pdf")
-	require.NoError(t, os.WriteFile(path, helloPDF(t), 0644))
+	require.NoError(t, os.WriteFile(path, inlineTrailerPDF(t), 0644))
 
 	count, err := r.PageCount(path)
 	require.NoError(t, err)
@@ -63,7 +65,7 @@ func TestPDFiumTextRenderer_Render(t *testing.T) {
 	t.Cleanup(func() { _ = r.Close() })
 
 	path := filepath.Join(t.TempDir(), "hello.pdf")
-	require.NoError(t, os.WriteFile(path, helloPDF(t), 0644))
+	require.NoError(t, os.WriteFile(path, inlineTrailerPDF(t), 0644))
 
 	text, err := r.Render(path, 1)
 	require.NoError(t, err)
@@ -76,7 +78,7 @@ func TestPDFiumTextRenderer_RenderRejectsOutOfRangePage(t *testing.T) {
 	t.Cleanup(func() { _ = r.Close() })
 
 	path := filepath.Join(t.TempDir(), "hello.pdf")
-	require.NoError(t, os.WriteFile(path, helloPDF(t), 0644))
+	require.NoError(t, os.WriteFile(path, inlineTrailerPDF(t), 0644))
 
 	_, err = r.Render(path, 5)
 	require.Error(t, err)
@@ -90,4 +92,25 @@ func TestPDFiumTextRenderer_PageCountErrorOnMissingFile(t *testing.T) {
 
 	_, err = r.PageCount("/nonexistent/file.pdf")
 	require.Error(t, err)
+}
+
+// TestPDFiumTextRenderer_Issue553_InlineTrailer is a regression test for
+// issue #553: the previous tabula-based renderer rejected PDFs whose xref
+// section ended with `trailer << ... >>` on a single line (its parser only
+// recognised the `trailer` keyword when it was the entire line). This format
+// is valid per the PDF spec and is emitted by mainstream tooling — for example
+// arxiv preprints. PDFium handles it without complaint.
+func TestPDFiumTextRenderer_Issue553_InlineTrailer(t *testing.T) {
+	r, err := NewPDFiumTextRenderer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = r.Close() })
+
+	path := filepath.Join(t.TempDir(), "issue553.pdf")
+	pdf := inlineTrailerPDF(t)
+	require.Contains(t, string(pdf), "trailer << /Size", "fixture must keep the inline-trailer pattern that triggered issue #553")
+	require.NoError(t, os.WriteFile(path, pdf, 0644))
+
+	text, err := r.Render(path, 1)
+	require.NoError(t, err, "PDFium must not regress to tabula's xref-parser failure on inline trailers")
+	assert.NotEmpty(t, text, "extracted text must be non-empty so search hits do not have empty Content")
 }
