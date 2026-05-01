@@ -745,6 +745,17 @@ func (f *fakeDocumentText) Text(path string) (string, error) {
 	return text, nil
 }
 
+// fakeFailingRenderer is an extraction.TextRenderer whose PageCount and Render
+// always return the configured error — used to model PDF parsers that bail at
+// the cross-reference / content-stream layer.
+type fakeFailingRenderer struct {
+	err error
+}
+
+func (f *fakeFailingRenderer) PageCount(_ string) (int, error)        { return 0, f.err }
+func (f *fakeFailingRenderer) Render(_ string, _ int) (string, error) { return "", f.err }
+func (f *fakeFailingRenderer) Close() error                           { return nil }
+
 func TestChunkFiles_ExtractsDocumentFiles(t *testing.T) {
 	ctx := context.Background()
 	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
@@ -880,7 +891,7 @@ func TestChunkFiles_SkipsDocumentsWhenExtractorNil(t *testing.T) {
 	assert.Empty(t, chunks, "document files should be skipped when extractor is nil")
 }
 
-func TestChunkFiles_ContinuesOnDocumentExtractionError(t *testing.T) {
+func TestChunkFiles_ReturnsErrorWhenDocumentExtractionFails(t *testing.T) {
 	ctx := context.Background()
 	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 	db := testdb.New(t)
@@ -905,24 +916,15 @@ func TestChunkFiles_ContinuesOnDocumentExtractionError(t *testing.T) {
 	savedRepo, err := repoStore.Save(ctx, repo)
 	require.NoError(t, err)
 
-	// A PDF that will fail extraction, and a Go file that should succeed.
-	f1 := repository.NewFileWithDetails(commitSHA, "bad.pdf", "aaa", "application/pdf", ".pdf", 5000)
-	_, err = fileStore.Save(ctx, f1)
-	require.NoError(t, err)
-	f2 := repository.NewFileWithDetails(commitSHA, "good.go", "bbb", "text/x-go", ".go", 100)
-	_, err = fileStore.Save(ctx, f2)
+	f := repository.NewFileWithDetails(commitSHA, "bad.pdf", "aaa", "application/pdf", ".pdf", 5000)
+	_, err = fileStore.Save(ctx, f)
 	require.NoError(t, err)
 
-	goodContent := make([]byte, 100)
-	for i := range goodContent {
-		goodContent[i] = 'G'
-	}
-
-	docText := &fakeDocumentText{err: fmt.Errorf("corrupt PDF")}
+	docText := &fakeDocumentText{err: fmt.Errorf("invalid xref subsection header")}
 
 	h := NewChunkFiles(
 		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
-		&fakeGitAdapter{files: map[string][]byte{"good.go": goodContent}}, docText, extraction.NewExtractors(), nil,
+		&fakeGitAdapter{}, docText, extraction.NewExtractors(), nil,
 		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
 		&fakeTrackerFactory{},
 		logger,
@@ -934,7 +936,9 @@ func TestChunkFiles_ContinuesOnDocumentExtractionError(t *testing.T) {
 	}
 
 	err = h.Execute(ctx, payload)
-	require.NoError(t, err)
+	require.Error(t, err, "Execute must surface a document extraction failure rather than continue silently")
+	assert.Contains(t, err.Error(), "bad.pdf", "error should identify the failing file")
+	assert.Contains(t, err.Error(), "invalid xref subsection header", "error should wrap the underlying parser error")
 
 	chunks, err := enrichmentStore.Find(ctx,
 		enrichment.WithCommitSHA(commitSHA),
@@ -942,7 +946,60 @@ func TestChunkFiles_ContinuesOnDocumentExtractionError(t *testing.T) {
 		enrichment.WithSubtype(enrichment.SubtypeChunk),
 	)
 	require.NoError(t, err)
-	assert.Len(t, chunks, 1, "should create chunks for the Go file despite PDF extraction error")
+	assert.Empty(t, chunks, "no chunks should be created when extraction fails")
+}
+
+func TestChunkFiles_ReturnsErrorWhenPerPageExtractionFails(t *testing.T) {
+	ctx := context.Background()
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
+	db := testdb.New(t)
+
+	enrichmentStore := persistence.NewEnrichmentStore(db)
+	associationStore := persistence.NewAssociationStore(db)
+	lineRangeStore := persistence.NewSourceLocationStore(db)
+	repoStore := persistence.NewRepositoryStore(db)
+	fileStore := persistence.NewFileStore(db)
+
+	commitSHA := "perpageerr111"
+	tmpDir := t.TempDir()
+
+	cc, err := repository.NewChunkingConfig(100, 0, 1)
+	require.NoError(t, err)
+	repo, err := repository.NewRepository("https://github.com/test/repo")
+	require.NoError(t, err)
+	repo = repo.
+		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", "")).
+		WithChunkingConfig(cc)
+	savedRepo, err := repoStore.Save(ctx, repo)
+	require.NoError(t, err)
+
+	f := repository.NewFileWithDetails(commitSHA, "broken.pdf", "aaa", "application/pdf", ".pdf", 5000)
+	_, err = fileStore.Save(ctx, f)
+	require.NoError(t, err)
+
+	// Both per-page and whole-document extractors fail with the same xref error
+	// — this is the real-world case from issue #553.
+	registry := extraction.NewTextRendererRegistry()
+	registry.Register(".pdf", &fakeFailingRenderer{err: fmt.Errorf("invalid xref subsection header")})
+	docText := &fakeDocumentText{err: fmt.Errorf("invalid xref subsection header")}
+
+	h := NewChunkFiles(
+		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
+		&fakeGitAdapter{}, docText, extraction.NewExtractors(), registry,
+		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
+		&fakeTrackerFactory{},
+		logger,
+	)
+
+	payload := map[string]any{
+		"repository_id": savedRepo.ID(),
+		"commit_sha":    commitSHA,
+	}
+
+	err = h.Execute(ctx, payload)
+	require.Error(t, err, "Execute must surface a document extraction failure rather than continue silently")
+	assert.Contains(t, err.Error(), "broken.pdf", "error should identify the failing file")
 }
 
 func TestChunkFiles_ParsesCSVFiles(t *testing.T) {
