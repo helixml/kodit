@@ -76,7 +76,9 @@ func (h *CreateCodeEmbeddings) Execute(ctx context.Context, payload map[string]a
 		return nil
 	}
 
-	newEnrichments, err := h.filterNew(ctx, enrichments)
+	newEnrichments, err := filterNewEnrichments(ctx, func(ctx context.Context, ids []string) (map[string]struct{}, error) {
+		return search.ExistingSnippetIDs(ctx, h.codeIndex.Store, ids)
+	}, enrichments)
 	if err != nil {
 		h.logger.Error().Str("error", err.Error()).Msg("failed to filter new enrichments")
 		return err
@@ -102,8 +104,7 @@ func (h *CreateCodeEmbeddings) Execute(ctx context.Context, payload map[string]a
 
 	tracker.SetTotal(ctx, len(documents))
 
-	request := search.NewIndexRequest(documents)
-	if err := h.codeIndex.Embedding.Index(ctx, request,
+	if err := h.codeIndex.Embedding.Index(ctx, documents,
 		search.WithProgress(func(completed, total int) {
 			tracker.SetCurrent(ctx, completed, "Creating code embeddings")
 		}),
@@ -118,30 +119,4 @@ func (h *CreateCodeEmbeddings) Execute(ctx context.Context, payload map[string]a
 	h.logger.Info().Int("documents", len(documents)).Str("commit", handler.ShortSHA(cp.CommitSHA())).Msg("code embeddings created")
 
 	return nil
-}
-
-func (h *CreateCodeEmbeddings) filterNew(ctx context.Context, enrichments []enrichment.Enrichment) ([]enrichment.Enrichment, error) {
-	ids := make([]string, len(enrichments))
-	for i, e := range enrichments {
-		ids[i] = strconv.FormatInt(e.ID(), 10)
-	}
-
-	found, err := h.codeIndex.Store.Find(ctx, search.WithSnippetIDs(ids), repository.WithLimit(search.MaxSnippetIDsPerFind))
-	if err != nil {
-		return nil, err
-	}
-
-	existing := make(map[string]bool, len(found))
-	for _, emb := range found {
-		existing[emb.SnippetID()] = true
-	}
-
-	result := make([]enrichment.Enrichment, 0, len(enrichments))
-	for i, e := range enrichments {
-		if !existing[ids[i]] {
-			result = append(result, e)
-		}
-	}
-
-	return result, nil
 }

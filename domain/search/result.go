@@ -71,39 +71,17 @@ func (f FusionResult) OriginalScores() []float64 {
 	return scores
 }
 
-// Embedding represents a snippet with its pre-computed embedding vector.
-type Embedding struct {
-	snippetID string
-	vector    []float64
-}
-
-// NewEmbedding creates a new Embedding value object.
-func NewEmbedding(snippetID string, vector []float64) Embedding {
-	cp := make([]float64, len(vector))
-	copy(cp, vector)
-	return Embedding{
-		snippetID: snippetID,
-		vector:    cp,
-	}
-}
-
-// SnippetID returns the snippet identifier.
-func (e Embedding) SnippetID() string { return e.snippetID }
-
-// Vector returns a defensive copy of the embedding vector.
-func (e Embedding) Vector() []float64 {
-	cp := make([]float64, len(e.vector))
-	copy(cp, e.vector)
-	return cp
-}
-
-// Document represents a generic document for indexing.
+// Document is a unit of search content. text is read by BM25 stores;
+// vector is read by embedding stores. A given Document carries one or
+// the other; the unused field is ignored by the implementation that
+// does not need it.
 type Document struct {
 	snippetID string
 	text      string
+	vector    []float64
 }
 
-// NewDocument creates a new Document.
+// NewDocument creates a Document carrying text — used for BM25 indexing.
 func NewDocument(snippetID, text string) Document {
 	return Document{
 		snippetID: snippetID,
@@ -111,27 +89,27 @@ func NewDocument(snippetID, text string) Document {
 	}
 }
 
+// NewVectorDocument creates a Document carrying a precomputed vector —
+// used for embedding stores.
+func NewVectorDocument(snippetID string, vector []float64) Document {
+	cp := make([]float64, len(vector))
+	copy(cp, vector)
+	return Document{
+		snippetID: snippetID,
+		vector:    cp,
+	}
+}
+
 // SnippetID returns the snippet ID.
 func (d Document) SnippetID() string { return d.snippetID }
 
-// Text returns the document text.
+// Text returns the document text (empty for vector documents).
 func (d Document) Text() string { return d.text }
 
-// IndexRequest represents a generic indexing request.
-type IndexRequest struct {
-	documents []Document
-}
-
-// NewIndexRequest creates a new IndexRequest.
-func NewIndexRequest(documents []Document) IndexRequest {
-	docs := make([]Document, len(documents))
-	copy(docs, documents)
-	return IndexRequest{documents: docs}
-}
-
-// Documents returns the documents to index.
-func (i IndexRequest) Documents() []Document {
-	docs := make([]Document, len(i.documents))
-	copy(docs, i.documents)
-	return docs
+// Vector returns a defensive copy of the embedding vector
+// (nil for text documents).
+func (d Document) Vector() []float64 {
+	cp := make([]float64, len(d.vector))
+	copy(cp, d.vector)
+	return cp
 }

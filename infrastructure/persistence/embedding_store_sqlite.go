@@ -13,10 +13,10 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// SQLiteEmbeddingStore implements search.EmbeddingStore for SQLite.
+// SQLiteEmbeddingStore implements search.Store for SQLite.
 // Stores embeddings as JSON and performs cosine similarity search in-memory.
 type SQLiteEmbeddingStore struct {
-	database.Repository[search.Embedding, SQLiteEmbeddingModel]
+	database.Repository[search.Result, SQLiteEmbeddingModel]
 	logger zerolog.Logger
 }
 
@@ -24,13 +24,12 @@ type SQLiteEmbeddingStore struct {
 func NewSQLiteEmbeddingStore(db database.Database, taskName TaskName, logger zerolog.Logger) (*SQLiteEmbeddingStore, error) {
 	tableName := fmt.Sprintf("kodit_%s_embeddings", taskName)
 	s := &SQLiteEmbeddingStore{
-		Repository: database.NewRepositoryForTable[search.Embedding, SQLiteEmbeddingModel](
+		Repository: database.NewRepositoryForTable[search.Result, SQLiteEmbeddingModel](
 			db, sqliteEmbeddingMapper{}, "embedding", tableName,
 		),
 		logger: logger,
 	}
 
-	// Create table eagerly
 	createTableSQL := fmt.Sprintf(`
 CREATE TABLE IF NOT EXISTS %s (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,18 +44,22 @@ CREATE TABLE IF NOT EXISTS %s (
 	return s, nil
 }
 
-// SaveAll persists pre-computed embeddings using batched upsert.
-func (s *SQLiteEmbeddingStore) SaveAll(ctx context.Context, embeddings []search.Embedding) error {
-	if len(embeddings) == 0 {
-		return nil
-	}
-
-	models := make([]SQLiteEmbeddingModel, len(embeddings))
-	for i, emb := range embeddings {
-		models[i] = SQLiteEmbeddingModel{
-			SnippetID: emb.SnippetID(),
-			Embedding: Float64Slice(emb.Vector()),
+// Index persists pre-computed embeddings using batched upsert.
+// Documents without a vector are skipped (this store does not index text).
+func (s *SQLiteEmbeddingStore) Index(ctx context.Context, docs []search.Document) error {
+	models := make([]SQLiteEmbeddingModel, 0, len(docs))
+	for _, doc := range docs {
+		vec := doc.Vector()
+		if doc.SnippetID() == "" || len(vec) == 0 {
+			continue
 		}
+		models = append(models, SQLiteEmbeddingModel{
+			SnippetID: doc.SnippetID(),
+			Embedding: Float64Slice(vec),
+		})
+	}
+	if len(models) == 0 {
+		return nil
 	}
 
 	tableName := s.Table()
@@ -70,12 +73,16 @@ func (s *SQLiteEmbeddingStore) SaveAll(ctx context.Context, embeddings []search.
 	})
 }
 
-// Search performs vector similarity search using pre-computed embedding from options.
-func (s *SQLiteEmbeddingStore) Search(ctx context.Context, options ...repository.Option) ([]search.Result, error) {
-	q := repository.Build(options...)
+// Find returns ranked vector-similarity results when WithEmbedding is supplied;
+// otherwise delegates to the embedded Repository for plain snippet_id lookups.
+//
+// SQLite has no vector index, so similarity is computed in-memory across all
+// rows matching the lookup filter.
+func (s *SQLiteEmbeddingStore) Find(ctx context.Context, opts ...repository.Option) ([]search.Result, error) {
+	q := repository.Build(opts...)
 	queryEmbedding, ok := search.EmbeddingFrom(q)
 	if !ok || len(queryEmbedding) == 0 {
-		return []search.Result{}, nil
+		return s.Repository.Find(ctx, opts...)
 	}
 
 	limit := q.LimitValue()
@@ -83,61 +90,49 @@ func (s *SQLiteEmbeddingStore) Search(ctx context.Context, options ...repository
 		limit = 10
 	}
 
-	// Load all embeddings from database, applying condition filters
-	vectors, err := s.loadVectors(ctx, options...)
+	rows, err := s.loadRows(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(vectors) == 0 {
-		return []search.Result{}, nil
-	}
-
-	// Compute similarities and find top-k
-	snippetIDs := search.SnippetIDsFrom(q)
-	var matches []SimilarityMatch
-	if len(snippetIDs) > 0 {
-		filterSet := make(map[string]struct{}, len(snippetIDs))
-		for _, id := range snippetIDs {
-			filterSet[id] = struct{}{}
+	var allowed map[string]struct{}
+	if ids := search.SnippetIDsFrom(q); len(ids) > 0 {
+		allowed = make(map[string]struct{}, len(ids))
+		for _, id := range ids {
+			allowed[id] = struct{}{}
 		}
-		matches = TopKSimilarFiltered(queryEmbedding, vectors, limit, filterSet)
-	} else {
-		matches = TopKSimilar(queryEmbedding, vectors, limit)
 	}
 
-	// Convert to search results
-	results := make([]search.Result, len(matches))
-	for i, m := range matches {
-		results[i] = search.NewResult(m.SnippetID(), m.Similarity())
-	}
-
-	return results, nil
+	return topKSimilar(queryEmbedding, rows, limit, allowed), nil
 }
 
-// loadVectors loads embedding vectors from the database using GORM.
-func (s *SQLiteEmbeddingStore) loadVectors(ctx context.Context, options ...repository.Option) ([]StoredVector, error) {
+// loadRows loads embedding rows from the database, applying any search
+// filters via JOINs.
+func (s *SQLiteEmbeddingStore) loadRows(ctx context.Context, opts ...repository.Option) ([]vectorRow, error) {
 	var entities []SQLiteEmbeddingModel
 
-	q := repository.Build(options...)
-	db := database.ApplyConditions(s.DB(ctx), options...)
+	q := repository.Build(opts...)
+	db := database.ApplyConditions(s.DB(ctx), opts...)
+	db = db.Table(s.Table())
 
 	if filters, ok := search.FiltersFrom(q); ok {
-		db = database.ApplySearchFilters(db, filters)
+		for _, opt := range filterJoinOptions(filters, "INTEGER") {
+			db = database.ApplyOptions(db, opt)
+		}
 	}
 
 	if err := db.Find(&entities).Error; err != nil {
 		return nil, err
 	}
 
-	vectors := make([]StoredVector, 0, len(entities))
+	rows := make([]vectorRow, 0, len(entities))
 	for _, e := range entities {
 		if len(e.Embedding) == 0 {
 			s.logger.Warn().Str("snippet_id", e.SnippetID).Msg("skipping empty embedding")
 			continue
 		}
-		vectors = append(vectors, NewStoredVector(e.SnippetID, e.Embedding))
+		rows = append(rows, vectorRow{snippetID: e.SnippetID, embedding: e.Embedding})
 	}
 
-	return vectors, nil
+	return rows, nil
 }

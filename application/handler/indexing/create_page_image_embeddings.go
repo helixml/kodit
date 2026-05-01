@@ -33,7 +33,7 @@ type CreatePageImageEmbeddings struct {
 	fileStore        repository.FileStore
 	rasterizers      *rasterization.Registry
 	embedder         search.Embedder
-	store            search.EmbeddingStore
+	store            search.Store
 	trackerFactory   handler.TrackerFactory
 	logger           zerolog.Logger
 }
@@ -47,7 +47,7 @@ func NewCreatePageImageEmbeddings(
 	fileStore repository.FileStore,
 	rasterizers *rasterization.Registry,
 	embedder search.Embedder,
-	store search.EmbeddingStore,
+	store search.Store,
 	trackerFactory handler.TrackerFactory,
 	logger zerolog.Logger,
 ) (*CreatePageImageEmbeddings, error) {
@@ -217,12 +217,12 @@ func (h *CreatePageImageEmbeddings) embedAndSave(ctx context.Context, ids []stri
 		return fmt.Errorf("embed page images: %w", err)
 	}
 
-	embeddings := make([]search.Embedding, len(vectors))
+	docs := make([]search.Document, len(vectors))
 	for i, vec := range vectors {
-		embeddings[i] = search.NewEmbedding(ids[i], vec)
+		docs[i] = search.NewVectorDocument(ids[i], vec)
 	}
 
-	if err := h.store.SaveAll(ctx, embeddings); err != nil {
+	if err := h.store.Index(ctx, docs); err != nil {
 		return fmt.Errorf("save vision embeddings: %w", err)
 	}
 
@@ -235,19 +235,14 @@ func (h *CreatePageImageEmbeddings) filterNew(ctx context.Context, enrichments [
 		ids[i] = strconv.FormatInt(e.ID(), 10)
 	}
 
-	found, err := h.store.Find(ctx, search.WithSnippetIDs(ids), repository.WithLimit(search.MaxSnippetIDsPerFind))
+	existing, err := search.ExistingSnippetIDs(ctx, h.store, ids)
 	if err != nil {
 		return nil, err
 	}
 
-	existing := make(map[string]bool, len(found))
-	for _, emb := range found {
-		existing[emb.SnippetID()] = true
-	}
-
 	result := make([]enrichment.Enrichment, 0, len(enrichments))
 	for i, e := range enrichments {
-		if !existing[ids[i]] {
+		if _, ok := existing[ids[i]]; !ok {
 			result = append(result, e)
 		}
 	}

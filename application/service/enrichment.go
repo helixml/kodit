@@ -27,10 +27,10 @@ type Enrichment struct {
 	repository.Collection[enrichment.Enrichment]
 	enrichmentStore      enrichment.EnrichmentStore
 	associationStore     enrichment.AssociationStore
-	bm25Store            search.BM25Store
-	codeEmbeddingStore   search.EmbeddingStore
-	textEmbeddingStore   search.EmbeddingStore
-	visionEmbeddingStore search.EmbeddingStore
+	bm25Store            search.Store
+	codeEmbeddingStore   search.Store
+	textEmbeddingStore   search.Store
+	visionEmbeddingStore search.Store
 	lineRangeStore       sourcelocation.Store
 }
 
@@ -38,10 +38,10 @@ type Enrichment struct {
 func NewEnrichment(
 	enrichmentStore enrichment.EnrichmentStore,
 	associationStore enrichment.AssociationStore,
-	bm25Store search.BM25Store,
-	codeEmbeddingStore search.EmbeddingStore,
-	textEmbeddingStore search.EmbeddingStore,
-	visionEmbeddingStore search.EmbeddingStore,
+	bm25Store search.Store,
+	codeEmbeddingStore search.Store,
+	textEmbeddingStore search.Store,
+	visionEmbeddingStore search.Store,
 	lineRangeStore sourcelocation.Store,
 ) *Enrichment {
 	return &Enrichment{

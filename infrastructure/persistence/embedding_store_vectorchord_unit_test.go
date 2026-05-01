@@ -34,7 +34,7 @@ func TestVectorChordEmbeddingStore_GuardReturnsEmptyWhenNotReady(t *testing.T) {
 	})
 
 	t.Run("Search", func(t *testing.T) {
-		results, err := store.Search(ctx)
+		results, err := store.Find(ctx)
 		require.NoError(t, err)
 		assert.Nil(t, results)
 	})

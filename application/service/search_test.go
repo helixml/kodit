@@ -36,33 +36,37 @@ func (f fakeEmbedder) Embed(_ context.Context, items []search.EmbeddingItem) ([]
 	return result, nil
 }
 
-// fakeEmbeddingStore implements search.EmbeddingStore for testing.
+// fakeEmbeddingStore implements search.Store for testing.
 // Genuine fake: the real store requires pgvector for similarity search.
 type fakeEmbeddingStore struct {
 	results []search.Result
 	err     error
 }
 
-func (f fakeEmbeddingStore) SaveAll(_ context.Context, _ []search.Embedding) error { return nil }
-func (f fakeEmbeddingStore) Find(_ context.Context, _ ...repository.Option) ([]search.Embedding, error) {
+func (f fakeEmbeddingStore) Index(_ context.Context, _ []search.Document) error { return nil }
+func (f fakeEmbeddingStore) Find(_ context.Context, opts ...repository.Option) ([]search.Result, error) {
+	q := repository.Build(opts...)
+	if _, ok := search.EmbeddingFrom(q); ok {
+		return f.results, f.err
+	}
 	return nil, nil
 }
-func (f fakeEmbeddingStore) Search(_ context.Context, _ ...repository.Option) ([]search.Result, error) {
-	return f.results, f.err
+func (f fakeEmbeddingStore) Count(_ context.Context, _ ...repository.Option) (int64, error) {
+	return 0, nil
 }
 func (f fakeEmbeddingStore) Exists(_ context.Context, _ ...repository.Option) (bool, error) {
 	return false, nil
 }
 func (f fakeEmbeddingStore) DeleteBy(_ context.Context, _ ...repository.Option) error { return nil }
 
-// fakeBM25Store implements search.BM25Store for testing.
+// fakeBM25Store implements search.Store for testing.
 // Genuine fake: the real store requires ParadeDB for BM25 ranking.
 type fakeBM25Store struct {
 	resultsByKeyword map[string][]search.Result
 	err              error
 }
 
-func (f fakeBM25Store) Index(_ context.Context, _ search.IndexRequest) error { return nil }
+func (f fakeBM25Store) Index(_ context.Context, _ []search.Document) error { return nil }
 func (f fakeBM25Store) Find(_ context.Context, opts ...repository.Option) ([]search.Result, error) {
 	if f.err != nil {
 		return nil, f.err
@@ -70,6 +74,12 @@ func (f fakeBM25Store) Find(_ context.Context, opts ...repository.Option) ([]sea
 	q := repository.Build(opts...)
 	query, _ := search.QueryFrom(q)
 	return f.resultsByKeyword[query], nil
+}
+func (f fakeBM25Store) Count(_ context.Context, _ ...repository.Option) (int64, error) {
+	return 0, nil
+}
+func (f fakeBM25Store) Exists(_ context.Context, _ ...repository.Option) (bool, error) {
+	return false, nil
 }
 func (f fakeBM25Store) DeleteBy(_ context.Context, _ ...repository.Option) error { return nil }
 

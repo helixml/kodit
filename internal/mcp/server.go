@@ -527,14 +527,21 @@ func (s *Server) handleEnrichmentDocs(
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get enrichments: %v", err)), nil
 	}
 
-	if len(enrichments) == 0 {
+	// Filter out empty-content entries — handlers may persist sentinel
+	// markers (e.g. API docs attempt markers) with the same type/subtype to
+	// record that extraction was attempted but produced nothing.
+	parts := make([]string, 0, len(enrichments))
+	for _, e := range enrichments {
+		if e.Content() == "" {
+			continue
+		}
+		parts = append(parts, e.Content())
+	}
+
+	if len(parts) == 0 {
 		return mcp.NewToolResultText(fmt.Sprintf("No %s/%s docs found for this commit.", typ, subtype)), nil
 	}
 
-	parts := make([]string, len(enrichments))
-	for i, e := range enrichments {
-		parts[i] = e.Content()
-	}
 	return mcp.NewToolResultText(strings.Join(parts, "\n\n")), nil
 }
 

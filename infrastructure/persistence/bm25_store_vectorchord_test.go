@@ -44,7 +44,7 @@ func TestVectorChordBM25Store_Integration(t *testing.T) {
 		search.NewDocument("vc-bm25-2", "http router handles incoming web requests"),
 		search.NewDocument("vc-bm25-3", "database migration runs schema changes automatically"),
 	}
-	err = store.Index(ctx, search.NewIndexRequest(docs))
+	err = store.Index(ctx, docs)
 	require.NoError(t, err)
 
 	// Find should return relevant documents.
