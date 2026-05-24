@@ -178,7 +178,7 @@ Kodit exposes these tools to connected AI assistants:
 | `kodit_wiki_page` | Read a specific wiki page |
 | `kodit_version` | Server version |
 
-The enrichment tools (`architecture_docs`, `api_docs`, `database_schema`, `cookbook`, `wiki`, `commit_description`) require an LLM provider to be configured. See Enrichment Providers under Configuration Reference.
+The enrichment tools (`architecture_docs`, `api_docs`, `database_schema`, `cookbook`, `wiki`, `wiki_page`, `commit_description`) require an LLM provider to be configured. See Enrichment Providers under Configuration Reference.
 
 ## Go Library
 
@@ -606,8 +606,8 @@ cd kodit
 make tools          # Install development tools
 make download-model # Download the built-in embedding model
 make build          # Build the binary
-./bin/kodit version
-./bin/kodit serve
+./build/kodit version
+./build/kodit serve
 ```
 
 Run the tests:
