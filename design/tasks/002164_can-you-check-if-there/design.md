@@ -60,3 +60,12 @@ GORM AutoMigrate will create the indexes automatically. The old single-column `i
 - **GORM tags only** — the project rule is "GORM AutoMigrate only, no SQL migration files."
 - **Two indexes instead of one** — keeps the `Dequeue` path clean without relying on PostgreSQL choosing a less-selective multi-column index.
 - **No code changes to queries** — the queries in `task_store.go` remain unchanged; only the model tags change.
+
+## Implementation Notes
+
+- Only file changed: `infrastructure/persistence/models.go` (TaskModel struct tags)
+- This codebase already uses named composite GORM indexes (see `idx_enrichment_entity`, `idx_trackable` in the same file) — followed the same pattern
+- The existing single-column `index` tag on `Type` is kept alongside the new composite index participation — GORM handles both
+- Lint (`golangci-lint`) passes clean with 0 issues
+- Tests require CGO (sqlite3) which isn't available in this dev environment; all test failures are pre-existing and unrelated to this change
+- Indexes will be created automatically on next `AutoMigrate` run at application startup — no manual DDL needed
