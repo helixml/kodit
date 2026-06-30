@@ -178,14 +178,17 @@ Kodit exposes these tools to connected AI assistants:
 | `kodit_wiki_page` | Read a specific wiki page |
 | `kodit_version` | Server version |
 
-The enrichment tools (`architecture_docs`, `api_docs`, `database_schema`, `cookbook`, `wiki`, `commit_description`) require an LLM provider to be configured. See Enrichment Providers under Configuration Reference.
+The enrichment tools (`architecture_docs`, `api_docs`, `database_schema`, `cookbook`, `wiki`, `wiki_page`, `commit_description`) require an LLM provider to be configured. See Enrichment Providers under Configuration Reference.
 
 ## Go Library
 
 Kodit can be embedded directly as a Go library. This is how [Helix](https://helix.ml) integrates Kodit into its platform.
 
 ```go
-import "github.com/helixml/kodit"
+import (
+    "github.com/helixml/kodit"
+    "github.com/helixml/kodit/application/service"
+)
 
 client, err := kodit.New(
     kodit.WithSQLite(".kodit/data.db"),
@@ -400,7 +403,7 @@ spec:
 
 ### Authentication
 
-Set the `API_KEYS` environment variable to a comma-separated list of keys. Write endpoints (creating repositories, triggering syncs) require a valid key in the `Authorization: Bearer <key>` header. Search endpoints are open by default.
+Set the `API_KEYS` environment variable to a comma-separated list of keys. Write endpoints (creating repositories, triggering syncs) require a valid key in the `X-API-KEY: <key>` header. Search endpoints are open by default.
 
 ## Configuration Reference
 
@@ -549,7 +552,7 @@ Key endpoints:
 | `GET` | `/api/v1/search/grep` | Regex pattern search |
 | `GET` | `/api/v1/search/ls` | List files by glob |
 
-All write endpoints require an `Authorization: Bearer <key>` header when `API_KEYS` is set.
+All write endpoints require an `X-API-KEY: <key>` header when `API_KEYS` is set.
 
 ## How Indexing Works
 
@@ -603,8 +606,8 @@ cd kodit
 make tools          # Install development tools
 make download-model # Download the built-in embedding model
 make build          # Build the binary
-./bin/kodit version
-./bin/kodit serve
+./build/kodit version
+./build/kodit serve
 ```
 
 Run the tests:
