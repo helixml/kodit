@@ -185,7 +185,10 @@ The enrichment tools (`architecture_docs`, `api_docs`, `database_schema`, `cookb
 Kodit can be embedded directly as a Go library. This is how [Helix](https://helix.ml) integrates Kodit into its platform.
 
 ```go
-import "github.com/helixml/kodit"
+import (
+    "github.com/helixml/kodit"
+    "github.com/helixml/kodit/application/service"
+)
 
 client, err := kodit.New(
     kodit.WithSQLite(".kodit/data.db"),
@@ -400,7 +403,7 @@ spec:
 
 ### Authentication
 
-Set the `API_KEYS` environment variable to a comma-separated list of keys. Write endpoints (creating repositories, triggering syncs) require a valid key in the `Authorization: Bearer <key>` header. Search endpoints are open by default.
+Set the `API_KEYS` environment variable to a comma-separated list of keys. Write endpoints (creating repositories, triggering syncs) require a valid key in the `X-API-KEY: <key>` header. Search endpoints are open by default.
 
 ## Configuration Reference
 
@@ -549,7 +552,7 @@ Key endpoints:
 | `GET` | `/api/v1/search/grep` | Regex pattern search |
 | `GET` | `/api/v1/search/ls` | List files by glob |
 
-All write endpoints require an `Authorization: Bearer <key>` header when `API_KEYS` is set.
+All write endpoints require an `X-API-KEY: <key>` header when `API_KEYS` is set.
 
 ## How Indexing Works
 
