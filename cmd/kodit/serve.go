@@ -168,6 +168,10 @@ func runServe(envFile, host string, port int) error {
 	// Health check endpoints
 	router.Get("/health", healthHandler)
 	router.Get("/healthz", healthHandler)
+	// /readyz additionally verifies database connectivity -- unlike /healthz,
+	// this reflects whether Kodit can actually serve requests, not just that
+	// the process is up. Intended for a K8s readiness probe.
+	router.Get("/readyz", readyHandler(client))
 
 	// Root endpoint with API info
 	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
@@ -215,6 +219,25 @@ func healthHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"status":"healthy"}`))
+}
+
+// readyHandler returns a handler that pings the database via client before
+// answering. A 2-second timeout keeps a slow/unreachable database from
+// hanging the probe indefinitely.
+func readyHandler(client *kodit.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := client.Ping(ctx); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"status":"not ready"}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ready"}`))
+	}
 }
 
 // applyServeOverrides applies command line flag overrides to the config.
