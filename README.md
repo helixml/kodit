@@ -232,7 +232,6 @@ for _, result := range results.Enrichments() {
 
 | Option | Description |
 |--------|-------------|
-| `WithSemanticWeight(w)` | Weight for semantic vs keyword search (0.0 to 1.0) |
 | `WithLimit(n)` | Maximum number of results |
 | `WithOffset(n)` | Offset for pagination |
 | `WithLanguages(langs...)` | Filter by programming languages |
