@@ -599,6 +599,21 @@ func (c *Client) WorkerIdle() bool {
 	return !c.worker.Busy()
 }
 
+// Ping verifies the client can reach its underlying database. Unlike a
+// liveness check, this confirms the database connection is actually usable,
+// not just that the process is running. Intended for use by a Kubernetes
+// readiness probe (see cmd/kodit/serve.go's /readyz handler).
+func (c *Client) Ping(ctx context.Context) error {
+	sqlDB, err := c.db.GORM().DB()
+	if err != nil {
+		return fmt.Errorf("get underlying db: %w", err)
+	}
+	if err := sqlDB.PingContext(ctx); err != nil {
+		return fmt.Errorf("ping database: %w", err)
+	}
+	return nil
+}
+
 // Logger returns the client's logger.
 func (c *Client) Logger() zerolog.Logger {
 	return c.logger

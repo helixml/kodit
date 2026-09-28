@@ -1,6 +1,9 @@
 package extraction
 
-import "bytes"
+import (
+	"bytes"
+	"strings"
+)
 
 const binaryProbeSize = 8192
 
@@ -14,6 +17,12 @@ func NewSourceText() *SourceText {
 }
 
 // Text returns the content as a string, or empty if the content appears binary.
+//
+// Non-UTF-8 byte sequences (e.g. a source file saved as Windows-1252/Latin-1,
+// which some legacy repos have) are replaced with U+FFFD rather than passed
+// through raw -- persistence downstream is a Postgres TEXT column with UTF-8
+// client/server encoding, which rejects invalid sequences outright rather
+// than storing them, failing the whole commit's remaining chunk extraction.
 func (s *SourceText) Text(content []byte) (string, error) {
 	probe := content
 	if len(probe) > binaryProbeSize {
@@ -22,5 +31,5 @@ func (s *SourceText) Text(content []byte) (string, error) {
 	if bytes.ContainsRune(probe, 0) {
 		return "", nil
 	}
-	return string(content), nil
+	return strings.ToValidUTF8(string(content), "�"), nil
 }
