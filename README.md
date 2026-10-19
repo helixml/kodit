@@ -295,11 +295,11 @@ services:
 
       # Enrichment LLM (optional, enables AI-generated docs)
       ENRICHMENT_ENDPOINT_BASE_URL: http://ollama:11434
-      ENRICHMENT_ENDPOINT_MODEL: ollama/qwen3:1.7b
+      ENRICHMENT_ENDPOINT_MODEL: qwen3:1.7b
 
       # External embedding provider (optional, replaces built-in model)
       # EMBEDDING_ENDPOINT_API_KEY: sk-proj-xxxx
-      # EMBEDDING_ENDPOINT_MODEL: openai/text-embedding-3-small
+      # EMBEDDING_ENDPOINT_MODEL: text-embedding-3-small
 
       LOG_LEVEL: INFO
       API_KEYS: ${KODIT_API_KEYS:-}
@@ -505,7 +505,7 @@ ENRICHMENT_ENDPOINT_API_KEY=sk-proj-xxxx
 
 # Ollama (local)
 ENRICHMENT_ENDPOINT_BASE_URL=http://localhost:11434
-ENRICHMENT_ENDPOINT_MODEL=ollama/qwen3:1.7b
+ENRICHMENT_ENDPOINT_MODEL=qwen3:1.7b
 
 # Helix (private cloud)
 ENRICHMENT_ENDPOINT_BASE_URL=https://app.helix.ml/v1
