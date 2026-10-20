@@ -617,7 +617,7 @@ make check                        # Format, vet, lint, and test
 
 ## Troubleshooting
 
-**MCP connection error after restart:** If you see `No valid session ID provided` after restarting the Kodit server, reload the MCP client in your assistant. MCP sessions do not survive server restarts.
+**MCP connection error after restart:** If you see `Invalid session ID` after restarting the Kodit server, reload the MCP client in your assistant. MCP sessions do not survive server restarts.
 
 **No search results:** Check that indexing has completed by calling `GET /api/v1/repositories/{id}/status`. If status shows errors, check the server logs with `LOG_LEVEL=DEBUG`.
 
