@@ -2,6 +2,7 @@ package indexing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -136,6 +137,9 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 	tracker.SetTotal(ctx, len(files))
 	repoIDStr := strconv.FormatInt(cp.RepoID(), 10)
 
+	// Documents that cannot be read are collected rather than returned at once,
+	// so one bad file does not leave every file after it unchunked (issue #576).
+	var documentErrs []error
 	processed := 0
 	for _, f := range files {
 		tracker.SetCurrent(ctx, processed, fmt.Sprintf("Chunking %s", f.Path()))
@@ -183,10 +187,16 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 					// Both per-page and fallback failed — surface the failure rather than
 					// continue silently. Otherwise indexing reports success while no chunks
 					// are written, leaving search hits with empty content (issue #553).
+					var docErr error
 					if perPageErr != nil {
-						return fmt.Errorf("extract document text from %s: per-page: %v: fallback: %w", f.Path(), perPageErr, extractErr)
+						docErr = fmt.Errorf("extract document text from %s: per-page: %v: fallback: %w", f.Path(), perPageErr, extractErr)
+					} else {
+						docErr = fmt.Errorf("extract document text from %s: %w", f.Path(), extractErr)
 					}
-					return fmt.Errorf("extract document text from %s: %w", f.Path(), extractErr)
+					h.logger.Warn().Str("path", f.Path()).Str("error", docErr.Error()).Msg("failed to extract document text, skipping")
+					documentErrs = append(documentErrs, docErr)
+					processed++
+					continue
 				}
 				text = fallbackText
 			}
@@ -227,6 +237,9 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 
 	h.logger.Info().Int("files", len(files)).Str("commit", handler.ShortSHA(cp.CommitSHA())).Msg("text chunks created")
 
+	if len(documentErrs) > 0 {
+		return fmt.Errorf("%d document(s) could not be read, other files were chunked: %w", len(documentErrs), errors.Join(documentErrs...))
+	}
 	return nil
 }
 

@@ -1002,6 +1002,71 @@ func TestChunkFiles_ReturnsErrorWhenPerPageExtractionFails(t *testing.T) {
 	assert.Contains(t, err.Error(), "broken.pdf", "error should identify the failing file")
 }
 
+func TestChunkFiles_ChunksRemainingFilesWhenDocumentExtractionFails(t *testing.T) {
+	ctx := context.Background()
+	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
+	db := testdb.New(t)
+
+	enrichmentStore := persistence.NewEnrichmentStore(db)
+	associationStore := persistence.NewAssociationStore(db)
+	lineRangeStore := persistence.NewSourceLocationStore(db)
+	repoStore := persistence.NewRepositoryStore(db)
+	fileStore := persistence.NewFileStore(db)
+
+	commitSHA := "docerr333444"
+	tmpDir := t.TempDir()
+
+	cc, err := repository.NewChunkingConfig(100, 0, 1)
+	require.NoError(t, err)
+	repo, err := repository.NewRepository("https://github.com/test/repo")
+	require.NoError(t, err)
+	repo = repo.
+		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", "")).
+		WithChunkingConfig(cc)
+	savedRepo, err := repoStore.Save(ctx, repo)
+	require.NoError(t, err)
+
+	// The unreadable document sorts before the source file, as in issue #576.
+	for _, f := range []repository.File{
+		repository.NewFileWithDetails(commitSHA, "a/encrypted.pdf", "aaa", "application/pdf", ".pdf", 5000),
+		repository.NewFileWithDetails(commitSHA, "b/main.go", "bbb", "text/x-go", ".go", 50),
+	} {
+		_, err = fileStore.Save(ctx, f)
+		require.NoError(t, err)
+	}
+
+	adapter := &fakeGitAdapter{files: map[string][]byte{"b/main.go": []byte("package main\n\nfunc main() {}\n")}}
+	docText := &fakeDocumentText{err: fmt.Errorf("invalid password")}
+
+	h := NewChunkFiles(
+		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
+		adapter, docText, extraction.NewExtractors(), nil,
+		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
+		&fakeTrackerFactory{},
+		logger,
+	)
+
+	payload := map[string]any{
+		"repository_id": savedRepo.ID(),
+		"commit_sha":    commitSHA,
+	}
+
+	err = h.Execute(ctx, payload)
+	require.Error(t, err, "Execute must still surface the document extraction failure")
+	assert.Contains(t, err.Error(), "a/encrypted.pdf", "error should identify the failing file")
+	assert.Contains(t, err.Error(), "invalid password", "error should wrap the underlying parser error")
+
+	chunks, err := enrichmentStore.Find(ctx,
+		enrichment.WithCommitSHA(commitSHA),
+		enrichment.WithType(enrichment.TypeDevelopment),
+		enrichment.WithSubtype(enrichment.SubtypeChunk),
+	)
+	require.NoError(t, err)
+	require.Len(t, chunks, 1, "files after the unreadable document should still be chunked")
+	assert.Contains(t, chunks[0].Content(), "func main()")
+}
+
 func TestChunkFiles_ParsesCSVFiles(t *testing.T) {
 	ctx := context.Background()
 	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
