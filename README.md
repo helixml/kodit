@@ -40,11 +40,13 @@ This starts Kodit with SQLite storage and a built-in embedding model. No API key
 
 ### Pre-built binaries
 
-Download a binary from the [releases page](https://github.com/helixml/kodit/releases), then:
+Download the archive for your platform from the [releases page](https://github.com/helixml/kodit/releases), then:
 
 ```sh
+tar xzf kodit-linux-amd64.tar.gz
+cd kodit-linux-amd64
 chmod +x kodit
-./kodit serve
+LD_LIBRARY_PATH=./lib ./kodit serve
 ```
 
 ### Verify it works
