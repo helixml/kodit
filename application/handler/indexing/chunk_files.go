@@ -2,6 +2,7 @@ package indexing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -29,6 +30,12 @@ type DocumentTextSource interface {
 }
 
 // ChunkFiles creates fixed-size text chunks from commit files.
+//
+// A document that cannot be read does not stop the commit: the rest of the
+// files are still chunked. Each failure is logged per file, and all failures
+// are reported in one aggregated error after the loop so the unreadable
+// documents are visible in task status without dropping the rest of the
+// commit (issues #576, #553).
 type ChunkFiles struct {
 	repoStore        repository.RepositoryStore
 	enrichmentStore  enrichment.EnrichmentStore
@@ -137,6 +144,8 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 	repoIDStr := strconv.FormatInt(cp.RepoID(), 10)
 
 	processed := 0
+	var documentErrs []error
+	extraDocumentErrs := 0
 	for _, f := range files {
 		tracker.SetCurrent(ctx, processed, fmt.Sprintf("Chunking %s", f.Path()))
 
@@ -180,13 +189,32 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 			if text == "" {
 				fallbackText, extractErr := h.documentText.Text(diskPath)
 				if extractErr != nil {
-					// Both per-page and fallback failed — surface the failure rather than
-					// continue silently. Otherwise indexing reports success while no chunks
-					// are written, leaving search hits with empty content (issue #553).
+					// Both per-page and fallback extraction failed. Skip this file
+					// and keep chunking the rest of the commit (issue #576): a
+					// mid-loop failure would leave it permanently half-indexed,
+					// because chunks already written make the next run skip the
+					// commit as "already chunked" and failed tasks are never
+					// retried. Skipping is safe for search: chunks with empty
+					// content are never persisted, so search hits cannot have
+					// empty content (issue #553). The failure is still surfaced
+					// through the aggregated error returned after the loop.
+					// The raw parser errors stay in this warning log; the
+					// aggregated error carries sanitized copies.
+					logEvent := h.logger.Warn().
+						Str("path", f.Path()).
+						Str("error", extractErr.Error())
 					if perPageErr != nil {
-						return fmt.Errorf("extract document text from %s: per-page: %v: fallback: %w", f.Path(), perPageErr, extractErr)
+						logEvent = logEvent.Str("per_page_error", perPageErr.Error())
 					}
-					return fmt.Errorf("extract document text from %s: %w", f.Path(), extractErr)
+					logEvent.Msg("failed to extract document text, skipping file")
+
+					if len(documentErrs) < maxDocumentErrors {
+						documentErrs = append(documentErrs, documentError(clonedPath, relPath, perPageErr, extractErr))
+					} else {
+						extraDocumentErrs++
+					}
+					processed++
+					continue
 				}
 				text = fallbackText
 			}
@@ -226,6 +254,16 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 	}
 
 	h.logger.Info().Int("files", len(files)).Str("commit", handler.ShortSHA(cp.CommitSHA())).Msg("text chunks created")
+
+	// Report every unreadable document in one aggregated error so the failure
+	// is visible in task status (issue #553) while the rest of the commit has
+	// already been chunked (issue #576).
+	if len(documentErrs) > 0 {
+		if extraDocumentErrs > 0 {
+			documentErrs = append(documentErrs, fmt.Errorf("and %d more documents failed to extract text (see logs)", extraDocumentErrs))
+		}
+		return errors.Join(documentErrs...)
+	}
 
 	return nil
 }
@@ -386,6 +424,35 @@ func init() {
 func isIndexable(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
 	return indexableExtensions[ext]
+}
+
+// maxDocumentErrors bounds how many individual document extraction failures
+// are included in the aggregated error returned by Execute. Every failure is
+// still logged per file, so nothing is lost — the cap only keeps the error
+// (which is persisted in task status) from growing without bound when a
+// repository contains many unreadable documents.
+const maxDocumentErrors = 10
+
+// documentError builds the aggregated-error entry for one unreadable document,
+// keeping the message shape introduced for issue #553. Files are named by
+// their repository-relative path; underlying parser errors are sanitized so
+// the persisted error never carries local clone paths.
+func documentError(clonedPath, relPath string, perPageErr, fallbackErr error) error {
+	msg := fmt.Sprintf("extract document text from %s", relPath)
+	if perPageErr != nil {
+		msg += ": per-page: " + sanitizedErrorText(clonedPath, perPageErr)
+	}
+	return errors.New(msg + ": fallback: " + sanitizedErrorText(clonedPath, fallbackErr))
+}
+
+// sanitizedErrorText renders an error without the repository's local clone
+// directory. Parser and stat errors can embed the absolute disk path they were
+// given, and the aggregated error is persisted in task status and shown by the
+// API — it must only ever name files by their repository-relative path.
+// Raw errors still go to the per-file warning log for diagnosis.
+func sanitizedErrorText(clonedPath string, err error) string {
+	clean := filepath.Clean(clonedPath) + string(filepath.Separator)
+	return strings.ReplaceAll(err.Error(), clean, "")
 }
 
 // extractPerPage extracts text from each page of a document and returns

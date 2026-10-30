@@ -1,6 +1,7 @@
 package indexing
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -747,14 +748,22 @@ func (f *fakeDocumentText) Text(path string) (string, error) {
 
 // fakeFailingRenderer is an extraction.TextRenderer whose PageCount and Render
 // always return the configured error — used to model PDF parsers that bail at
-// the cross-reference / content-stream layer.
+// the cross-reference / content-stream layer. The error echoes the path it was
+// given, modelling parsers that embed local paths in their messages (like
+// os.Stat's PathError does).
 type fakeFailingRenderer struct {
 	err error
 }
 
-func (f *fakeFailingRenderer) PageCount(_ string) (int, error)        { return 0, f.err }
-func (f *fakeFailingRenderer) Render(_ string, _ int) (string, error) { return "", f.err }
-func (f *fakeFailingRenderer) Close() error                           { return nil }
+func (f *fakeFailingRenderer) PageCount(path string) (int, error) {
+	return 0, fmt.Errorf("open pdf %s: %w", path, f.err)
+}
+
+func (f *fakeFailingRenderer) Render(path string, _ int) (string, error) {
+	return "", fmt.Errorf("open pdf %s: %w", path, f.err)
+}
+
+func (f *fakeFailingRenderer) Close() error { return nil }
 
 func TestChunkFiles_ExtractsDocumentFiles(t *testing.T) {
 	ctx := context.Background()
@@ -891,9 +900,15 @@ func TestChunkFiles_SkipsDocumentsWhenExtractorNil(t *testing.T) {
 	assert.Empty(t, chunks, "document files should be skipped when extractor is nil")
 }
 
-func TestChunkFiles_ReturnsErrorWhenDocumentExtractionFails(t *testing.T) {
+func TestChunkFiles_ErrorsWhenOnlyUnreadableDocumentsExist(t *testing.T) {
+	// A commit whose only files are unreadable documents must fail rather than
+	// report success with no chunks (issue #553): the BM25 and embedding steps
+	// would otherwise run on empty input and the commit would look text-indexed
+	// while storing nothing. Issue #576 keeps this failure loud without letting
+	// one bad document block the rest of a commit that has readable files.
 	ctx := context.Background()
-	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
+	var logBuf bytes.Buffer
+	logger := zerolog.New(&logBuf).Level(zerolog.WarnLevel)
 	db := testdb.New(t)
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
@@ -936,9 +951,10 @@ func TestChunkFiles_ReturnsErrorWhenDocumentExtractionFails(t *testing.T) {
 	}
 
 	err = h.Execute(ctx, payload)
-	require.Error(t, err, "Execute must surface a document extraction failure rather than continue silently")
-	assert.Contains(t, err.Error(), "bad.pdf", "error should identify the failing file")
-	assert.Contains(t, err.Error(), "invalid xref subsection header", "error should wrap the underlying parser error")
+	require.Error(t, err, "a commit with only unreadable documents must fail, not report success with no chunks")
+	assert.Contains(t, err.Error(), "bad.pdf", "the error should identify the failing file")
+	assert.Contains(t, err.Error(), "invalid xref subsection header", "the error should include the parser error")
+	assert.NotContains(t, err.Error(), tmpDir, "the persisted error must not expose local clone paths")
 
 	chunks, err := enrichmentStore.Find(ctx,
 		enrichment.WithCommitSHA(commitSHA),
@@ -946,12 +962,17 @@ func TestChunkFiles_ReturnsErrorWhenDocumentExtractionFails(t *testing.T) {
 		enrichment.WithSubtype(enrichment.SubtypeChunk),
 	)
 	require.NoError(t, err)
-	assert.Empty(t, chunks, "no chunks should be created when extraction fails")
+	assert.Empty(t, chunks, "no chunks should be created for the unreadable document")
+
+	logs := logBuf.String()
+	assert.Contains(t, logs, "bad.pdf", "the warning should identify the failing file")
+	assert.Contains(t, logs, "invalid xref subsection header", "the warning should include the parser error")
 }
 
-func TestChunkFiles_ReturnsErrorWhenPerPageExtractionFails(t *testing.T) {
+func TestChunkFiles_ErrorsWhenPerPageAndFallbackExtractionFail(t *testing.T) {
 	ctx := context.Background()
-	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
+	var logBuf bytes.Buffer
+	logger := zerolog.New(&logBuf).Level(zerolog.WarnLevel)
 	db := testdb.New(t)
 
 	enrichmentStore := persistence.NewEnrichmentStore(db)
@@ -998,8 +1019,190 @@ func TestChunkFiles_ReturnsErrorWhenPerPageExtractionFails(t *testing.T) {
 	}
 
 	err = h.Execute(ctx, payload)
-	require.Error(t, err, "Execute must surface a document extraction failure rather than continue silently")
-	assert.Contains(t, err.Error(), "broken.pdf", "error should identify the failing file")
+	require.Error(t, err, "a commit with only unreadable documents must fail, not report success with no chunks")
+	assert.Contains(t, err.Error(), "broken.pdf", "the error should identify the failing file")
+	assert.Contains(t, err.Error(), "invalid xref subsection header", "the error should include the parser error")
+	assert.NotContains(t, err.Error(), tmpDir, "the persisted error must not expose local clone paths")
+
+	chunks, err := enrichmentStore.Find(ctx,
+		enrichment.WithCommitSHA(commitSHA),
+		enrichment.WithType(enrichment.TypeDevelopment),
+		enrichment.WithSubtype(enrichment.SubtypeChunk),
+	)
+	require.NoError(t, err)
+	assert.Empty(t, chunks, "no chunks should be created for the unreadable document")
+
+	logs := logBuf.String()
+	assert.Contains(t, logs, "broken.pdf", "the warning should identify the failing file")
+	assert.Contains(t, logs, "invalid xref subsection header", "the warning should include the parser error")
+}
+
+func TestChunkFiles_SkipsUnreadableDocumentAndChunksRemainingFiles(t *testing.T) {
+	// Issue #576: one unreadable document (here: a password-protected PDF) used
+	// to abort chunking at the first failing file. Chunks written before it were
+	// kept, so the next run skipped the commit as "already chunked" and every
+	// file whose path sorted after the document was never indexed.
+	//
+	// The fix keeps chunking the remaining files and reports every failure in
+	// an aggregated error after the loop, so the failure is visible in task
+	// status without dropping the rest of the commit.
+	ctx := context.Background()
+	var logBuf bytes.Buffer
+	logger := zerolog.New(&logBuf).Level(zerolog.WarnLevel)
+	db := testdb.New(t)
+
+	enrichmentStore := persistence.NewEnrichmentStore(db)
+	associationStore := persistence.NewAssociationStore(db)
+	lineRangeStore := persistence.NewSourceLocationStore(db)
+	repoStore := persistence.NewRepositoryStore(db)
+	fileStore := persistence.NewFileStore(db)
+
+	commitSHA := "skip111doc222"
+	tmpDir := t.TempDir()
+
+	cc, err := repository.NewChunkingConfig(100, 0, 1)
+	require.NoError(t, err)
+	repo, err := repository.NewRepository("https://github.com/test/repo")
+	require.NoError(t, err)
+	repo = repo.
+		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", "")).
+		WithChunkingConfig(cc)
+	savedRepo, err := repoStore.Save(ctx, repo)
+	require.NoError(t, err)
+
+	// The unreadable document sorts BEFORE the Go file, mirroring the issue:
+	// one unreadable document left every file whose path sorted after it
+	// unindexed.
+	pdf := repository.NewFileWithDetails(commitSHA, "0-notes.pdf", "aaa", "application/pdf", ".pdf", 5000)
+	_, err = fileStore.Save(ctx, pdf)
+	require.NoError(t, err)
+
+	goContent := make([]byte, 100)
+	for i := range goContent {
+		goContent[i] = 'G'
+	}
+	gof := repository.NewFileWithDetails(commitSHA, "1-main.go", "bbb", "text/x-go", ".go", 100)
+	_, err = fileStore.Save(ctx, gof)
+	require.NoError(t, err)
+
+	// Both per-page and whole-document extraction fail, like an encrypted PDF:
+	// per-page fails with "invalid password", the fallback with a decompression
+	// error.
+	registry := extraction.NewTextRendererRegistry()
+	registry.Register(".pdf", &fakeFailingRenderer{err: fmt.Errorf("invalid password")})
+	docText := &fakeDocumentText{err: fmt.Errorf("zlib decompression failed")}
+
+	adapter := &fakeGitAdapter{files: map[string][]byte{"1-main.go": goContent}}
+
+	h := NewChunkFiles(
+		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
+		adapter, docText, extraction.NewExtractors(), registry,
+		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
+		&fakeTrackerFactory{},
+		logger,
+	)
+
+	payload := map[string]any{
+		"repository_id": savedRepo.ID(),
+		"commit_sha":    commitSHA,
+	}
+
+	err = h.Execute(ctx, payload)
+	// The task still fails loudly so unreadable documents are visible in task
+	// status (issue #553) — but only after the whole commit was processed.
+	require.Error(t, err, "unreadable documents must fail the task")
+	assert.Contains(t, err.Error(), "0-notes.pdf", "the error should name the unreadable document")
+	assert.Contains(t, err.Error(), "invalid password", "the error should include the per-page parser error")
+	assert.Contains(t, err.Error(), "zlib decompression failed", "the error should include the fallback parser error")
+	assert.NotContains(t, err.Error(), tmpDir, "the persisted error must not expose local clone paths")
+
+	chunks, err := enrichmentStore.Find(ctx,
+		enrichment.WithCommitSHA(commitSHA),
+		enrichment.WithType(enrichment.TypeDevelopment),
+		enrichment.WithSubtype(enrichment.SubtypeChunk),
+	)
+	require.NoError(t, err)
+	require.Len(t, chunks, 1, "the Go file sorted after the unreadable document must still be chunked")
+	assert.Equal(t, ".go", chunks[0].Language())
+
+	// The skip is visible: a warning names the unreadable file and both errors.
+	logs := logBuf.String()
+	assert.Contains(t, logs, "0-notes.pdf", "the warning should identify the unreadable document")
+	assert.Contains(t, logs, "invalid password", "the warning should include the per-page error")
+	assert.Contains(t, logs, "zlib decompression failed", "the warning should include the fallback error")
+}
+
+func TestChunkFiles_AggregatedDocumentErrorIsBounded(t *testing.T) {
+	// A repository can contain many unreadable documents. The aggregated error
+	// includes only the first failures plus a count of the rest (each failure
+	// is still logged per file), so the error persisted in task status cannot
+	// grow without bound when a whole repository of documents is unreadable.
+	ctx := context.Background()
+	var logBuf bytes.Buffer
+	logger := zerolog.New(&logBuf).Level(zerolog.WarnLevel)
+	db := testdb.New(t)
+
+	enrichmentStore := persistence.NewEnrichmentStore(db)
+	associationStore := persistence.NewAssociationStore(db)
+	lineRangeStore := persistence.NewSourceLocationStore(db)
+	repoStore := persistence.NewRepositoryStore(db)
+	fileStore := persistence.NewFileStore(db)
+
+	commitSHA := "bound111doc222"
+	tmpDir := t.TempDir()
+
+	cc, err := repository.NewChunkingConfig(100, 0, 1)
+	require.NoError(t, err)
+	repo, err := repository.NewRepository("https://github.com/test/repo")
+	require.NoError(t, err)
+	repo = repo.
+		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", "")).
+		WithChunkingConfig(cc)
+	savedRepo, err := repoStore.Save(ctx, repo)
+	require.NoError(t, err)
+
+	const total = 12
+	for i := 0; i < total; i++ {
+		f := repository.NewFileWithDetails(commitSHA, fmt.Sprintf("%02d-doc.pdf", i), "aaa", "application/pdf", ".pdf", 5000)
+		_, err = fileStore.Save(ctx, f)
+		require.NoError(t, err)
+	}
+
+	// The fake document source fails with an error that embeds the local disk
+	// path ("no text for <diskPath>"), like os.Stat errors do, to prove local
+	// paths are stripped from the aggregated error.
+	docText := &fakeDocumentText{}
+
+	h := NewChunkFiles(
+		repoStore, enrichmentStore, associationStore, lineRangeStore, fileStore,
+		&fakeGitAdapter{}, docText, extraction.NewExtractors(), nil,
+		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
+		&fakeTrackerFactory{},
+		logger,
+	)
+
+	payload := map[string]any{
+		"repository_id": savedRepo.ID(),
+		"commit_sha":    commitSHA,
+	}
+
+	err = h.Execute(ctx, payload)
+	require.Error(t, err)
+	msg := err.Error()
+	assert.Equal(t, 10, strings.Count(msg, "extract document text from"), "only the first 10 document errors are included")
+	assert.Contains(t, msg, "00-doc.pdf")
+	assert.Contains(t, msg, "09-doc.pdf")
+	assert.NotContains(t, msg, "10-doc.pdf", "errors beyond the cap are summarized, not listed")
+	assert.NotContains(t, msg, "11-doc.pdf")
+	assert.Contains(t, msg, "and 2 more documents failed to extract text")
+	assert.NotContains(t, msg, tmpDir, "no local clone paths may leak even with many failures")
+
+	// Every failure is still logged individually for diagnosis.
+	for i := 0; i < total; i++ {
+		assert.Contains(t, logBuf.String(), fmt.Sprintf("%02d-doc.pdf", i))
+	}
 }
 
 func TestChunkFiles_ParsesCSVFiles(t *testing.T) {
