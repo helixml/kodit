@@ -176,10 +176,10 @@ deps-update: ## Update all dependencies
 .PHONY: tools
 tools: ## Install development tools
 	$(GOCMD) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
-	$(GOCMD) install golang.org/x/tools/cmd/goimports@latest
-	$(GOCMD) install github.com/swaggo/swag/cmd/swag@latest
+	$(GOCMD) install golang.org/x/tools/cmd/goimports@v0.49.0
+	$(GOCMD) install github.com/swaggo/swag/cmd/swag@v1.16.6
 	$(GOCMD) install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.1
-	$(GOCMD) install github.com/dense-analysis/openapi-spec-converter/cmd/openapi-spec-converter@latest
+	$(GOCMD) install github.com/dense-analysis/openapi-spec-converter/cmd/openapi-spec-converter@v0.0.0-20250327163648-12cc6dcac393
 
 ##@ Documentation
 
