@@ -561,7 +561,7 @@ When you add a repository, Kodit runs a pipeline:
 4. **Build search indexes** with BM25 (keyword) and vector embeddings (semantic)
 5. **Generate enrichments** (if an LLM provider is configured): architecture docs, API docs, database schemas, cookbook examples, commit summaries, and wiki pages
 
-Kodit tracks which files have changed between syncs and only reprocesses modified content. Repositories sync automatically on a configurable interval (default: every 30 minutes).
+Kodit tracks which commits have already been processed and skips commits it has already synced. Repositories sync automatically on a configurable interval (default: every 30 minutes).
 
 ### Supported sources
 
