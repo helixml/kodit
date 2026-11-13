@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"sort"
 	"time"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/service"
+	"github.com/helixml/kodit/internal/workingcopy"
 )
 
 // RepositoryScanner extracts data from Git repositories without mutation.
@@ -220,18 +220,14 @@ func dirHash(path string) (string, error) {
 	}
 
 	var entries []entry
-	err := filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
+	err := workingcopy.WalkDir(path, ".", func(rel string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
 			return nil
 		}
-		rel, err := filepath.Rel(path, p)
-		if err != nil {
-			return err
-		}
-		content, err := os.ReadFile(p)
+		content, err := workingcopy.ReadFile(path, rel)
 		if err != nil {
 			return err
 		}
@@ -260,18 +256,14 @@ func (s *RepositoryScanner) filesFromDir(dirPath, commitSHA string) ([]repositor
 	now := time.Now()
 	var files []repository.File
 
-	err := filepath.WalkDir(dirPath, func(p string, d fs.DirEntry, err error) error {
+	err := workingcopy.WalkDir(dirPath, ".", func(rel string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
 			return nil
 		}
-		rel, err := filepath.Rel(dirPath, p)
-		if err != nil {
-			return err
-		}
-		content, err := os.ReadFile(p)
+		content, err := workingcopy.ReadFile(dirPath, rel)
 		if err != nil {
 			return err
 		}

@@ -362,56 +362,6 @@ func TestRelativeFilePath(t *testing.T) {
 	}
 }
 
-func TestSafeDiskPath(t *testing.T) {
-	tests := []struct {
-		name      string
-		clonePath string
-		relPath   string
-		wantSafe  bool
-	}{
-		{
-			name:      "normal relative path",
-			clonePath: "/data/repos/myrepo",
-			relPath:   "src/main.go",
-			wantSafe:  true,
-		},
-		{
-			name:      "traversal escapes clone dir",
-			clonePath: "/data/repos/myrepo",
-			relPath:   "../../etc/passwd",
-			wantSafe:  false,
-		},
-		{
-			name:      "dot-dot in middle that stays inside",
-			clonePath: "/data/repos/myrepo",
-			relPath:   "src/../lib/util.go",
-			wantSafe:  true,
-		},
-		{
-			name:      "dot-dot that escapes via nested traversal",
-			clonePath: "/data/repos/myrepo",
-			relPath:   "src/../../../../etc/shadow",
-			wantSafe:  false,
-		},
-		{
-			name:      "single dot stays inside",
-			clonePath: "/data/repos/myrepo",
-			relPath:   ".",
-			wantSafe:  true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			path, safe := safeDiskPath(tt.clonePath, tt.relPath)
-			assert.Equal(t, tt.wantSafe, safe)
-			if safe {
-				assert.NotEmpty(t, path)
-			}
-		})
-	}
-}
-
 func TestChunkFiles_HandlesAbsoluteFilePaths(t *testing.T) {
 	ctx := context.Background()
 	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
@@ -791,7 +741,7 @@ func TestChunkFiles_ExtractsDocumentFiles(t *testing.T) {
 	require.NoError(t, err)
 
 	f := repository.NewFileWithDetails(commitSHA, "manual.pdf", "abc123", "application/pdf", ".pdf", 5000)
-	savedFile, err := fileStore.Save(ctx, f)
+	savedFile, err := saveFileOnDisk(t, ctx, fileStore, tmpDir, f)
 	require.NoError(t, err)
 
 	extractedText := strings.Repeat("Document content. ", 10)
@@ -932,7 +882,7 @@ func TestChunkFiles_ErrorsWhenOnlyUnreadableDocumentsExist(t *testing.T) {
 	require.NoError(t, err)
 
 	f := repository.NewFileWithDetails(commitSHA, "bad.pdf", "aaa", "application/pdf", ".pdf", 5000)
-	_, err = fileStore.Save(ctx, f)
+	_, err = saveFileOnDisk(t, ctx, fileStore, tmpDir, f)
 	require.NoError(t, err)
 
 	docText := &fakeDocumentText{err: fmt.Errorf("invalid xref subsection header")}
@@ -996,7 +946,7 @@ func TestChunkFiles_ErrorsWhenPerPageAndFallbackExtractionFail(t *testing.T) {
 	require.NoError(t, err)
 
 	f := repository.NewFileWithDetails(commitSHA, "broken.pdf", "aaa", "application/pdf", ".pdf", 5000)
-	_, err = fileStore.Save(ctx, f)
+	_, err = saveFileOnDisk(t, ctx, fileStore, tmpDir, f)
 	require.NoError(t, err)
 
 	// Both per-page and whole-document extractors fail with the same xref error
@@ -1075,7 +1025,7 @@ func TestChunkFiles_SkipsUnreadableDocumentAndChunksRemainingFiles(t *testing.T)
 	// one unreadable document left every file whose path sorted after it
 	// unindexed.
 	pdf := repository.NewFileWithDetails(commitSHA, "0-notes.pdf", "aaa", "application/pdf", ".pdf", 5000)
-	_, err = fileStore.Save(ctx, pdf)
+	_, err = saveFileOnDisk(t, ctx, fileStore, tmpDir, pdf)
 	require.NoError(t, err)
 
 	goContent := make([]byte, 100)
@@ -1083,7 +1033,7 @@ func TestChunkFiles_SkipsUnreadableDocumentAndChunksRemainingFiles(t *testing.T)
 		goContent[i] = 'G'
 	}
 	gof := repository.NewFileWithDetails(commitSHA, "1-main.go", "bbb", "text/x-go", ".go", 100)
-	_, err = fileStore.Save(ctx, gof)
+	_, err = saveFileOnDisk(t, ctx, fileStore, tmpDir, gof)
 	require.NoError(t, err)
 
 	// Both per-page and whole-document extraction fail, like an encrypted PDF:
@@ -1166,7 +1116,7 @@ func TestChunkFiles_AggregatedDocumentErrorIsBounded(t *testing.T) {
 	const total = 12
 	for i := 0; i < total; i++ {
 		f := repository.NewFileWithDetails(commitSHA, fmt.Sprintf("%02d-doc.pdf", i), "aaa", "application/pdf", ".pdf", 5000)
-		_, err = fileStore.Save(ctx, f)
+		_, err = saveFileOnDisk(t, ctx, fileStore, tmpDir, f)
 		require.NoError(t, err)
 	}
 

@@ -15,6 +15,7 @@ import (
 	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/rasterization"
+	"github.com/helixml/kodit/internal/workingcopy"
 )
 
 // ExtractPageImages creates one enrichment per renderable page of each
@@ -121,9 +122,9 @@ func (h *ExtractPageImages) Execute(ctx context.Context, payload map[string]any)
 		tracker.SetCurrent(ctx, processed, fmt.Sprintf("Extracting pages from %s", f.Path()))
 
 		relPath := relativeFilePath(f.Path(), clonedPath)
-		diskPath, safe := safeDiskPath(clonedPath, relPath)
-		if !safe {
-			h.logger.Warn().Str("path", f.Path()).Msg("file path escapes clone directory, skipping")
+		diskPath, pathErr := workingcopy.File(clonedPath, relPath)
+		if pathErr != nil {
+			h.logger.Warn().Str("path", f.Path()).Str("error", pathErr.Error()).Msg("file is not readable inside the working copy, skipping")
 			processed++
 			continue
 		}

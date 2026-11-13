@@ -373,7 +373,7 @@ type countingAPIDocExtractor struct {
 	responses []enrichment.Enrichment
 }
 
-func (c *countingAPIDocExtractor) Extract(_ context.Context, _ []repository.File, _ string, _ bool) ([]enrichment.Enrichment, error) {
+func (c *countingAPIDocExtractor) Extract(_ context.Context, _ string, _ []repository.File, _ string, _ bool) ([]enrichment.Enrichment, error) {
 	c.calls++
 	return c.responses, nil
 }
@@ -410,7 +410,7 @@ func TestAPIDocsHandler(t *testing.T) {
 		require.NoError(t, err)
 
 		extractor := &countingAPIDocExtractor{responses: nil}
-		h := NewAPIDocs(fileStore, enrichCtx, extractor)
+		h := NewAPIDocs(repoStore, fileStore, enrichCtx, extractor)
 
 		payload := map[string]any{
 			"repository_id": savedRepo.ID(),
@@ -457,7 +457,7 @@ func TestAPIDocsHandler(t *testing.T) {
 			"### main.go (go)\n\nfunc Foo()",
 		)
 		extractor := &countingAPIDocExtractor{responses: []enrichment.Enrichment{realDoc}}
-		h := NewAPIDocs(fileStore, enrichCtx, extractor)
+		h := NewAPIDocs(repoStore, fileStore, enrichCtx, extractor)
 
 		payload := map[string]any{
 			"repository_id": savedRepo.ID(),

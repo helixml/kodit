@@ -158,7 +158,7 @@ func (c *Client) registerHandlers() error {
 
 	// API docs enrichment (AST-based, no LLM dependency)
 	c.registry.Register(task.OperationCreatePublicAPIDocsForCommit, handler.WithCleanup(
-		enrichmenthandler.NewAPIDocs(c.repoStores.Files, c.enrichCtx, c.apiDocService),
+		enrichmenthandler.NewAPIDocs(c.repoStores.Repositories, c.repoStores.Files, c.enrichCtx, c.apiDocService),
 		handler.NewEnrichmentCleanup(c.Enrichments, c.repoStores.Commits,
 			enrichment.TypeUsage, enrichment.SubtypeAPIDocs),
 	))

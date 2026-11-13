@@ -2,12 +2,11 @@ package enricher
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/internal/workingcopy"
 )
 
 // WikiContextService gathers context for wiki generation.
@@ -34,8 +33,7 @@ func (s *WikiContextService) Gather(
 
 // FileContent reads a file from the repo, truncated to maxLen characters.
 func (s *WikiContextService) FileContent(repoPath, filePath string, maxLen int) string {
-	fullPath := filepath.Join(repoPath, filePath)
-	data, err := os.ReadFile(fullPath)
+	data, err := workingcopy.ReadFile(repoPath, filePath)
 	if err != nil {
 		return ""
 	}
@@ -49,7 +47,7 @@ func (s *WikiContextService) FileContent(repoPath, filePath string, maxLen int) 
 func (s *WikiContextService) extractReadme(repoPath string) string {
 	names := []string{"README.md", "README.rst", "README.txt", "README"}
 	for _, name := range names {
-		data, err := os.ReadFile(filepath.Join(repoPath, name))
+		data, err := workingcopy.ReadFile(repoPath, name)
 		if err != nil {
 			continue
 		}

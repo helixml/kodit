@@ -130,7 +130,7 @@ func TestExtractPageImages_CreatesEnrichmentsForPDFPages(t *testing.T) {
 	clonedPath := savedRepo.WorkingCopy().Path()
 
 	f := repository.NewFileWithDetails(commitSHA, "docs/report.pdf", "abc123", "application/pdf", ".pdf", 1000)
-	savedFile, err := fileStore.Save(ctx, f)
+	savedFile, err := saveFileOnDisk(t, ctx, fileStore, savedRepo.WorkingCopy().Path(), f)
 	require.NoError(t, err)
 
 	diskPath := clonedPath + "/docs/report.pdf"
@@ -201,13 +201,13 @@ func TestExtractPageImages_SkipsNonRasterizableFiles(t *testing.T) {
 
 	// Create a .go file and a .pdf file.
 	goFile := repository.NewFileWithDetails(commitSHA, "main.go", "abc123", "text/x-go", ".go", 500)
-	_, err := fileStore.Save(ctx, goFile)
+	_, err := saveFileOnDisk(t, ctx, fileStore, savedRepo.WorkingCopy().Path(), goFile)
 	require.NoError(t, err)
 
 	clonedPath := savedRepo.WorkingCopy().Path()
 	diskPath := clonedPath + "/report.pdf"
 	pdfFile := repository.NewFileWithDetails(commitSHA, "report.pdf", "def456", "application/pdf", ".pdf", 1000)
-	_, err = fileStore.Save(ctx, pdfFile)
+	_, err = saveFileOnDisk(t, ctx, fileStore, savedRepo.WorkingCopy().Path(), pdfFile)
 	require.NoError(t, err)
 
 	rast := &fakeRasterizer{pages: map[string]int{diskPath: 2}}
@@ -240,9 +240,9 @@ func TestExtractPageImages_ContinuesOnPageCountError(t *testing.T) {
 	clonedPath := savedRepo.WorkingCopy().Path()
 
 	// Two PDFs: first will error, second should succeed.
-	_, err := fileStore.Save(ctx, repository.NewFileWithDetails(commitSHA, "bad.pdf", "abc123", "application/pdf", ".pdf", 500))
+	_, err := saveFileOnDisk(t, ctx, fileStore, savedRepo.WorkingCopy().Path(), repository.NewFileWithDetails(commitSHA, "bad.pdf", "abc123", "application/pdf", ".pdf", 500))
 	require.NoError(t, err)
-	_, err = fileStore.Save(ctx, repository.NewFileWithDetails(commitSHA, "good.pdf", "def456", "application/pdf", ".pdf", 1000))
+	_, err = saveFileOnDisk(t, ctx, fileStore, savedRepo.WorkingCopy().Path(), repository.NewFileWithDetails(commitSHA, "good.pdf", "def456", "application/pdf", ".pdf", 1000))
 	require.NoError(t, err)
 
 	rast := &fakeRasterizer{pages: map[string]int{
@@ -279,11 +279,11 @@ func TestExtractPageImages_DataAccessibleAfterIndexing(t *testing.T) {
 
 	// Two PDF files: 2 pages and 1 page.
 	pdf1 := repository.NewFileWithDetails(commitSHA, "docs/manual.pdf", "hash1", "application/pdf", ".pdf", 2000)
-	savedPDF1, err := fileStore.Save(ctx, pdf1)
+	savedPDF1, err := saveFileOnDisk(t, ctx, fileStore, savedRepo.WorkingCopy().Path(), pdf1)
 	require.NoError(t, err)
 
 	pdf2 := repository.NewFileWithDetails(commitSHA, "slides/deck.pdf", "hash2", "application/pdf", ".pdf", 3000)
-	savedPDF2, err := fileStore.Save(ctx, pdf2)
+	savedPDF2, err := saveFileOnDisk(t, ctx, fileStore, savedRepo.WorkingCopy().Path(), pdf2)
 	require.NoError(t, err)
 
 	rast := &fakeRasterizer{pages: map[string]int{

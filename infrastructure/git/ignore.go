@@ -2,11 +2,14 @@ package git
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/helixml/kodit/internal/workingcopy"
 )
 
 // IgnorePattern provides file ignore pattern matching for git repositories.
@@ -39,8 +42,7 @@ func NewIgnorePattern(base string) (IgnorePattern, error) {
 	}
 
 	// Load .noindex patterns if present
-	noindexPath := filepath.Join(base, ".noindex")
-	if rules, err := loadNoIndexPatterns(noindexPath); err == nil {
+	if rules, err := loadNoIndexPatterns(base); err == nil {
 		pattern.noIndexRules = rules
 	}
 
@@ -125,16 +127,15 @@ func (p IgnorePattern) matchNoIndex(relPath string) bool {
 	return false
 }
 
-// loadNoIndexPatterns reads patterns from a .noindex file.
-func loadNoIndexPatterns(path string) ([]string, error) {
-	file, err := os.Open(path)
+// loadNoIndexPatterns reads patterns from the .noindex file in base.
+func loadNoIndexPatterns(base string) ([]string, error) {
+	data, err := workingcopy.ReadFile(base, ".noindex")
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = file.Close() }()
 
 	var patterns []string
-	scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(bytes.NewReader(data))
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())

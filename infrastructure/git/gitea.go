@@ -18,6 +18,8 @@ import (
 	giteagit "code.gitea.io/gitea/modules/git"
 	"code.gitea.io/gitea/modules/git/gitcmd"
 	"code.gitea.io/gitea/modules/setting"
+
+	"github.com/helixml/kodit/internal/workingcopy"
 )
 
 // ErrBranchNotFound indicates the requested branch was not found.
@@ -383,12 +385,12 @@ func (g *GiteaAdapter) EnsureRepository(ctx context.Context, remoteURI string, l
 // For non-git local directories the file is read directly from the filesystem.
 func (g *GiteaAdapter) FileContent(ctx context.Context, localPath string, commitSHA string, filePath string) ([]byte, error) {
 	if !isGitRepo(localPath) {
-		// Use os.DirFS to sandbox reads to localPath. os.DirFS validates that
-		// filePath is a valid fs.FS path (no absolute paths, no ".." components)
-		// before opening, so user-controlled values cannot escape the directory.
-		content, err := fs.ReadFile(os.DirFS(localPath), filePath)
+		// Read through workingcopy so neither ".." components nor symbolic
+		// links in the directory can reach files outside localPath.
+		content, err := workingcopy.ReadFile(localPath, filePath)
 		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) || errors.Is(err, fs.ErrInvalid) {
+			if errors.Is(err, fs.ErrNotExist) || errors.Is(err, workingcopy.ErrOutsideRoot) ||
+				errors.Is(err, workingcopy.ErrSymlink) || errors.Is(err, workingcopy.ErrNotRegular) {
 				return nil, fmt.Errorf("get file %s: %w", filePath, ErrFileNotFound)
 			}
 			return nil, fmt.Errorf("read file: %w", err)

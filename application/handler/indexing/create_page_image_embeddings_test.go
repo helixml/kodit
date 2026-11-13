@@ -122,7 +122,7 @@ func setupEmbeddingTest(t *testing.T) (
 
 	// Create a PDF file record.
 	f := repository.NewFileWithDetails(commitSHA, "docs/report.pdf", "blobsha1", "application/pdf", ".pdf", 5000)
-	savedFile, err := fileStore.Save(ctx, f)
+	savedFile, err := saveFileOnDisk(t, ctx, fileStore, cloneDir, f)
 	require.NoError(t, err)
 
 	// Simulate what the extract handler does: create page image enrichments

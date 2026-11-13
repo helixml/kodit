@@ -14,6 +14,7 @@ import (
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/infrastructure/git"
 	"github.com/helixml/kodit/internal/database"
+	"github.com/helixml/kodit/internal/workingcopy"
 )
 
 var commitSHAPattern = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
@@ -141,7 +142,7 @@ func (b *Blob) ListFiles(ctx context.Context, repoID int64, pattern string) ([]F
 	matchAll := pattern == "" || pattern == "*" || pattern == "**"
 
 	var entries []FileEntry
-	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
+	err = workingcopy.WalkDir(root, ".", func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -152,12 +153,8 @@ func (b *Blob) ListFiles(ctx context.Context, repoID int64, pattern string) ([]F
 			return nil
 		}
 
-		rel, relErr := filepath.Rel(root, path)
-		if relErr != nil {
-			return relErr
-		}
 		// Normalize to forward slashes for consistent glob matching.
-		rel = filepath.ToSlash(rel)
+		rel := filepath.ToSlash(path)
 
 		if !matchAll && !matchGlob(pattern, rel) {
 			return nil
@@ -248,7 +245,18 @@ func (b *Blob) DiskPath(ctx context.Context, repoID int64, blobName, filePath st
 		return "", "", fmt.Errorf("repository %d has no working copy", repoID)
 	}
 
-	return filepath.Join(repo.WorkingCopy().Path(), safePath), commitSHA, nil
+	// Symbolic links are refused like missing files: their targets may be
+	// anywhere on the host, including other repositories' working copies.
+	diskPath, err := workingcopy.File(repo.WorkingCopy().Path(), safePath)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return "", "", fmt.Errorf("%s: %w", filePath, database.ErrNotFound)
+	case errors.Is(err, workingcopy.ErrSymlink), errors.Is(err, workingcopy.ErrNotRegular):
+		return "", "", fmt.Errorf("%s: %w: %w", filePath, err, database.ErrNotFound)
+	case err != nil:
+		return "", "", fmt.Errorf("resolve %s: %w", filePath, err)
+	}
+	return diskPath, commitSHA, nil
 }
 
 // Content resolves the blob reference and returns the file content at the given path.
