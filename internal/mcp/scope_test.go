@@ -29,19 +29,23 @@ import (
 // response that reaches B is visible in the response text, and every backend
 // call that names B is recorded by twoRepoWorld.
 const (
-	repoAID   int64 = 1
-	repoBID   int64 = 2
-	repoAURL        = "https://example.com/org/repo-a"
-	repoBURL        = "https://example.com/org/repo-b"
-	commitA         = "aaaa111122223333"
-	commitB         = "bbbb444455556666"
-	enrichA   int64 = 10
-	enrichB   int64 = 20
-	fileA     int64 = 100
-	fileB     int64 = 200
-	markerB         = "SECRET-B"
-	contentA        = "repo-A-content"
-	allowedID       = repoAID
+	repoAID  int64 = 1
+	repoBID  int64 = 2
+	repoAURL       = "https://example.com/org/repo-a"
+	repoBURL       = "https://example.com/org/repo-b"
+	commitA        = "aaaa111122223333"
+	commitB        = "bbbb444455556666"
+	enrichA  int64 = 10
+	enrichB  int64 = 20
+	// enrichShared belongs to repositories A and C, which share a commit.
+	enrichShared int64 = 30
+	repoCID      int64 = 3
+	fileShared   int64 = 300
+	fileA        int64 = 100
+	fileB        int64 = 200
+	markerB            = "SECRET-B"
+	contentA           = "repo-A-content"
+	allowedID          = repoAID
 )
 
 // twoRepoWorld holds in-memory backends for repositories A and B. Each
@@ -244,8 +248,11 @@ func (s worldSearcher) search(filters search.Filters) ([]enrichment.Enrichment, 
 	hits := []enrichment.Enrichment{
 		enrichment.ReconstructEnrichment(enrichA, enrichment.TypeDevelopment, enrichment.SubtypeSnippet, enrichment.EntityTypeSnippet, contentA, "go", at, at),
 		enrichment.ReconstructEnrichment(enrichB, enrichment.TypeDevelopment, enrichment.SubtypeSnippet, enrichment.EntityTypeSnippet, markerB, "go", at, at),
+		enrichment.ReconstructEnrichment(enrichShared, enrichment.TypeDevelopment, enrichment.SubtypeSnippet, enrichment.EntityTypeSnippet, "shared-content", "go", at, at),
 	}
-	return hits, map[string]float64{strconv.FormatInt(enrichA, 10): 0.9, strconv.FormatInt(enrichB, 10): 0.8}
+	return hits, map[string]float64{
+		strconv.FormatInt(enrichA, 10): 0.9, strconv.FormatInt(enrichB, 10): 0.8, strconv.FormatInt(enrichShared, 10): 0.7,
+	}
 }
 
 func (s worldSearcher) SearchCodeWithScores(_ context.Context, _ string, _ int, filters search.Filters) ([]enrichment.Enrichment, map[string]float64, error) {
@@ -266,15 +273,15 @@ func (s worldSearcher) SearchVisualWithScores(_ context.Context, _ string, _ int
 type worldResolver struct{}
 
 func (worldResolver) SourceFiles(_ context.Context, _ []int64) (map[string][]int64, error) {
-	return map[string][]int64{"10": {fileA}, "20": {fileB}}, nil
+	return map[string][]int64{"10": {fileA}, "20": {fileB}, "30": {fileShared}}, nil
 }
 
 func (worldResolver) SourceLocations(_ context.Context, _ []int64) (map[string]sourcelocation.SourceLocation, error) {
 	return map[string]sourcelocation.SourceLocation{}, nil
 }
 
-func (worldResolver) RepositoryIDs(_ context.Context, _ []int64) (map[string]int64, error) {
-	return map[string]int64{"10": repoAID, "20": repoBID}, nil
+func (worldResolver) RepositoryMemberships(_ context.Context, _ []int64) (map[string][]int64, error) {
+	return map[string][]int64{"10": {repoAID}, "20": {repoBID}, "30": {repoAID, repoCID}}, nil
 }
 
 type worldFiles struct{}
@@ -283,6 +290,7 @@ func (worldFiles) Find(_ context.Context, _ ...repository.Option) ([]repository.
 	return []repository.File{
 		repository.ReconstructFile(fileA, commitA, "a.go", "", "", ".go", "go", 1, time.Time{}),
 		repository.ReconstructFile(fileB, commitB, markerB+".go", "", "", ".go", "go", 1, time.Time{}),
+		repository.ReconstructFile(fileShared, "cccc777788889999", "shared.go", "", "", ".go", "go", 1, time.Time{}),
 	}, nil
 }
 
@@ -531,6 +539,43 @@ func TestRepositoryScope_AllowsInScopeRepository(t *testing.T) {
 			}
 			if strings.Contains(out, markerB) {
 				t.Errorf("response reaches repository B: %s", out)
+			}
+		})
+	}
+}
+
+// TestRepositoryScope_SharedCommitVisibleToEachOwner covers an enrichment
+// that belongs to two repositories because they share a commit: each owner's
+// scope sees it, attributed to that owner, and no other scope does.
+func TestRepositoryScope_SharedCommitVisibleToEachOwner(t *testing.T) {
+	tests := []struct {
+		scope   []int64
+		wantURI string
+	}{
+		{[]int64{repoAID}, "file://1/cccc777788889999/shared.go"},
+		{[]int64{repoCID}, "file://3/cccc777788889999/shared.go"},
+		{[]int64{repoBID}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("scope %v", tt.scope), func(t *testing.T) {
+			srv := newWorldServer(&twoRepoWorld{}, WithRepositoryScope(tt.scope))
+			call(t, srv, "initialize", initializeParams())
+			for _, tool := range []struct{ name, queryArg string }{
+				{"kodit_semantic_search", "query"},
+				{"kodit_keyword_search", "keywords"},
+				{"kodit_visual_search", "query"},
+			} {
+				m, p := toolCall(tool.name, map[string]any{tool.queryArg: "q"})
+				out := call(t, srv, m, p)
+				if tt.wantURI == "" {
+					if strings.Contains(out, "shared.go") {
+						t.Errorf("%s: scope %v sees the shared result: %s", tool.name, tt.scope, out)
+					}
+					continue
+				}
+				if !strings.Contains(out, tt.wantURI) {
+					t.Errorf("%s: expected %s, got: %s", tool.name, tt.wantURI, out)
+				}
 			}
 		})
 	}

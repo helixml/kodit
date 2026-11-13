@@ -120,7 +120,7 @@ func tools() []ToolDefinition {
 				{name: "query", description: "Natural language description of what you are looking for", typ: "string", required: true},
 				{name: "language", description: "Filter by file extension (e.g. .go, .py)", typ: "string"},
 				{name: "source_repo", description: "Filter by source repository URL", typ: "string"},
-				{name: "limit", description: "Maximum number of results (default 10)", typ: "number"},
+				{name: "limit", description: "Maximum number of results (default 10, at most 100)", typ: "number"},
 			},
 		},
 		{
@@ -130,7 +130,7 @@ func tools() []ToolDefinition {
 				{name: "keywords", description: "Keywords to search for", typ: "string", required: true},
 				{name: "source_repo", description: "Filter by source repository URL", typ: "string"},
 				{name: "language", description: "Filter by programming language", typ: "string"},
-				{name: "limit", description: "Maximum number of results (default 10)", typ: "number"},
+				{name: "limit", description: "Maximum number of results (default 10, at most 100)", typ: "number"},
 			},
 		},
 		{
@@ -139,7 +139,7 @@ func tools() []ToolDefinition {
 			params: []ParamDefinition{
 				{name: "query", description: "Natural language description of what you are looking for in document pages", typ: "string", required: true},
 				{name: "source_repo", description: "Filter by source repository URL", typ: "string"},
-				{name: "limit", description: "Maximum number of results (default 10)", typ: "number"},
+				{name: "limit", description: "Maximum number of results (default 10, at most 100)", typ: "number"},
 			},
 		},
 		{

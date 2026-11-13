@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 
 	"github.com/helixml/kodit/domain/enrichment"
@@ -27,6 +28,7 @@ type Enrichment struct {
 	repository.Collection[enrichment.Enrichment]
 	enrichmentStore      enrichment.EnrichmentStore
 	associationStore     enrichment.AssociationStore
+	commitStore          repository.CommitStore
 	bm25Store            search.Store
 	codeEmbeddingStore   search.Store
 	textEmbeddingStore   search.Store
@@ -38,6 +40,7 @@ type Enrichment struct {
 func NewEnrichment(
 	enrichmentStore enrichment.EnrichmentStore,
 	associationStore enrichment.AssociationStore,
+	commitStore repository.CommitStore,
 	bm25Store search.Store,
 	codeEmbeddingStore search.Store,
 	textEmbeddingStore search.Store,
@@ -48,6 +51,7 @@ func NewEnrichment(
 		Collection:           repository.NewCollection[enrichment.Enrichment](enrichmentStore),
 		enrichmentStore:      enrichmentStore,
 		associationStore:     associationStore,
+		commitStore:          commitStore,
 		bm25Store:            bm25Store,
 		codeEmbeddingStore:   codeEmbeddingStore,
 		textEmbeddingStore:   textEmbeddingStore,
@@ -262,30 +266,72 @@ func (s *Enrichment) SourceLocations(ctx context.Context, enrichmentIDs []int64)
 	return result, nil
 }
 
-// RepositoryIDs returns repository IDs keyed by enrichment ID string.
-// It queries associations where enrichment_id IN (ids) and entity_type = "git_repos".
-func (s *Enrichment) RepositoryIDs(ctx context.Context, enrichmentIDs []int64) (map[string]int64, error) {
+// RepositoryMemberships returns, keyed by enrichment ID, the repositories
+// each enrichment belongs to, in ascending order. An enrichment belongs to
+// every repository it is directly associated with and to the repository
+// recorded for each commit it is associated with. Two repositories that share
+// a commit SHA can each own the commit's enrichments this way, even though
+// git_commits records only one repository per SHA.
+//
+// The search stores apply the same rule when filtering by source repository
+// (infrastructure/persistence/search_filter_options.go); change both together.
+func (s *Enrichment) RepositoryMemberships(ctx context.Context, enrichmentIDs []int64) (map[string][]int64, error) {
 	if len(enrichmentIDs) == 0 {
-		return map[string]int64{}, nil
+		return map[string][]int64{}, nil
 	}
 
-	associations, err := s.associationStore.Find(ctx,
-		enrichment.WithEnrichmentIDIn(enrichmentIDs),
-		enrichment.WithEntityType(enrichment.EntityTypeRepository),
-	)
+	associations, err := s.associationStore.Find(ctx, enrichment.WithEnrichmentIDIn(enrichmentIDs))
 	if err != nil {
-		return nil, fmt.Errorf("find repository associations: %w", err)
+		return nil, fmt.Errorf("find associations: %w", err)
 	}
 
-	result := make(map[string]int64)
-	for _, a := range associations {
-		key := strconv.FormatInt(a.EnrichmentID(), 10)
-		repoID, err := strconv.ParseInt(a.EntityID(), 10, 64)
-		if err != nil {
-			continue
+	members := make(map[string]map[int64]struct{})
+	add := func(enrichmentID, repoID int64) {
+		key := strconv.FormatInt(enrichmentID, 10)
+		if members[key] == nil {
+			members[key] = make(map[int64]struct{})
 		}
-		result[key] = repoID
+		members[key][repoID] = struct{}{}
 	}
 
+	commitEnrichments := make(map[string][]int64)
+	for _, a := range associations {
+		switch a.EntityType() {
+		case enrichment.EntityTypeRepository:
+			repoID, parseErr := strconv.ParseInt(a.EntityID(), 10, 64)
+			if parseErr != nil {
+				continue
+			}
+			add(a.EnrichmentID(), repoID)
+		case enrichment.EntityTypeCommit:
+			commitEnrichments[a.EntityID()] = append(commitEnrichments[a.EntityID()], a.EnrichmentID())
+		}
+	}
+
+	if len(commitEnrichments) > 0 {
+		shas := make([]string, 0, len(commitEnrichments))
+		for sha := range commitEnrichments {
+			shas = append(shas, sha)
+		}
+		commits, err := s.commitStore.Find(ctx, repository.WithCommitSHAIn(shas))
+		if err != nil {
+			return nil, fmt.Errorf("find commits: %w", err)
+		}
+		for _, c := range commits {
+			for _, enrichmentID := range commitEnrichments[c.SHA()] {
+				add(enrichmentID, c.RepoID())
+			}
+		}
+	}
+
+	result := make(map[string][]int64, len(members))
+	for key, set := range members {
+		ids := make([]int64, 0, len(set))
+		for id := range set {
+			ids = append(ids, id)
+		}
+		slices.Sort(ids)
+		result[key] = ids
+	}
 	return result, nil
 }

@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/rs/zerolog"
 
@@ -51,13 +52,25 @@ func filterJoinOptions(filters search.Filters, castType string) []repository.Opt
 		)
 	}
 
+	// An enrichment belongs to every repository it is directly associated
+	// with and to the repository git_commits records for each commit it is
+	// associated with. Enrichment.RepositoryMemberships
+	// (application/service/enrichment.go) applies the same rule to search
+	// results; change both together.
 	if repos := filters.SourceRepos(); len(repos) > 0 {
-		opts = append(opts,
-			repository.WithJoin(fmt.Sprintf(
-				"JOIN enrichment_associations ea_repo ON ea_repo.enrichment_id = CAST(snippet_id AS %s) AND ea_repo.entity_type = 'git_commits'", castType)),
-			repository.WithJoin("JOIN git_commits gc_repo ON gc_repo.commit_sha = ea_repo.entity_id"),
-			repository.WithWhere("gc_repo.repo_id IN ?", repos),
-		)
+		repoKeys := make([]string, len(repos))
+		for i, id := range repos {
+			repoKeys[i] = strconv.FormatInt(id, 10)
+		}
+		opts = append(opts, repository.WithWhere(fmt.Sprintf(
+			"CAST(snippet_id AS %s) IN ("+
+				"SELECT ea_repo.enrichment_id FROM enrichment_associations ea_repo "+
+				"WHERE ea_repo.entity_type = 'git_repos' AND ea_repo.entity_id IN ? "+
+				"UNION "+
+				"SELECT ea_commit.enrichment_id FROM enrichment_associations ea_commit "+
+				"JOIN git_commits gc_repo ON gc_repo.commit_sha = ea_commit.entity_id "+
+				"WHERE ea_commit.entity_type = 'git_commits' AND gc_repo.repo_id IN ?)", castType),
+			repoKeys, repos))
 	}
 
 	return opts

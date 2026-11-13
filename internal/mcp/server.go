@@ -76,7 +76,9 @@ type VisualSearcher interface {
 type EnrichmentResolver interface {
 	SourceFiles(ctx context.Context, enrichmentIDs []int64) (map[string][]int64, error)
 	SourceLocations(ctx context.Context, enrichmentIDs []int64) (map[string]sourcelocation.SourceLocation, error)
-	RepositoryIDs(ctx context.Context, enrichmentIDs []int64) (map[string]int64, error)
+	// RepositoryMemberships returns, keyed by enrichment ID, the repositories
+	// each enrichment belongs to, in ascending order.
+	RepositoryMemberships(ctx context.Context, enrichmentIDs []int64) (map[string][]int64, error)
 }
 
 // FileLister provides pattern-based file listing from repository working copies.
@@ -550,6 +552,10 @@ func (s *Server) handleEnrichmentDocs(
 	return mcp.NewToolResultText(strings.Join(parts, "\n\n")), nil
 }
 
+// maxSearchLimit caps the number of results a semantic, keyword or visual
+// search returns, whatever limit the caller asks for.
+const maxSearchLimit = 100
+
 // fileResult holds the resolved file information for a search result.
 type fileResult struct {
 	URI      string  `json:"uri"`
@@ -591,33 +597,29 @@ func (s *Server) resolveFileResults(
 		return nil, fmt.Errorf("resolve line ranges: %w", err)
 	}
 
-	repoIDs, err := s.enrichmentResolver.RepositoryIDs(ctx, ids)
+	memberships, err := s.enrichmentResolver.RepositoryMemberships(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("resolve repository IDs: %w", err)
 	}
 
-	// Post-filter even when the searcher already applied source-repo filters:
-	// a result outside the requested repository or the server's scope is
-	// never returned, whatever the searcher did.
-	if sourceRepoID > 0 || s.scope != nil {
-		filtered := make([]enrichment.Enrichment, 0, len(enrichments))
-		for _, e := range enrichments {
-			repoID, found := repoIDs[strconv.FormatInt(e.ID(), 10)]
-			if !found {
-				continue
-			}
-			if sourceRepoID > 0 && repoID != sourceRepoID {
-				continue
-			}
-			if s.scope != nil && !s.scope.contains(repoID) {
-				continue
-			}
-			filtered = append(filtered, e)
+	// Each result is attributed to one repository it belongs to that the
+	// request may see: the requested source repository, and on a scoped
+	// server a repository in the scope. A result with no such repository is
+	// dropped, even if the searcher already applied source-repo filters.
+	repoIDs := make(map[string]int64, len(enrichments))
+	filtered := make([]enrichment.Enrichment, 0, len(enrichments))
+	for _, e := range enrichments {
+		idStr := strconv.FormatInt(e.ID(), 10)
+		repoID, ok := s.visibleRepository(memberships[idStr], sourceRepoID)
+		if !ok {
+			continue
 		}
-		enrichments = filtered
-		if len(enrichments) == 0 {
-			return nil, nil
-		}
+		repoIDs[idStr] = repoID
+		filtered = append(filtered, e)
+	}
+	enrichments = filtered
+	if len(enrichments) == 0 {
+		return nil, nil
 	}
 
 	var allFileIDs []int64
@@ -686,6 +688,26 @@ func (s *Server) resolveFileResults(
 	return results, nil
 }
 
+// visibleRepository returns the first of members a request may see: the
+// requested source repository when sourceRepoID > 0, and on a scoped server a
+// repository in the scope. Without either restriction, a result that belongs
+// to no repository is kept and attributed to repository 0, as before.
+func (s *Server) visibleRepository(members []int64, sourceRepoID int64) (int64, bool) {
+	if sourceRepoID == 0 && s.scope == nil && len(members) == 0 {
+		return 0, true
+	}
+	for _, repoID := range members {
+		if sourceRepoID > 0 && repoID != sourceRepoID {
+			continue
+		}
+		if s.scope != nil && !s.scope.contains(repoID) {
+			continue
+		}
+		return repoID, true
+	}
+	return 0, false
+}
+
 // handleSemanticSearch handles the semantic_search tool invocation.
 func (s *Server) handleSemanticSearch(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	query, err := request.RequireString("query")
@@ -703,6 +725,7 @@ func (s *Server) handleSemanticSearch(ctx context.Context, request mcp.CallToolR
 	if limit == 0 {
 		return mcp.NewToolResultText("[]"), nil
 	}
+	limit = min(limit, maxSearchLimit)
 
 	language := normalizeExtension(request.GetString("language", ""))
 
@@ -777,6 +800,7 @@ func (s *Server) handleKeywordSearch(ctx context.Context, request mcp.CallToolRe
 	if limit == 0 {
 		return mcp.NewToolResultText("[]"), nil
 	}
+	limit = min(limit, maxSearchLimit)
 
 	language := normalizeExtension(request.GetString("language", ""))
 
@@ -796,6 +820,9 @@ func (s *Server) handleKeywordSearch(ctx context.Context, request mcp.CallToolRe
 	var opts []search.FiltersOption
 	if language != "" {
 		opts = append(opts, search.WithLanguages([]string{language}))
+	}
+	if sourceRepoID > 0 {
+		opts = append(opts, search.WithSourceRepos([]int64{sourceRepoID}))
 	}
 	filters := search.NewFilters(opts...)
 
@@ -862,6 +889,7 @@ func (s *Server) handleVisualSearch(ctx context.Context, request mcp.CallToolReq
 	if limit == 0 {
 		return mcp.NewToolResultText("[]"), nil
 	}
+	limit = min(limit, maxSearchLimit)
 
 	// Resolve source_repo URL to a repository ID for post-filtering.
 	var sourceRepoID int64
