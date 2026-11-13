@@ -66,7 +66,8 @@ func (c *EnrichmentCleanup) Clean(ctx context.Context, repoID int64, currentSHA 
 		ids[i] = e.ID()
 	}
 
-	if err := c.enrichments.DeleteBy(ctx, repository.WithIDIn(ids)); err != nil {
+	// Enrichments another repository shares (same git commit) stay for it.
+	if _, err := c.enrichments.ReleaseForRepository(ctx, ids, repoID); err != nil {
 		return fmt.Errorf("delete old enrichments: %w", err)
 	}
 

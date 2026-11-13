@@ -132,6 +132,10 @@ func runServe(envFile, host string, port int) error {
 		opts = append(opts, kodit.WithSkipProviderValidation())
 	}
 
+	if cfg.AllowLocalGitRepositories() {
+		opts = append(opts, kodit.WithLocalGitRepositories())
+	}
+
 	// Chunk parameters
 	if cfg.ChunkSize() > 0 && cfg.ChunkOverlap() > 0 && cfg.ChunkMinSize() > 0 {
 		opts = append(opts, kodit.WithChunkParams(chunking.ChunkParams{

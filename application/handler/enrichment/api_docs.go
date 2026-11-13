@@ -13,11 +13,12 @@ import (
 
 // APIDocExtractor extracts API documentation from files.
 type APIDocExtractor interface {
-	Extract(ctx context.Context, files []repository.File, language string, includePrivate bool) ([]enrichment.Enrichment, error)
+	Extract(ctx context.Context, repoPath string, files []repository.File, language string, includePrivate bool) ([]enrichment.Enrichment, error)
 }
 
 // APIDocs handles the CREATE_PUBLIC_API_DOCS_FOR_COMMIT operation.
 type APIDocs struct {
+	repoStore repository.RepositoryStore
 	fileStore repository.FileStore
 	enrichCtx handler.EnrichmentContext
 	extractor APIDocExtractor
@@ -25,11 +26,13 @@ type APIDocs struct {
 
 // NewAPIDocs creates a new APIDocs handler.
 func NewAPIDocs(
+	repoStore repository.RepositoryStore,
 	fileStore repository.FileStore,
 	enrichCtx handler.EnrichmentContext,
 	extractor APIDocExtractor,
 ) *APIDocs {
 	return &APIDocs{
+		repoStore: repoStore,
 		fileStore: fileStore,
 		enrichCtx: enrichCtx,
 		extractor: extractor,
@@ -59,6 +62,15 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 		return nil
 	}
 
+	repo, err := h.repoStore.FindOne(ctx, repository.WithID(cp.RepoID()))
+	if err != nil {
+		return fmt.Errorf("get repository: %w", err)
+	}
+	clonedPath := repo.WorkingCopy().Path()
+	if clonedPath == "" {
+		return fmt.Errorf("repository %d has never been cloned", cp.RepoID())
+	}
+
 	files, err := h.fileStore.Find(ctx, repository.WithCommitSHA(cp.CommitSHA()))
 	if err != nil {
 		return fmt.Errorf("get files: %w", err)
@@ -81,7 +93,7 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 		langFileList := langFiles[lang]
 		tracker.SetCurrent(ctx, i, fmt.Sprintf("Extracting API docs for %s", lang))
 
-		enrichments, err := h.extractor.Extract(ctx, langFileList, lang, false)
+		enrichments, err := h.extractor.Extract(ctx, clonedPath, langFileList, lang, false)
 		if err != nil {
 			h.enrichCtx.Logger.Warn().Str("language", lang).Str("error", err.Error()).Msg("failed to extract API docs")
 			i++

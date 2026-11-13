@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 
 	"github.com/helixml/kodit/domain/enrichment"
@@ -147,12 +148,71 @@ func (s *Enrichment) DeleteBy(ctx context.Context, opts ...repository.Option) er
 				return fmt.Errorf("delete text embeddings: %w", err)
 			}
 		}
-		if err := s.visionEmbeddingStore.DeleteBy(ctx, searchOpts...); err != nil {
-			return fmt.Errorf("delete vision embeddings: %w", err)
+		if s.visionEmbeddingStore != nil {
+			if err := s.visionEmbeddingStore.DeleteBy(ctx, searchOpts...); err != nil {
+				return fmt.Errorf("delete vision embeddings: %w", err)
+			}
 		}
 	}
 
 	return s.enrichmentStore.DeleteBy(ctx, opts...)
+}
+
+// RepositoryEnrichmentIDs returns the IDs of the enrichments directly
+// associated with repoID.
+func (s *Enrichment) RepositoryEnrichmentIDs(ctx context.Context, repoID int64) ([]int64, error) {
+	associations, err := s.associationStore.Find(ctx,
+		enrichment.WithEntityType(enrichment.EntityTypeRepository),
+		enrichment.WithEntityID(strconv.FormatInt(repoID, 10)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("find repository associations: %w", err)
+	}
+	ids := make([]int64, 0, len(associations))
+	for _, a := range associations {
+		ids = append(ids, a.EnrichmentID())
+	}
+	return ids, nil
+}
+
+// ReleaseForRepository removes repoID's claim on the given enrichments and
+// returns the IDs it deleted. An enrichment that another repository also owns
+// through its own repository association keeps existing and loses only
+// repoID's association; every other enrichment is deleted with DeleteBy.
+func (s *Enrichment) ReleaseForRepository(ctx context.Context, enrichmentIDs []int64, repoID int64) ([]int64, error) {
+	if len(enrichmentIDs) == 0 {
+		return nil, nil
+	}
+	owners, err := s.RepositoryIDs(ctx, enrichmentIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	var shared, deleted []int64
+	for _, id := range enrichmentIDs {
+		others := slices.ContainsFunc(owners[strconv.FormatInt(id, 10)], func(owner int64) bool { return owner != repoID })
+		if others {
+			shared = append(shared, id)
+		} else {
+			deleted = append(deleted, id)
+		}
+	}
+
+	if len(shared) > 0 {
+		if err := s.associationStore.DeleteBy(ctx,
+			enrichment.WithEnrichmentIDIn(shared),
+			enrichment.WithEntityType(enrichment.EntityTypeRepository),
+			enrichment.WithEntityID(strconv.FormatInt(repoID, 10)),
+		); err != nil {
+			return nil, fmt.Errorf("delete repository associations: %w", err)
+		}
+	}
+	if len(deleted) > 0 {
+		if err := s.DeleteBy(ctx, repository.WithIDIn(deleted)); err != nil {
+			return nil, err
+		}
+	}
+	return deleted, nil
 }
 
 // RelatedEnrichments returns enrichments that reference the given enrichment IDs
@@ -262,11 +322,15 @@ func (s *Enrichment) SourceLocations(ctx context.Context, enrichmentIDs []int64)
 	return result, nil
 }
 
-// RepositoryIDs returns repository IDs keyed by enrichment ID string.
-// It queries associations where enrichment_id IN (ids) and entity_type = "git_repos".
-func (s *Enrichment) RepositoryIDs(ctx context.Context, enrichmentIDs []int64) (map[string]int64, error) {
+// RepositoryIDs returns, keyed by enrichment ID, the repositories each
+// enrichment belongs to, in ascending order. Membership comes only from the
+// enrichment's direct repository associations, which indexing writes for the
+// repository that produced the enrichment and for each repository that shares
+// the commit. The search stores apply the same rule when filtering by source
+// repository (infrastructure/persistence/search_filter_options.go).
+func (s *Enrichment) RepositoryIDs(ctx context.Context, enrichmentIDs []int64) (map[string][]int64, error) {
 	if len(enrichmentIDs) == 0 {
-		return map[string]int64{}, nil
+		return map[string][]int64{}, nil
 	}
 
 	associations, err := s.associationStore.Find(ctx,
@@ -277,14 +341,19 @@ func (s *Enrichment) RepositoryIDs(ctx context.Context, enrichmentIDs []int64) (
 		return nil, fmt.Errorf("find repository associations: %w", err)
 	}
 
-	result := make(map[string]int64)
+	result := make(map[string][]int64)
 	for _, a := range associations {
-		key := strconv.FormatInt(a.EnrichmentID(), 10)
 		repoID, err := strconv.ParseInt(a.EntityID(), 10, 64)
 		if err != nil {
 			continue
 		}
-		result[key] = repoID
+		key := strconv.FormatInt(a.EnrichmentID(), 10)
+		if !slices.Contains(result[key], repoID) {
+			result[key] = append(result[key], repoID)
+		}
+	}
+	for _, ids := range result {
+		slices.Sort(ids)
 	}
 
 	return result, nil

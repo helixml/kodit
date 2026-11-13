@@ -78,7 +78,7 @@ func (h *Delete) Execute(ctx context.Context, payload map[string]any) error {
 		h.logger.Warn().Str("error", err.Error()).Msg("failed to find commits")
 	}
 
-	if err := h.deleteEnrichments(ctx, commits); err != nil {
+	if err := h.deleteEnrichments(ctx, repoID, commits); err != nil {
 		h.logger.Warn().Str("error", err.Error()).Msg("failed to delete enrichment data")
 	}
 
@@ -104,33 +104,32 @@ func (h *Delete) Execute(ctx context.Context, payload map[string]any) error {
 	return nil
 }
 
-func (h *Delete) deleteEnrichments(ctx context.Context, commits []repository.Commit) error {
-	if len(commits) == 0 {
-		return nil
-	}
-
-	shas := make([]string, len(commits))
-	for i, c := range commits {
-		shas[i] = c.SHA()
-	}
-
-	found, err := h.enrichments.Find(ctx, enrichment.WithCommitSHAs(shas))
+// deleteEnrichments removes the repository's claim on enrichment data: the
+// enrichments of its commits, and those it shares with other repositories
+// through a repository association. Enrichments another repository also
+// owns stay for that repository and lose only this repository's association.
+func (h *Delete) deleteEnrichments(ctx context.Context, repoID int64, commits []repository.Commit) error {
+	ids, err := h.enrichments.RepositoryEnrichmentIDs(ctx, repoID)
 	if err != nil {
-		return fmt.Errorf("find enrichments: %w", err)
+		return err
 	}
 
-	if len(found) == 0 {
-		return nil
+	if len(commits) > 0 {
+		shas := make([]string, len(commits))
+		for i, c := range commits {
+			shas[i] = c.SHA()
+		}
+		found, err := h.enrichments.Find(ctx, enrichment.WithCommitSHAs(shas))
+		if err != nil {
+			return fmt.Errorf("find enrichments: %w", err)
+		}
+		for _, e := range found {
+			ids = append(ids, e.ID())
+		}
 	}
 
-	ids := make([]int64, len(found))
-	for i, e := range found {
-		ids[i] = e.ID()
-	}
-
-	if err := h.enrichments.DeleteBy(ctx, repository.WithIDIn(ids)); err != nil {
+	if _, err := h.enrichments.ReleaseForRepository(ctx, ids, repoID); err != nil {
 		return fmt.Errorf("delete enrichments: %w", err)
 	}
-
 	return nil
 }

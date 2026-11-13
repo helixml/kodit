@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -18,6 +19,8 @@ import (
 	giteagit "code.gitea.io/gitea/modules/git"
 	"code.gitea.io/gitea/modules/git/gitcmd"
 	"code.gitea.io/gitea/modules/setting"
+
+	"github.com/helixml/kodit/internal/workingcopy"
 )
 
 // ErrBranchNotFound indicates the requested branch was not found.
@@ -25,6 +28,7 @@ var ErrBranchNotFound = errors.New("branch not found")
 
 // GiteaAdapter implements Adapter using Gitea's git module (native git binary).
 type GiteaAdapter struct {
+	layout Layout
 	logger zerolog.Logger
 }
 
@@ -33,7 +37,8 @@ var giteaInitErr error
 
 // NewGiteaAdapter creates a new GiteaAdapter. It initializes the Gitea git
 // module once (verifying the git binary is available).
-func NewGiteaAdapter(logger zerolog.Logger) (*GiteaAdapter, error) {
+// layout decides which working copies are read with git.
+func NewGiteaAdapter(layout Layout, logger zerolog.Logger) (*GiteaAdapter, error) {
 
 	if _, err := exec.LookPath("git"); err != nil {
 		return nil, fmt.Errorf("git is not installed or not in PATH: install git and try again")
@@ -55,7 +60,7 @@ func NewGiteaAdapter(logger zerolog.Logger) (*GiteaAdapter, error) {
 		return nil, fmt.Errorf("init git: %w", giteaInitErr)
 	}
 
-	return &GiteaAdapter{logger: logger}, nil
+	return &GiteaAdapter{layout: layout, logger: logger}, nil
 }
 
 // CloneRepository clones a repository to local path.
@@ -70,9 +75,15 @@ func (g *GiteaAdapter) CloneRepository(ctx context.Context, remoteURI string, lo
 		}
 	}
 
-	err := giteagit.Clone(ctx, remoteURI, localPath, giteagit.CloneRepoOptions{})
+	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
+		return fmt.Errorf("create clone parent directory: %w", err)
+	}
+	var stderr bytes.Buffer
+	err := hardened(gitcmd.NewCommand("clone")).
+		AddDashesAndList(remoteURI, localPath).
+		Run(ctx, &gitcmd.RunOpts{Timeout: -1, Stdout: io.Discard, Stderr: &stderr})
 	if err != nil {
-		return fmt.Errorf("clone repository: %w", err)
+		return fmt.Errorf("clone repository: %w", gitcmd.ConcatenateError(err, stderr.String()))
 	}
 
 	return nil
@@ -80,7 +91,10 @@ func (g *GiteaAdapter) CloneRepository(ctx context.Context, remoteURI string, lo
 
 // CheckoutCommit checks out a specific commit.
 func (g *GiteaAdapter) CheckoutCommit(ctx context.Context, localPath string, commitSHA string) error {
-	_, _, err := gitcmd.NewCommand("checkout", "--force").
+	if !g.layout.IsGitRepository(localPath) {
+		return fmt.Errorf("%s: %w", localPath, ErrNotGitRepository)
+	}
+	_, _, err := hardened(gitcmd.NewCommand("checkout", "--force")).
 		AddDynamicArguments(commitSHA).
 		RunStdString(ctx, &gitcmd.RunOpts{Dir: localPath})
 	if err != nil {
@@ -91,8 +105,11 @@ func (g *GiteaAdapter) CheckoutCommit(ctx context.Context, localPath string, com
 
 // CheckoutBranch checks out a specific branch.
 func (g *GiteaAdapter) CheckoutBranch(ctx context.Context, localPath string, branchName string) error {
+	if !g.layout.IsGitRepository(localPath) {
+		return fmt.Errorf("%s: %w", localPath, ErrNotGitRepository)
+	}
 	// Try local branch first
-	_, _, err := gitcmd.NewCommand("checkout", "--force").
+	_, _, err := hardened(gitcmd.NewCommand("checkout", "--force")).
 		AddDynamicArguments(branchName).
 		RunStdString(ctx, &gitcmd.RunOpts{Dir: localPath})
 	if err == nil {
@@ -100,7 +117,7 @@ func (g *GiteaAdapter) CheckoutBranch(ctx context.Context, localPath string, bra
 	}
 
 	// Try remote branch
-	_, _, err = gitcmd.NewCommand("checkout", "--force", "-b").
+	_, _, err = hardened(gitcmd.NewCommand("checkout", "--force", "-b")).
 		AddDynamicArguments(branchName).
 		AddOptionValues("--track", "origin/"+branchName).
 		RunStdString(ctx, &gitcmd.RunOpts{Dir: localPath})
@@ -112,7 +129,10 @@ func (g *GiteaAdapter) CheckoutBranch(ctx context.Context, localPath string, bra
 
 // FetchRepository fetches latest changes for existing repository.
 func (g *GiteaAdapter) FetchRepository(ctx context.Context, localPath string) error {
-	_, _, err := gitcmd.NewCommand("fetch", "--force", "origin").
+	if !g.layout.IsGitRepository(localPath) {
+		return fmt.Errorf("%s: %w", localPath, ErrNotGitRepository)
+	}
+	_, _, err := hardened(gitcmd.NewCommand("fetch", "--force", "origin")).
 		RunStdString(ctx, &gitcmd.RunOpts{Dir: localPath})
 	if err != nil {
 		return fmt.Errorf("fetch repository: %w", err)
@@ -122,13 +142,16 @@ func (g *GiteaAdapter) FetchRepository(ctx context.Context, localPath string) er
 
 // PullRepository pulls latest changes for existing repository.
 func (g *GiteaAdapter) PullRepository(ctx context.Context, localPath string) error {
+	if !g.layout.IsGitRepository(localPath) {
+		return fmt.Errorf("%s: %w", localPath, ErrNotGitRepository)
+	}
 	// Fetch first
 	if err := g.FetchRepository(ctx, localPath); err != nil {
 		return err
 	}
 
 	// Pull - tolerate failure in detached HEAD state
-	_, _, err := gitcmd.NewCommand("pull", "--force", "origin").
+	_, _, err := hardened(gitcmd.NewCommand("pull", "--force", "origin")).
 		RunStdString(ctx, &gitcmd.RunOpts{Dir: localPath})
 	if err != nil {
 		g.logger.Debug().Str("error", err.Error()).Msg("pull failed (possibly detached HEAD)")
@@ -139,6 +162,9 @@ func (g *GiteaAdapter) PullRepository(ctx context.Context, localPath string) err
 
 // AllBranches returns all branches in repository.
 func (g *GiteaAdapter) AllBranches(ctx context.Context, localPath string) ([]BranchInfo, error) {
+	if !g.layout.IsGitRepository(localPath) {
+		return nil, fmt.Errorf("%s: %w", localPath, ErrNotGitRepository)
+	}
 	repo, err := giteagit.OpenRepository(ctx, localPath)
 	if err != nil {
 		return nil, fmt.Errorf("open repository: %w", err)
@@ -173,7 +199,7 @@ func (g *GiteaAdapter) AllBranches(ctx context.Context, localPath string) ([]Bra
 	}
 
 	// Get remote branches
-	stdout, _, err := gitcmd.NewCommand("branch", "-r", "--format=%(refname:short) %(objectname)").
+	stdout, _, err := hardened(gitcmd.NewCommand("branch", "-r", "--format=%(refname:short) %(objectname)")).
 		RunStdString(ctx, &gitcmd.RunOpts{Dir: localPath})
 	if err != nil {
 		return nil, fmt.Errorf("get remote branches: %w", err)
@@ -212,12 +238,15 @@ func (g *GiteaAdapter) AllBranches(ctx context.Context, localPath string) ([]Bra
 
 // BranchCommits returns commit history for a specific branch.
 func (g *GiteaAdapter) BranchCommits(ctx context.Context, localPath string, branchName string) ([]CommitInfo, error) {
+	if !g.layout.IsGitRepository(localPath) {
+		return nil, fmt.Errorf("%s: %w", localPath, ErrNotGitRepository)
+	}
 	ref, err := g.resolveBranch(ctx, localPath, branchName)
 	if err != nil {
 		return nil, err
 	}
 
-	stdout, _, err := gitcmd.NewCommand("log", commitLogFormat).
+	stdout, _, err := hardened(gitcmd.NewCommand("log", "--no-textconv", "--no-ext-diff", commitLogFormat)).
 		AddDynamicArguments(ref).
 		RunStdString(ctx, &gitcmd.RunOpts{Dir: localPath})
 	if err != nil {
@@ -229,7 +258,10 @@ func (g *GiteaAdapter) BranchCommits(ctx context.Context, localPath string, bran
 
 // AllCommitsBulk returns all commits from all branches in bulk.
 func (g *GiteaAdapter) AllCommitsBulk(ctx context.Context, localPath string, since *time.Time) (map[string]CommitInfo, error) {
-	cmd := gitcmd.NewCommand("log", "--all", commitLogFormat)
+	if !g.layout.IsGitRepository(localPath) {
+		return nil, fmt.Errorf("%s: %w", localPath, ErrNotGitRepository)
+	}
+	cmd := hardened(gitcmd.NewCommand("log", "--all", "--no-textconv", "--no-ext-diff", commitLogFormat))
 	if since != nil {
 		cmd = cmd.AddOptionFormat("--since=%s", since.Format(time.RFC3339))
 	}
@@ -249,12 +281,15 @@ func (g *GiteaAdapter) AllCommitsBulk(ctx context.Context, localPath string, sin
 
 // BranchCommitSHAs returns only commit SHAs for a branch.
 func (g *GiteaAdapter) BranchCommitSHAs(ctx context.Context, localPath string, branchName string) ([]string, error) {
+	if !g.layout.IsGitRepository(localPath) {
+		return nil, fmt.Errorf("%s: %w", localPath, ErrNotGitRepository)
+	}
 	ref, err := g.resolveBranch(ctx, localPath, branchName)
 	if err != nil {
 		return nil, err
 	}
 
-	stdout, _, err := gitcmd.NewCommand("log", "--format=%H").
+	stdout, _, err := hardened(gitcmd.NewCommand("log", "--no-textconv", "--no-ext-diff", "--format=%H")).
 		AddDynamicArguments(ref).
 		RunStdString(ctx, &gitcmd.RunOpts{Dir: localPath})
 	if err != nil {
@@ -274,6 +309,9 @@ func (g *GiteaAdapter) BranchCommitSHAs(ctx context.Context, localPath string, b
 
 // AllBranchHeadSHAs returns head commit SHAs for all branches in one operation.
 func (g *GiteaAdapter) AllBranchHeadSHAs(ctx context.Context, localPath string, branchNames []string) (map[string]string, error) {
+	if !g.layout.IsGitRepository(localPath) {
+		return nil, fmt.Errorf("%s: %w", localPath, ErrNotGitRepository)
+	}
 	repo, err := giteagit.OpenRepository(ctx, localPath)
 	if err != nil {
 		return nil, fmt.Errorf("open repository: %w", err)
@@ -299,6 +337,9 @@ func (g *GiteaAdapter) AllBranchHeadSHAs(ctx context.Context, localPath string, 
 
 // CommitFiles returns all files in a specific commit from the git tree.
 func (g *GiteaAdapter) CommitFiles(ctx context.Context, localPath string, commitSHA string) ([]FileInfo, error) {
+	if !g.layout.IsGitRepository(localPath) {
+		return nil, fmt.Errorf("%s: %w", localPath, ErrNotGitRepository)
+	}
 	repo, err := giteagit.OpenRepository(ctx, localPath)
 	if err != nil {
 		return nil, fmt.Errorf("open repository: %w", err)
@@ -352,6 +393,9 @@ func (g *GiteaAdapter) RepositoryExists(ctx context.Context, localPath string) (
 
 // CommitDetails returns detailed information about a specific commit.
 func (g *GiteaAdapter) CommitDetails(ctx context.Context, localPath string, commitSHA string) (CommitInfo, error) {
+	if !g.layout.IsGitRepository(localPath) {
+		return CommitInfo{}, fmt.Errorf("%s: %w", localPath, ErrNotGitRepository)
+	}
 	repo, err := giteagit.OpenRepository(ctx, localPath)
 	if err != nil {
 		return CommitInfo{}, fmt.Errorf("open repository: %w", err)
@@ -382,13 +426,13 @@ func (g *GiteaAdapter) EnsureRepository(ctx context.Context, remoteURI string, l
 // FileContent returns file content at specific commit.
 // For non-git local directories the file is read directly from the filesystem.
 func (g *GiteaAdapter) FileContent(ctx context.Context, localPath string, commitSHA string, filePath string) ([]byte, error) {
-	if !isGitRepo(localPath) {
-		// Use os.DirFS to sandbox reads to localPath. os.DirFS validates that
-		// filePath is a valid fs.FS path (no absolute paths, no ".." components)
-		// before opening, so user-controlled values cannot escape the directory.
-		content, err := fs.ReadFile(os.DirFS(localPath), filePath)
+	if !g.layout.IsGitRepository(localPath) {
+		// Read through workingcopy so neither ".." components nor symbolic
+		// links in the directory can reach files outside localPath.
+		content, err := workingcopy.ReadFile(localPath, filePath)
 		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) || errors.Is(err, fs.ErrInvalid) {
+			if errors.Is(err, fs.ErrNotExist) || errors.Is(err, workingcopy.ErrOutsideRoot) ||
+				errors.Is(err, workingcopy.ErrSymlink) || errors.Is(err, workingcopy.ErrNotRegular) {
 				return nil, fmt.Errorf("get file %s: %w", filePath, ErrFileNotFound)
 			}
 			return nil, fmt.Errorf("read file: %w", err)
@@ -420,8 +464,11 @@ func (g *GiteaAdapter) FileContent(ctx context.Context, localPath string, commit
 
 // DefaultBranch returns the default branch name with fallback strategies.
 func (g *GiteaAdapter) DefaultBranch(ctx context.Context, localPath string) (string, error) {
+	if !g.layout.IsGitRepository(localPath) {
+		return "", fmt.Errorf("%s: %w", localPath, ErrNotGitRepository)
+	}
 	// Strategy 1: Try symbolic-ref HEAD (origin/HEAD)
-	stdout, _, runErr := gitcmd.NewCommand("symbolic-ref", "refs/remotes/origin/HEAD").
+	stdout, _, runErr := hardened(gitcmd.NewCommand("symbolic-ref", "refs/remotes/origin/HEAD")).
 		RunStdString(ctx, &gitcmd.RunOpts{Dir: localPath})
 	if runErr == nil {
 		ref := strings.TrimSpace(stdout)
@@ -457,6 +504,9 @@ func (g *GiteaAdapter) DefaultBranch(ctx context.Context, localPath string) (str
 
 // LatestCommitSHA returns the latest commit SHA for a branch.
 func (g *GiteaAdapter) LatestCommitSHA(ctx context.Context, localPath string, branchName string) (string, error) {
+	if !g.layout.IsGitRepository(localPath) {
+		return "", fmt.Errorf("%s: %w", localPath, ErrNotGitRepository)
+	}
 	repo, err := giteagit.OpenRepository(ctx, localPath)
 	if err != nil {
 		return "", fmt.Errorf("open repository: %w", err)
@@ -484,6 +534,9 @@ func (g *GiteaAdapter) LatestCommitSHA(ctx context.Context, localPath string, br
 
 // AllTags returns all tags in repository.
 func (g *GiteaAdapter) AllTags(ctx context.Context, localPath string) ([]TagInfo, error) {
+	if !g.layout.IsGitRepository(localPath) {
+		return nil, fmt.Errorf("%s: %w", localPath, ErrNotGitRepository)
+	}
 	repo, err := giteagit.OpenRepository(ctx, localPath)
 	if err != nil {
 		return nil, fmt.Errorf("open repository: %w", err)
@@ -523,7 +576,7 @@ func (g *GiteaAdapter) AllTags(ctx context.Context, localPath string) ([]TagInfo
 // CommitDiff returns the diff for a specific commit.
 // For non-git local directories there is no diff to return.
 func (g *GiteaAdapter) CommitDiff(ctx context.Context, localPath string, commitSHA string) (string, error) {
-	if !isGitRepo(localPath) {
+	if !g.layout.IsGitRepository(localPath) {
 		return "", nil
 	}
 
@@ -533,10 +586,27 @@ func (g *GiteaAdapter) CommitDiff(ctx context.Context, localPath string, commitS
 	}
 	defer func() { _ = repo.Close() }()
 
-	var buf bytes.Buffer
-	err = giteagit.GetRawDiff(repo, commitSHA, giteagit.RawDiffNormal, &buf)
+	commit, err := repo.GetCommit(commitSHA)
 	if err != nil {
-		return "", fmt.Errorf("get diff: %w", err)
+		return "", fmt.Errorf("get commit: %w", err)
+	}
+
+	// Same output as Gitea's GetRawDiff, with textconv and external diff
+	// drivers disabled so repository configuration cannot run commands.
+	cmd := hardened(gitcmd.NewCommand())
+	if commit.ParentCount() == 0 {
+		cmd.AddArguments("show", "--no-textconv", "--no-ext-diff").AddDynamicArguments(commitSHA)
+	} else {
+		parent, parentErr := commit.Parent(0)
+		if parentErr != nil {
+			return "", fmt.Errorf("get parent commit: %w", parentErr)
+		}
+		cmd.AddArguments("diff", "-M", "--no-textconv", "--no-ext-diff").AddDynamicArguments(parent.ID.String(), commitSHA)
+	}
+
+	var buf, stderr bytes.Buffer
+	if err := cmd.Run(ctx, &gitcmd.RunOpts{Dir: localPath, Stdout: &buf, Stderr: &stderr}); err != nil {
+		return "", fmt.Errorf("get diff: %w", gitcmd.ConcatenateError(err, stderr.String()))
 	}
 
 	return buf.String(), nil
@@ -545,6 +615,9 @@ func (g *GiteaAdapter) CommitDiff(ctx context.Context, localPath string, commitS
 // resolveBranch resolves a branch name to a ref that git log can use.
 // It checks local branches first, then remote branches.
 func (g *GiteaAdapter) resolveBranch(ctx context.Context, localPath string, branchName string) (string, error) {
+	if !g.layout.IsGitRepository(localPath) {
+		return "", fmt.Errorf("%s: %w", localPath, ErrNotGitRepository)
+	}
 	repo, err := giteagit.OpenRepository(ctx, localPath)
 	if err != nil {
 		return "", fmt.Errorf("open repository: %w", err)
@@ -647,6 +720,9 @@ func guessMimeType(_ string) string {
 // Grep searches for a pattern in tracked files at a specific commit using
 // Gitea's native GrepSearch API (which wraps git grep internally).
 func (g *GiteaAdapter) Grep(ctx context.Context, localPath string, commitSHA string, pattern string, pathspec string, maxMatches int) ([]GrepMatch, error) {
+	if !g.layout.IsGitRepository(localPath) {
+		return nil, fmt.Errorf("%s: %w", localPath, ErrNotGitRepository)
+	}
 	repo, err := giteagit.OpenRepository(ctx, localPath)
 	if err != nil {
 		return nil, fmt.Errorf("open repository: %w", err)

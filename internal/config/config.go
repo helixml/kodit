@@ -411,28 +411,29 @@ func NewRemoteConfigWithOptions(opts ...RemoteConfigOption) RemoteConfig {
 
 // AppConfig holds the main application configuration.
 type AppConfig struct {
-	host                    string
-	port                    int
-	dataDir                 string
-	dbURL                   string
-	logLevel                string
-	logFormat               LogFormat
-	disableTelemetry        bool
-	skipProviderValidation  bool
-	embeddingEndpoint       *Endpoint
-	enrichmentEndpoint      *Endpoint
-	visionEmbeddingEndpoint *Endpoint
-	periodicSync            PeriodicSyncConfig
-	apiKeys                 []string
-	remote                  RemoteConfig
-	reporting               ReportingConfig
-	litellmCache            LiteLLMCacheConfig
-	workerCount             int
-	searchLimit             int
-	httpCacheDir            string
-	chunkSize               int
-	chunkOverlap            int
-	chunkMinSize            int
+	host                      string
+	port                      int
+	dataDir                   string
+	dbURL                     string
+	logLevel                  string
+	logFormat                 LogFormat
+	disableTelemetry          bool
+	skipProviderValidation    bool
+	allowLocalGitRepositories bool
+	embeddingEndpoint         *Endpoint
+	enrichmentEndpoint        *Endpoint
+	visionEmbeddingEndpoint   *Endpoint
+	periodicSync              PeriodicSyncConfig
+	apiKeys                   []string
+	remote                    RemoteConfig
+	reporting                 ReportingConfig
+	litellmCache              LiteLLMCacheConfig
+	workerCount               int
+	searchLimit               int
+	httpCacheDir              string
+	chunkSize                 int
+	chunkOverlap              int
+	chunkMinSize              int
 }
 
 // DefaultDataDir returns the default data directory.
@@ -523,6 +524,10 @@ func (c AppConfig) DisableTelemetry() bool { return c.disableTelemetry }
 // SkipProviderValidation returns whether to skip provider validation at startup.
 // This is intended for testing only.
 func (c AppConfig) SkipProviderValidation() bool { return c.skipProviderValidation }
+
+// AllowLocalGitRepositories returns whether file:// repositories with a .git
+// directory are read with git instead of as plain directories.
+func (c AppConfig) AllowLocalGitRepositories() bool { return c.allowLocalGitRepositories }
 
 // EmbeddingEndpoint returns the embedding endpoint config.
 func (c AppConfig) EmbeddingEndpoint() *Endpoint { return c.embeddingEndpoint }
@@ -650,6 +655,12 @@ func WithSkipProviderValidation(skip bool) AppConfigOption {
 	return func(c *AppConfig) { c.skipProviderValidation = skip }
 }
 
+// WithAllowLocalGitRepositories sets whether file:// repositories with a .git
+// directory are read with git.
+func WithAllowLocalGitRepositories(allow bool) AppConfigOption {
+	return func(c *AppConfig) { c.allowLocalGitRepositories = allow }
+}
+
 // WithEmbeddingEndpoint sets the embedding endpoint.
 func WithEmbeddingEndpoint(e Endpoint) AppConfigOption {
 	return func(c *AppConfig) { c.embeddingEndpoint = &e }
@@ -766,6 +777,7 @@ func (c AppConfig) LogConfig(event *zerolog.Event) *zerolog.Event {
 		Str("vision_embedding_model", c.endpointModel(c.visionEmbeddingEndpoint)).
 		Int("api_keys_count", len(c.apiKeys)).
 		Bool("skip_provider_validation", c.skipProviderValidation).
+		Bool("allow_local_git_repositories", c.allowLocalGitRepositories).
 		Bool("periodic_sync_enabled", c.periodicSync.Enabled()).
 		Dur("periodic_sync_interval", c.periodicSync.Interval())
 }

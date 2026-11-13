@@ -316,3 +316,43 @@ func TestUpdate_InaccessibleDirectory(t *testing.T) {
 		t.Fatalf("expected relocated path %q, got %q", expectedPath, newPath)
 	}
 }
+
+// TestUpdate_CloneOutsideCloneDirectory_IsClonedAgain checks that a clone
+// left outside the current clone directory (for example after the clone
+// directory moved) is cloned again into it, because git reads only clones
+// inside the clone directory.
+func TestUpdate_CloneOutsideCloneDirectory_IsClonedAgain(t *testing.T) {
+	fake := &fakeAdapter{}
+	cloner := NewRepositoryCloner(fake, t.TempDir(), zerolog.Nop())
+
+	oldPath := t.TempDir() // exists, but outside the clone directory
+	remoteURI := "https://github.com/example/repo.git"
+	repo := repository.ReconstructRepository(
+		1, 0, remoteURI, remoteURI, "",
+		repository.NewWorkingCopy(oldPath, remoteURI),
+		repository.NewTrackingConfigForBranch("main"),
+		repository.DefaultChunkingConfig(),
+		time.Now(), time.Now(), time.Time{},
+	)
+
+	newPath, err := cloner.Update(context.Background(), repo)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !fake.cloned {
+		t.Fatal("expected the repository to be cloned into the clone directory")
+	}
+	if newPath != cloner.ClonePathFromURI(remoteURI) {
+		t.Fatalf("expected %q, got %q", cloner.ClonePathFromURI(remoteURI), newPath)
+	}
+}
+
+func TestClone_FileURIInsideCloneDirectory_IsRefused(t *testing.T) {
+	cloneDir := t.TempDir()
+	cloner := NewRepositoryCloner(&fakeAdapter{}, cloneDir, zerolog.Nop())
+	for _, path := range []string{cloneDir, filepath.Join(cloneDir, "github.com-other-repo")} {
+		if _, err := cloner.Clone(context.Background(), "file://"+path); err == nil {
+			t.Errorf("file:// repository at %s was accepted", path)
+		}
+	}
+}

@@ -15,6 +15,7 @@ import (
 	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/rasterization"
+	"github.com/helixml/kodit/internal/workingcopy"
 )
 
 // ExtractPageImages creates one enrichment per renderable page of each
@@ -25,6 +26,7 @@ type ExtractPageImages struct {
 	associationStore enrichment.AssociationStore
 	sourceLocStore   sourcelocation.Store
 	fileStore        repository.FileStore
+	commits          CommitReader
 	rasterizers      *rasterization.Registry
 	trackerFactory   handler.TrackerFactory
 	logger           zerolog.Logger
@@ -38,6 +40,7 @@ func NewExtractPageImages(
 	associationStore enrichment.AssociationStore,
 	sourceLocStore sourcelocation.Store,
 	fileStore repository.FileStore,
+	commits CommitReader,
 	rasterizers *rasterization.Registry,
 	trackerFactory handler.TrackerFactory,
 	logger zerolog.Logger,
@@ -48,6 +51,7 @@ func NewExtractPageImages(
 		associationStore: associationStore,
 		sourceLocStore:   sourceLocStore,
 		fileStore:        fileStore,
+		commits:          commits,
 		rasterizers:      rasterizers,
 		trackerFactory:   trackerFactory,
 		logger:           logger,
@@ -80,6 +84,13 @@ func (h *ExtractPageImages) Execute(ctx context.Context, payload map[string]any)
 	}
 
 	if len(existing) > 0 {
+		repo, err := h.repoStore.FindOne(ctx, repository.WithID(cp.RepoID()))
+		if err != nil {
+			return fmt.Errorf("get repository: %w", err)
+		}
+		if err := shareCommitEnrichments(ctx, h.commits, h.associationStore, repo, existing, cp.CommitSHA()); err != nil {
+			return err
+		}
 		tracker.Skip(ctx, "Page images already created for commit")
 		return nil
 	}
@@ -121,9 +132,9 @@ func (h *ExtractPageImages) Execute(ctx context.Context, payload map[string]any)
 		tracker.SetCurrent(ctx, processed, fmt.Sprintf("Extracting pages from %s", f.Path()))
 
 		relPath := relativeFilePath(f.Path(), clonedPath)
-		diskPath, safe := safeDiskPath(clonedPath, relPath)
-		if !safe {
-			h.logger.Warn().Str("path", f.Path()).Msg("file path escapes clone directory, skipping")
+		diskPath, pathErr := workingcopy.File(clonedPath, relPath)
+		if pathErr != nil {
+			h.logger.Warn().Str("path", f.Path()).Str("error", pathErr.Error()).Msg("file is not readable inside the working copy, skipping")
 			processed++
 			continue
 		}

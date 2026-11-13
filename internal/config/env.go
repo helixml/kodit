@@ -48,6 +48,13 @@ type EnvConfig struct {
 	// WARNING: For testing only. Kodit requires providers for full functionality.
 	SkipProviderValidation bool `envconfig:"SKIP_PROVIDER_VALIDATION" default:"false"`
 
+	// AllowLocalGitRepositories reads file:// repositories that have a .git
+	// directory with git. Without it every file:// repository is indexed as a
+	// plain directory. Enable it only when every file:// path is trusted:
+	// git honours configuration and object stores found in the directory.
+	// Env: ALLOW_LOCAL_GIT_REPOSITORIES (default: false)
+	AllowLocalGitRepositories bool `envconfig:"ALLOW_LOCAL_GIT_REPOSITORIES" default:"false"`
+
 	// APIKeys is a comma-separated list of valid API keys.
 	// Env: API_KEYS
 	APIKeys string `envconfig:"API_KEYS"`
@@ -263,6 +270,7 @@ func (e EnvConfig) ToAppConfig() AppConfig {
 	}
 	cfg = applyOption(cfg, WithDisableTelemetry(e.DisableTelemetry))
 	cfg = applyOption(cfg, WithSkipProviderValidation(e.SkipProviderValidation))
+	cfg = applyOption(cfg, WithAllowLocalGitRepositories(e.AllowLocalGitRepositories))
 
 	if e.APIKeys != "" {
 		cfg = applyOption(cfg, WithAPIKeys(ParseAPIKeys(e.APIKeys)))

@@ -384,12 +384,44 @@ func TestEnrichment_RepositoryIDs(t *testing.T) {
 	}
 
 	key := strconv.FormatInt(saved.ID(), 10)
-	repoID, ok := result[key]
+	repoIDs, ok := result[key]
 	if !ok {
 		t.Fatalf("expected entry for enrichment ID %s", key)
 	}
-	if repoID != 42 {
-		t.Errorf("expected repo ID 42, got %d", repoID)
+	if len(repoIDs) != 1 || repoIDs[0] != 42 {
+		t.Errorf("expected repo IDs [42], got %v", repoIDs)
+	}
+}
+
+// TestEnrichment_RepositoryIDs_DirectAssociationsOnly checks that membership
+// comes from repository associations alone: an enrichment shared by two
+// repositories lists both, and a commit association never adds the
+// repository that git_commits records for the SHA.
+func TestEnrichment_RepositoryIDs_DirectAssociationsOnly(t *testing.T) {
+	stores := newTestStores(t)
+	ctx := context.Background()
+
+	saved, err := stores.enrichments.Save(ctx, enrichment.NewEnrichment(enrichment.TypeDevelopment, enrichment.SubtypeChunk, enrichment.EntityTypeCommit, "chunk"))
+	if err != nil {
+		t.Fatalf("save enrichment: %v", err)
+	}
+	for _, a := range []enrichment.Association{
+		enrichment.CommitAssociation(saved.ID(), "sha1"),
+		enrichment.RepositoryAssociation(saved.ID(), "7"),
+		enrichment.RepositoryAssociation(saved.ID(), "3"),
+	} {
+		if _, err := stores.associations.Save(ctx, a); err != nil {
+			t.Fatalf("save association: %v", err)
+		}
+	}
+
+	svc := NewEnrichment(stores.enrichments, stores.associations, nil, nil, nil, nil, nil)
+	result, err := svc.RepositoryIDs(ctx, []int64{saved.ID()})
+	if err != nil {
+		t.Fatalf("RepositoryIDs: %v", err)
+	}
+	if got := result[strconv.FormatInt(saved.ID(), 10)]; len(got) != 2 || got[0] != 3 || got[1] != 7 {
+		t.Errorf("repo IDs = %v, want [3 7]", got)
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/persistence"
@@ -120,4 +121,77 @@ func TestRescan_DeletesOldStatuses(t *testing.T) {
 	exists, err := stores.commits.Exists(ctx, repository.WithRepoID(repoID), repository.WithSHA(commitSHA))
 	require.NoError(t, err)
 	assert.False(t, exists)
+}
+
+func seedChunk(t *testing.T, ctx context.Context, stores rescanStores, commitSHA string, repoIDs ...string) int64 {
+	t.Helper()
+	e, err := stores.enrichments.Save(ctx, enrichment.NewEnrichment(enrichment.TypeDevelopment, enrichment.SubtypeChunk, enrichment.EntityTypeCommit, "chunk"))
+	require.NoError(t, err)
+	_, err = stores.associations.Save(ctx, enrichment.CommitAssociation(e.ID(), commitSHA))
+	require.NoError(t, err)
+	for _, repoID := range repoIDs {
+		_, err = stores.associations.Save(ctx, enrichment.RepositoryAssociation(e.ID(), repoID))
+		require.NoError(t, err)
+	}
+	return e.ID()
+}
+
+func repositoryOwners(t *testing.T, ctx context.Context, stores rescanStores, enrichmentID int64) []string {
+	t.Helper()
+	assocs, err := stores.associations.Find(ctx,
+		enrichment.WithEnrichmentIDIn([]int64{enrichmentID}),
+		enrichment.WithEntityType(enrichment.EntityTypeRepository),
+	)
+	require.NoError(t, err)
+	owners := make([]string, 0, len(assocs))
+	for _, a := range assocs {
+		owners = append(owners, a.EntityID())
+	}
+	return owners
+}
+
+// TestRescan_RefusesCommitOfAnotherRepository checks that a repository cannot
+// clear a commit recorded for another repository.
+func TestRescan_RefusesCommitOfAnotherRepository(t *testing.T) {
+	ctx := context.Background()
+	h, stores := newRescanHandler(t)
+
+	seedCommit(t, ctx, stores, 1, "shared123")
+	chunk := seedChunk(t, ctx, stores, "shared123", "1")
+
+	err := h.Execute(ctx, map[string]any{"repository_id": int64(2), "commit_sha": "shared123"})
+	require.Error(t, err)
+
+	exists, err := stores.enrichments.Exists(ctx, repository.WithID(chunk))
+	require.NoError(t, err)
+	assert.True(t, exists, "repository 1's chunk must survive repository 2's rescan")
+	exists, err = stores.commits.Exists(ctx, repository.WithRepoID(1), repository.WithSHA("shared123"))
+	require.NoError(t, err)
+	assert.True(t, exists)
+}
+
+// TestRescan_KeepsEnrichmentsSharedWithAnotherRepository checks that a
+// rescan deletes only what belongs to the rescanning repository alone.
+func TestRescan_KeepsEnrichmentsSharedWithAnotherRepository(t *testing.T) {
+	ctx := context.Background()
+	h, stores := newRescanHandler(t)
+
+	seedCommit(t, ctx, stores, 1, "shared123")
+	shared := seedChunk(t, ctx, stores, "shared123", "1", "2")
+	own := seedChunk(t, ctx, stores, "shared123", "1")
+
+	require.NoError(t, h.Execute(ctx, map[string]any{"repository_id": int64(1), "commit_sha": "shared123"}))
+
+	exists, err := stores.enrichments.Exists(ctx, repository.WithID(own))
+	require.NoError(t, err)
+	assert.False(t, exists, "a chunk only repository 1 owns is deleted")
+
+	exists, err = stores.enrichments.Exists(ctx, repository.WithID(shared))
+	require.NoError(t, err)
+	assert.True(t, exists, "a chunk repository 2 also owns is kept")
+	assert.Equal(t, []string{"2"}, repositoryOwners(t, ctx, stores, shared))
+
+	exists, err = stores.commits.Exists(ctx, repository.WithSHA("shared123"))
+	require.NoError(t, err)
+	assert.True(t, exists, "the commit row stays while another repository shares the commit")
 }

@@ -50,7 +50,7 @@ func initTestRepo(t *testing.T, files map[string]string) string {
 }
 
 func TestGiteaAdapter_Grep(t *testing.T) {
-	adapter, err := NewGiteaAdapter(zerolog.New(os.Stderr).With().Timestamp().Logger())
+	adapter, err := NewGiteaAdapter(NewLayout("", true), zerolog.New(os.Stderr).With().Timestamp().Logger())
 	if err != nil {
 		t.Fatalf("create adapter: %v", err)
 	}

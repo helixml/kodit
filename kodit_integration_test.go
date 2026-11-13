@@ -188,6 +188,7 @@ func TestIntegration_IndexRepository_QueuesCloneTask(t *testing.T) {
 		kodit.WithDataDir(dataDir),
 		kodit.WithSkipProviderValidation(),
 		kodit.WithWorkerPollPeriod(time.Hour),
+		kodit.WithLocalGitRepositories(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -225,6 +226,7 @@ func TestIntegration_FullIndexingWorkflow(t *testing.T) {
 		kodit.WithCloneDir(cloneDir),
 		kodit.WithSkipProviderValidation(),
 		kodit.WithWorkerPollPeriod(testPollPeriod),
+		kodit.WithLocalGitRepositories(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -279,6 +281,7 @@ func TestIntegration_SearchAfterIndexing(t *testing.T) {
 		kodit.WithCloneDir(cloneDir),
 		kodit.WithSkipProviderValidation(),
 		kodit.WithWorkerPollPeriod(testPollPeriod),
+		kodit.WithLocalGitRepositories(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -325,6 +328,7 @@ func TestIntegration_WithoutEnrichmentModel(t *testing.T) {
 		kodit.WithCloneDir(cloneDir),
 		kodit.WithModelDir("infrastructure/provider/models"),
 		kodit.WithWorkerPollPeriod(testPollPeriod),
+		kodit.WithLocalGitRepositories(),
 	)
 	require.NoError(t, err, "client should start without an enrichment model")
 	defer func() { _ = client.Close() }()
@@ -385,6 +389,7 @@ func TestIntegration_DeleteRepository(t *testing.T) {
 		kodit.WithCloneDir(cloneDir),
 		kodit.WithSkipProviderValidation(),
 		kodit.WithWorkerPollPeriod(testPollPeriod),
+		kodit.WithLocalGitRepositories(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -432,6 +437,7 @@ func TestIntegration_MultipleRepositories(t *testing.T) {
 		kodit.WithCloneDir(cloneDir),
 		kodit.WithSkipProviderValidation(),
 		kodit.WithWorkerPollPeriod(testPollPeriod),
+		kodit.WithLocalGitRepositories(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -524,6 +530,7 @@ func TestIntegration_Rescan_CleansUpSearchIndexes(t *testing.T) {
 		kodit.WithCloneDir(cloneDir),
 		kodit.WithSkipProviderValidation(),
 		kodit.WithWorkerPollPeriod(testPollPeriod),
+		kodit.WithLocalGitRepositories(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -590,6 +597,7 @@ func TestIntegration_DuplicateSync_DoesNotDuplicateData(t *testing.T) {
 		kodit.WithCloneDir(cloneDir),
 		kodit.WithSkipProviderValidation(),
 		kodit.WithWorkerPollPeriod(testPollPeriod),
+		kodit.WithLocalGitRepositories(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -759,6 +767,7 @@ func TestIntegration_DocumentExtraction(t *testing.T) {
 		kodit.WithCloneDir(cloneDir),
 		kodit.WithModelDir("infrastructure/provider/models"),
 		kodit.WithWorkerPollPeriod(testPollPeriod),
+		kodit.WithLocalGitRepositories(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -819,6 +828,7 @@ func TestIntegration_PageImageExtraction(t *testing.T) {
 		kodit.WithCloneDir(cloneDir),
 		kodit.WithModelDir("infrastructure/provider/models"),
 		kodit.WithWorkerPollPeriod(testPollPeriod),
+		kodit.WithLocalGitRepositories(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -875,6 +885,7 @@ func TestIntegration_FileURI_GitRepo_WorkingCopyIsLocalPath(t *testing.T) {
 		kodit.WithCloneDir(cloneDir),
 		kodit.WithEmbeddingProvider(stubEmbedder{}),
 		kodit.WithWorkerPollPeriod(testPollPeriod),
+		kodit.WithLocalGitRepositories(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -915,6 +926,7 @@ func TestIntegration_FileURI_GitRepo_SyncScansBranches(t *testing.T) {
 		kodit.WithCloneDir(cloneDir),
 		kodit.WithEmbeddingProvider(stubEmbedder{}),
 		kodit.WithWorkerPollPeriod(testPollPeriod),
+		kodit.WithLocalGitRepositories(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -973,6 +985,7 @@ func main() {
 		kodit.WithCloneDir(cloneDir),
 		kodit.WithEmbeddingProvider(stubEmbedder{}),
 		kodit.WithWorkerPollPeriod(testPollPeriod),
+		kodit.WithLocalGitRepositories(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()

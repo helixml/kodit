@@ -82,7 +82,7 @@ func saveTestRepo(t *testing.T, ctx context.Context, repoStore persistence.Repos
 }
 
 func TestExtractPageImages_NilRegistry(t *testing.T) {
-	h := NewExtractPageImages(nil, nil, nil, nil, nil, nil, &fakeTrackerFactory{}, zerolog.Nop())
+	h := NewExtractPageImages(nil, nil, nil, nil, nil, nil, nil, &fakeTrackerFactory{}, zerolog.Nop())
 	err := h.Execute(context.Background(), map[string]any{
 		"repository_id": int64(1),
 		"commit_sha":    "abc123",
@@ -104,7 +104,7 @@ func TestExtractPageImages_SkipsWhenEnrichmentsExist(t *testing.T) {
 
 	reg := newTestRegistry(&fakeRasterizer{pages: map[string]int{}}, ".pdf")
 
-	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, reg, &fakeTrackerFactory{}, logger)
+	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, commitReader{}, reg, &fakeTrackerFactory{}, logger)
 
 	err = h.Execute(ctx, map[string]any{
 		"repository_id": savedRepo.ID(),
@@ -130,14 +130,14 @@ func TestExtractPageImages_CreatesEnrichmentsForPDFPages(t *testing.T) {
 	clonedPath := savedRepo.WorkingCopy().Path()
 
 	f := repository.NewFileWithDetails(commitSHA, "docs/report.pdf", "abc123", "application/pdf", ".pdf", 1000)
-	savedFile, err := fileStore.Save(ctx, f)
+	savedFile, err := saveFileOnDisk(t, ctx, fileStore, savedRepo.WorkingCopy().Path(), f)
 	require.NoError(t, err)
 
 	diskPath := clonedPath + "/docs/report.pdf"
 	rast := &fakeRasterizer{pages: map[string]int{diskPath: 3}}
 	reg := newTestRegistry(rast, ".pdf")
 
-	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, reg, &fakeTrackerFactory{}, logger)
+	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, commitReader{}, reg, &fakeTrackerFactory{}, logger)
 
 	err = h.Execute(ctx, map[string]any{
 		"repository_id": savedRepo.ID(),
@@ -201,19 +201,19 @@ func TestExtractPageImages_SkipsNonRasterizableFiles(t *testing.T) {
 
 	// Create a .go file and a .pdf file.
 	goFile := repository.NewFileWithDetails(commitSHA, "main.go", "abc123", "text/x-go", ".go", 500)
-	_, err := fileStore.Save(ctx, goFile)
+	_, err := saveFileOnDisk(t, ctx, fileStore, savedRepo.WorkingCopy().Path(), goFile)
 	require.NoError(t, err)
 
 	clonedPath := savedRepo.WorkingCopy().Path()
 	diskPath := clonedPath + "/report.pdf"
 	pdfFile := repository.NewFileWithDetails(commitSHA, "report.pdf", "def456", "application/pdf", ".pdf", 1000)
-	_, err = fileStore.Save(ctx, pdfFile)
+	_, err = saveFileOnDisk(t, ctx, fileStore, savedRepo.WorkingCopy().Path(), pdfFile)
 	require.NoError(t, err)
 
 	rast := &fakeRasterizer{pages: map[string]int{diskPath: 2}}
 	reg := newTestRegistry(rast, ".pdf")
 
-	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, reg, &fakeTrackerFactory{}, logger)
+	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, commitReader{}, reg, &fakeTrackerFactory{}, logger)
 
 	err = h.Execute(ctx, map[string]any{
 		"repository_id": savedRepo.ID(),
@@ -240,9 +240,9 @@ func TestExtractPageImages_ContinuesOnPageCountError(t *testing.T) {
 	clonedPath := savedRepo.WorkingCopy().Path()
 
 	// Two PDFs: first will error, second should succeed.
-	_, err := fileStore.Save(ctx, repository.NewFileWithDetails(commitSHA, "bad.pdf", "abc123", "application/pdf", ".pdf", 500))
+	_, err := saveFileOnDisk(t, ctx, fileStore, savedRepo.WorkingCopy().Path(), repository.NewFileWithDetails(commitSHA, "bad.pdf", "abc123", "application/pdf", ".pdf", 500))
 	require.NoError(t, err)
-	_, err = fileStore.Save(ctx, repository.NewFileWithDetails(commitSHA, "good.pdf", "def456", "application/pdf", ".pdf", 1000))
+	_, err = saveFileOnDisk(t, ctx, fileStore, savedRepo.WorkingCopy().Path(), repository.NewFileWithDetails(commitSHA, "good.pdf", "def456", "application/pdf", ".pdf", 1000))
 	require.NoError(t, err)
 
 	rast := &fakeRasterizer{pages: map[string]int{
@@ -251,7 +251,7 @@ func TestExtractPageImages_ContinuesOnPageCountError(t *testing.T) {
 	}}
 	reg := newTestRegistry(rast, ".pdf")
 
-	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, reg, &fakeTrackerFactory{}, logger)
+	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, commitReader{}, reg, &fakeTrackerFactory{}, logger)
 
 	err = h.Execute(ctx, map[string]any{
 		"repository_id": savedRepo.ID(),
@@ -279,11 +279,11 @@ func TestExtractPageImages_DataAccessibleAfterIndexing(t *testing.T) {
 
 	// Two PDF files: 2 pages and 1 page.
 	pdf1 := repository.NewFileWithDetails(commitSHA, "docs/manual.pdf", "hash1", "application/pdf", ".pdf", 2000)
-	savedPDF1, err := fileStore.Save(ctx, pdf1)
+	savedPDF1, err := saveFileOnDisk(t, ctx, fileStore, savedRepo.WorkingCopy().Path(), pdf1)
 	require.NoError(t, err)
 
 	pdf2 := repository.NewFileWithDetails(commitSHA, "slides/deck.pdf", "hash2", "application/pdf", ".pdf", 3000)
-	savedPDF2, err := fileStore.Save(ctx, pdf2)
+	savedPDF2, err := saveFileOnDisk(t, ctx, fileStore, savedRepo.WorkingCopy().Path(), pdf2)
 	require.NoError(t, err)
 
 	rast := &fakeRasterizer{pages: map[string]int{
@@ -292,7 +292,7 @@ func TestExtractPageImages_DataAccessibleAfterIndexing(t *testing.T) {
 	}}
 	reg := newTestRegistry(rast, ".pdf")
 
-	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, reg, &fakeTrackerFactory{}, logger)
+	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, commitReader{}, reg, &fakeTrackerFactory{}, logger)
 	err = h.Execute(ctx, map[string]any{
 		"repository_id": savedRepo.ID(),
 		"commit_sha":    commitSHA,
@@ -382,7 +382,7 @@ func TestExtractPageImages_NoFiles(t *testing.T) {
 
 	reg := newTestRegistry(&fakeRasterizer{}, ".pdf")
 
-	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, reg, &fakeTrackerFactory{}, logger)
+	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, commitReader{}, reg, &fakeTrackerFactory{}, logger)
 
 	err := h.Execute(ctx, map[string]any{
 		"repository_id": savedRepo.ID(),

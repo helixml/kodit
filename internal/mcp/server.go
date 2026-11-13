@@ -76,7 +76,9 @@ type VisualSearcher interface {
 type EnrichmentResolver interface {
 	SourceFiles(ctx context.Context, enrichmentIDs []int64) (map[string][]int64, error)
 	SourceLocations(ctx context.Context, enrichmentIDs []int64) (map[string]sourcelocation.SourceLocation, error)
-	RepositoryIDs(ctx context.Context, enrichmentIDs []int64) (map[string]int64, error)
+	// RepositoryIDs returns, keyed by enrichment ID, the repositories each
+	// enrichment belongs to, in ascending order.
+	RepositoryIDs(ctx context.Context, enrichmentIDs []int64) (map[string][]int64, error)
 }
 
 // FileLister provides pattern-based file listing from repository working copies.
@@ -111,6 +113,7 @@ type Server struct {
 	fileLister         FileLister
 	files              FileFinder
 	grepper            Grepper
+	scope              *repoScope
 	version            string
 	logger             zerolog.Logger
 }
@@ -201,6 +204,10 @@ func NewServer(
 	}
 	for _, opt := range opts {
 		opt(s)
+	}
+	// Scope last so that dependencies supplied by any option are wrapped too.
+	if s.scope != nil {
+		s.scope.apply(s)
 	}
 
 	mcpServer := server.NewMCPServer(
@@ -311,6 +318,42 @@ func (s *Server) resolveRepository(ctx context.Context, repoURL string) ([]repos
 	return s.repositories.Find(ctx, repository.WithUpstreamURL(repoURL))
 }
 
+// commitForRepo returns the commit SHA a repository-bound tool should read.
+// A requested SHA must belong to repoID, so a tool given one repository's URL
+// cannot read enrichments of a commit from another repository. With no SHA
+// requested, it returns the repository's latest commit.
+func (s *Server) commitForRepo(ctx context.Context, repoID int64, requested string) (string, *mcp.CallToolResult) {
+	if requested != "" {
+		commits, err := s.commits.Find(ctx,
+			repository.WithRepoID(repoID),
+			repository.WithSHA(requested),
+			repository.WithLimit(1),
+		)
+		if err != nil {
+			s.logger.Error().Interface("error", err).Msg("failed to find commit")
+			return "", mcp.NewToolResultError(fmt.Sprintf("failed to find commit: %v", err))
+		}
+		if len(commits) == 0 {
+			return "", mcp.NewToolResultError(fmt.Sprintf("commit %s not found in repository", requested))
+		}
+		return commits[0].SHA(), nil
+	}
+
+	commits, err := s.commits.Find(ctx,
+		repository.WithRepoID(repoID),
+		repository.WithOrderDesc("date"),
+		repository.WithLimit(1),
+	)
+	if err != nil {
+		s.logger.Error().Interface("error", err).Msg("failed to find latest commit")
+		return "", mcp.NewToolResultError(fmt.Sprintf("failed to find latest commit: %v", err))
+	}
+	if len(commits) == 0 {
+		return "", mcp.NewToolResultError("no commits found for repository")
+	}
+	return commits[0].SHA(), nil
+}
+
 func (s *Server) handleGetArchitectureDocs(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	typ := enrichment.TypeArchitecture
 	subtype := enrichment.SubtypePhysical
@@ -357,21 +400,9 @@ func (s *Server) handleGetWiki(ctx context.Context, request mcp.CallToolRequest)
 		return mcp.NewToolResultError(fmt.Sprintf("repository not found: %s", repoURL)), nil
 	}
 
-	commitSHA := request.GetString("commit_sha", "")
-	if commitSHA == "" {
-		commits, commitErr := s.commits.Find(ctx,
-			repository.WithRepoID(repos[0].ID()),
-			repository.WithOrderDesc("date"),
-			repository.WithLimit(1),
-		)
-		if commitErr != nil {
-			s.logger.Error().Interface("error", commitErr).Msg("failed to find latest commit")
-			return mcp.NewToolResultError(fmt.Sprintf("failed to find latest commit: %v", commitErr)), nil
-		}
-		if len(commits) == 0 {
-			return mcp.NewToolResultError("no commits found for repository"), nil
-		}
-		commitSHA = commits[0].SHA()
+	commitSHA, errResult := s.commitForRepo(ctx, repos[0].ID(), request.GetString("commit_sha", ""))
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	typ := enrichment.TypeUsage
@@ -423,21 +454,9 @@ func (s *Server) handleGetWikiPage(ctx context.Context, request mcp.CallToolRequ
 		return mcp.NewToolResultError(fmt.Sprintf("repository not found: %s", repoURL)), nil
 	}
 
-	commitSHA := request.GetString("commit_sha", "")
-	if commitSHA == "" {
-		commits, commitErr := s.commits.Find(ctx,
-			repository.WithRepoID(repos[0].ID()),
-			repository.WithOrderDesc("date"),
-			repository.WithLimit(1),
-		)
-		if commitErr != nil {
-			s.logger.Error().Interface("error", commitErr).Msg("failed to find latest commit")
-			return mcp.NewToolResultError(fmt.Sprintf("failed to find latest commit: %v", commitErr)), nil
-		}
-		if len(commits) == 0 {
-			return mcp.NewToolResultError("no commits found for repository"), nil
-		}
-		commitSHA = commits[0].SHA()
+	commitSHA, errResult := s.commitForRepo(ctx, repos[0].ID(), request.GetString("commit_sha", ""))
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	typ := enrichment.TypeUsage
@@ -500,21 +519,9 @@ func (s *Server) handleEnrichmentDocs(
 		return mcp.NewToolResultError(fmt.Sprintf("repository not found: %s", repoURL)), nil
 	}
 
-	commitSHA := request.GetString("commit_sha", "")
-	if commitSHA == "" {
-		commits, commitErr := s.commits.Find(ctx,
-			repository.WithRepoID(repos[0].ID()),
-			repository.WithOrderDesc("date"),
-			repository.WithLimit(1),
-		)
-		if commitErr != nil {
-			s.logger.Error().Interface("error", commitErr).Msg("failed to find latest commit")
-			return mcp.NewToolResultError(fmt.Sprintf("failed to find latest commit: %v", commitErr)), nil
-		}
-		if len(commits) == 0 {
-			return mcp.NewToolResultError("no commits found for repository"), nil
-		}
-		commitSHA = commits[0].SHA()
+	commitSHA, errResult := s.commitForRepo(ctx, repos[0].ID(), request.GetString("commit_sha", ""))
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	enrichments, err := s.enrichmentQuery.List(ctx, &service.EnrichmentListParams{
@@ -545,6 +552,10 @@ func (s *Server) handleEnrichmentDocs(
 	return mcp.NewToolResultText(strings.Join(parts, "\n\n")), nil
 }
 
+// maxSearchLimit caps the number of results a semantic, keyword or visual
+// search returns, whatever limit the caller asks for.
+const maxSearchLimit = 100
+
 // fileResult holds the resolved file information for a search result.
 type fileResult struct {
 	URI      string  `json:"uri"`
@@ -559,7 +570,8 @@ type fileResult struct {
 // resolveFileResults converts enrichments and scores into file-based results
 // with resource URIs. It resolves source files, line ranges, and repository IDs
 // for each enrichment, then builds the file result list. If sourceRepoID > 0,
-// results are post-filtered to only include files from that repository.
+// results are post-filtered to only include files from that repository; on a
+// scoped server they are also post-filtered to the scope.
 func (s *Server) resolveFileResults(
 	ctx context.Context,
 	enrichments []enrichment.Enrichment,
@@ -585,23 +597,29 @@ func (s *Server) resolveFileResults(
 		return nil, fmt.Errorf("resolve line ranges: %w", err)
 	}
 
-	repoIDs, err := s.enrichmentResolver.RepositoryIDs(ctx, ids)
+	memberships, err := s.enrichmentResolver.RepositoryIDs(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("resolve repository IDs: %w", err)
 	}
 
-	if sourceRepoID > 0 {
-		filtered := enrichments[:0]
-		for _, e := range enrichments {
-			idStr := strconv.FormatInt(e.ID(), 10)
-			if repoIDs[idStr] == sourceRepoID {
-				filtered = append(filtered, e)
-			}
+	// Each result is attributed to one repository it belongs to that the
+	// request may see: the requested source repository, and on a scoped
+	// server a repository in the scope. A result with no such repository is
+	// dropped, even if the searcher already applied source-repo filters.
+	repoIDs := make(map[string]int64, len(enrichments))
+	filtered := make([]enrichment.Enrichment, 0, len(enrichments))
+	for _, e := range enrichments {
+		idStr := strconv.FormatInt(e.ID(), 10)
+		repoID, ok := s.visibleRepository(memberships[idStr], sourceRepoID)
+		if !ok {
+			continue
 		}
-		enrichments = filtered
-		if len(enrichments) == 0 {
-			return nil, nil
-		}
+		repoIDs[idStr] = repoID
+		filtered = append(filtered, e)
+	}
+	enrichments = filtered
+	if len(enrichments) == 0 {
+		return nil, nil
 	}
 
 	var allFileIDs []int64
@@ -670,6 +688,26 @@ func (s *Server) resolveFileResults(
 	return results, nil
 }
 
+// visibleRepository returns the first of members a request may see: the
+// requested source repository when sourceRepoID > 0, and on a scoped server a
+// repository in the scope. Without either restriction, a result that belongs
+// to no repository is kept and attributed to repository 0, as before.
+func (s *Server) visibleRepository(members []int64, sourceRepoID int64) (int64, bool) {
+	if sourceRepoID == 0 && s.scope == nil && len(members) == 0 {
+		return 0, true
+	}
+	for _, repoID := range members {
+		if sourceRepoID > 0 && repoID != sourceRepoID {
+			continue
+		}
+		if s.scope != nil && !s.scope.contains(repoID) {
+			continue
+		}
+		return repoID, true
+	}
+	return 0, false
+}
+
 // handleSemanticSearch handles the semantic_search tool invocation.
 func (s *Server) handleSemanticSearch(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	query, err := request.RequireString("query")
@@ -687,6 +725,7 @@ func (s *Server) handleSemanticSearch(ctx context.Context, request mcp.CallToolR
 	if limit == 0 {
 		return mcp.NewToolResultText("[]"), nil
 	}
+	limit = min(limit, maxSearchLimit)
 
 	language := normalizeExtension(request.GetString("language", ""))
 
@@ -761,6 +800,7 @@ func (s *Server) handleKeywordSearch(ctx context.Context, request mcp.CallToolRe
 	if limit == 0 {
 		return mcp.NewToolResultText("[]"), nil
 	}
+	limit = min(limit, maxSearchLimit)
 
 	language := normalizeExtension(request.GetString("language", ""))
 
@@ -780,6 +820,9 @@ func (s *Server) handleKeywordSearch(ctx context.Context, request mcp.CallToolRe
 	var opts []search.FiltersOption
 	if language != "" {
 		opts = append(opts, search.WithLanguages([]string{language}))
+	}
+	if sourceRepoID > 0 {
+		opts = append(opts, search.WithSourceRepos([]int64{sourceRepoID}))
 	}
 	filters := search.NewFilters(opts...)
 
@@ -846,6 +889,7 @@ func (s *Server) handleVisualSearch(ctx context.Context, request mcp.CallToolReq
 	if limit == 0 {
 		return mcp.NewToolResultText("[]"), nil
 	}
+	limit = min(limit, maxSearchLimit)
 
 	// Resolve source_repo URL to a repository ID for post-filtering.
 	var sourceRepoID int64

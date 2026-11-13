@@ -18,6 +18,7 @@ import (
 	"github.com/helixml/kodit/domain/sourcelocation"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/rasterization"
+	"github.com/helixml/kodit/internal/workingcopy"
 )
 
 // imageBatchSize controls how many images are embedded per call.
@@ -166,9 +167,9 @@ func (h *CreatePageImageEmbeddings) Execute(ctx context.Context, payload map[str
 		}
 
 		relPath := relativeFilePath(f.Path(), clonedPath)
-		diskPath, safe := safeDiskPath(clonedPath, relPath)
-		if !safe {
-			h.logger.Warn().Str("path", f.Path()).Msg("file path escapes clone directory, skipping")
+		diskPath, pathErr := workingcopy.File(clonedPath, relPath)
+		if pathErr != nil {
+			h.logger.Warn().Str("path", f.Path()).Str("error", pathErr.Error()).Msg("file is not readable inside the working copy, skipping")
 			continue
 		}
 

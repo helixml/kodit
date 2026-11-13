@@ -2,9 +2,11 @@ package enricher
 
 import (
 	"context"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"strings"
+
+	"github.com/helixml/kodit/internal/workingcopy"
 )
 
 // CookbookContextService gathers context for cookbook generation.
@@ -47,8 +49,7 @@ func (s *CookbookContextService) extractReadmeContent(repoPath string) string {
 	readmeNames := []string{"README.md", "README.rst", "README.txt", "README"}
 
 	for _, name := range readmeNames {
-		readmePath := filepath.Join(repoPath, name)
-		data, err := os.ReadFile(readmePath)
+		data, err := workingcopy.ReadFile(repoPath, name)
 		if err != nil {
 			continue
 		}
@@ -66,8 +67,7 @@ func (s *CookbookContextService) extractReadmeContent(repoPath string) string {
 func (s *CookbookContextService) extractPackageManifest(repoPath string) string {
 	var manifestInfo []string
 
-	pyproject := filepath.Join(repoPath, "pyproject.toml")
-	if data, err := os.ReadFile(pyproject); err == nil {
+	if data, err := workingcopy.ReadFile(repoPath, "pyproject.toml"); err == nil {
 		content := string(data)
 		if len(content) > 500 {
 			content = content[:500]
@@ -75,9 +75,8 @@ func (s *CookbookContextService) extractPackageManifest(repoPath string) string 
 		manifestInfo = append(manifestInfo, "Python project (pyproject.toml):\n"+content)
 	}
 
-	setupPy := filepath.Join(repoPath, "setup.py")
 	if len(manifestInfo) == 0 {
-		if data, err := os.ReadFile(setupPy); err == nil {
+		if data, err := workingcopy.ReadFile(repoPath, "setup.py"); err == nil {
 			content := string(data)
 			if len(content) > 500 {
 				content = content[:500]
@@ -86,8 +85,7 @@ func (s *CookbookContextService) extractPackageManifest(repoPath string) string 
 		}
 	}
 
-	packageJSON := filepath.Join(repoPath, "package.json")
-	if data, err := os.ReadFile(packageJSON); err == nil {
+	if data, err := workingcopy.ReadFile(repoPath, "package.json"); err == nil {
 		content := string(data)
 		if len(content) > 500 {
 			content = content[:500]
@@ -95,8 +93,7 @@ func (s *CookbookContextService) extractPackageManifest(repoPath string) string 
 		manifestInfo = append(manifestInfo, "Node.js project (package.json):\n"+content)
 	}
 
-	goMod := filepath.Join(repoPath, "go.mod")
-	if data, err := os.ReadFile(goMod); err == nil {
+	if data, err := workingcopy.ReadFile(repoPath, "go.mod"); err == nil {
 		content := string(data)
 		if len(content) > 500 {
 			content = content[:500]
@@ -104,8 +101,7 @@ func (s *CookbookContextService) extractPackageManifest(repoPath string) string 
 		manifestInfo = append(manifestInfo, "Go project (go.mod):\n"+content)
 	}
 
-	cargoToml := filepath.Join(repoPath, "Cargo.toml")
-	if data, err := os.ReadFile(cargoToml); err == nil {
+	if data, err := workingcopy.ReadFile(repoPath, "Cargo.toml"); err == nil {
 		content := string(data)
 		if len(content) > 500 {
 			content = content[:500]
@@ -126,15 +122,14 @@ func (s *CookbookContextService) findExistingExamples(repoPath string) string {
 	extensions := []string{".py", ".js", ".ts", ".go", ".rs"}
 
 	for _, exampleDir := range exampleDirs {
-		examplePath := filepath.Join(repoPath, exampleDir)
-		info, err := os.Stat(examplePath)
+		info, err := workingcopy.Stat(repoPath, exampleDir)
 		if err != nil || !info.IsDir() {
 			continue
 		}
 
 		var exampleFiles []string
-		err = filepath.Walk(examplePath, func(path string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() {
+		err = workingcopy.WalkDir(repoPath, exampleDir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
 				return nil
 			}
 			ext := filepath.Ext(path)
@@ -154,7 +149,7 @@ func (s *CookbookContextService) findExistingExamples(repoPath string) string {
 			exampleLocations = append(exampleLocations,
 				"Found "+string(rune('0'+len(exampleFiles)))+" example files in "+exampleDir+"/")
 
-			data, err := os.ReadFile(exampleFiles[0])
+			data, err := workingcopy.ReadFile(repoPath, exampleFiles[0])
 			if err == nil {
 				content := string(data)
 				if len(content) > 500 {

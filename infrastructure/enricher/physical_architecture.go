@@ -3,7 +3,6 @@ package enricher
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -12,6 +11,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/helixml/kodit/internal/workingcopy"
 )
 
 // PhysicalArchitectureService discovers physical architecture from repositories.
@@ -41,9 +42,9 @@ func (s *PhysicalArchitectureService) analyzeRepositoryContext(repoPath string) 
 	hasDockerCompose := len(s.findDockerComposeFiles(repoPath)) > 0
 	hasDockerfile := s.hasFiles(repoPath, "Dockerfile*")
 	hasK8s := s.hasFiles(repoPath, "**/k8s/**/*.yaml") || s.hasFiles(repoPath, "**/kubernetes/**/*.yaml")
-	hasPackageJSON := s.fileExists(filepath.Join(repoPath, "package.json"))
-	hasRequirements := s.fileExists(filepath.Join(repoPath, "requirements.txt"))
-	hasGoMod := s.fileExists(filepath.Join(repoPath, "go.mod"))
+	hasPackageJSON := s.fileExists(repoPath, "package.json")
+	hasRequirements := s.fileExists(repoPath, "requirements.txt")
+	hasGoMod := s.fileExists(repoPath, "go.mod")
 
 	var indicators []string
 	if hasDockerCompose {
@@ -89,7 +90,7 @@ func (s *PhysicalArchitectureService) analyzeDockerCompose(repoPath string) ([]s
 	}
 
 	for _, composeFile := range composeFiles {
-		data, err := os.ReadFile(composeFile)
+		data, err := workingcopy.ReadFile(repoPath, composeFile)
 		if err != nil {
 			infrastructureNotes = append(infrastructureNotes,
 				fmt.Sprintf("Unable to read Docker Compose file at %s.", composeFile))
@@ -355,7 +356,7 @@ func (s *PhysicalArchitectureService) findDockerComposeFiles(repoPath string) []
 
 	patterns := []string{"docker-compose*.yml", "docker-compose*.yaml"}
 	for _, pattern := range patterns {
-		matches, _ := filepath.Glob(filepath.Join(repoPath, pattern))
+		matches, _ := workingcopy.Glob(repoPath, pattern)
 		files = append(files, matches...)
 	}
 
@@ -363,12 +364,12 @@ func (s *PhysicalArchitectureService) findDockerComposeFiles(repoPath string) []
 }
 
 func (s *PhysicalArchitectureService) hasFiles(repoPath, pattern string) bool {
-	matches, _ := filepath.Glob(filepath.Join(repoPath, pattern))
+	matches, _ := workingcopy.Glob(repoPath, pattern)
 	return len(matches) > 0
 }
 
-func (s *PhysicalArchitectureService) fileExists(path string) bool {
-	_, err := os.Stat(path)
+func (s *PhysicalArchitectureService) fileExists(repoPath, rel string) bool {
+	_, err := workingcopy.File(repoPath, rel)
 	return err == nil
 }
 

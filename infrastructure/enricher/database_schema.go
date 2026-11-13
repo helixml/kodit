@@ -2,9 +2,11 @@ package enricher
 
 import (
 	"context"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"strings"
+
+	"github.com/helixml/kodit/internal/workingcopy"
 )
 
 // DatabaseSchemaService detects and extracts database schemas from a repository.
@@ -40,13 +42,13 @@ func (s *DatabaseSchemaService) Discover(ctx context.Context, repoPath string) (
 	}
 
 	for _, pattern := range schemaPaths {
-		matches, err := filepath.Glob(filepath.Join(repoPath, pattern))
+		matches, err := workingcopy.Glob(repoPath, pattern)
 		if err != nil {
 			continue
 		}
 
 		for _, match := range matches {
-			content := s.extractSchemaContent(match)
+			content := s.extractSchemaContent(repoPath, match)
 			if content != "" {
 				schemaContent = append(schemaContent, content)
 			}
@@ -57,17 +59,19 @@ func (s *DatabaseSchemaService) Discover(ctx context.Context, repoPath string) (
 	schemaExtensions := []string{".sql", ".prisma"}
 	schemaFileNames := []string{"schema", "models", "migration", "create_"}
 
-	err := filepath.Walk(repoPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+	err := workingcopy.WalkDir(repoPath, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
 			return nil
 		}
 
 		// Skip common non-schema directories
-		relPath, _ := filepath.Rel(repoPath, path)
-		if strings.Contains(relPath, "node_modules") || strings.Contains(relPath, ".git") || strings.Contains(relPath, "vendor") {
-			if info.IsDir() {
+		if strings.Contains(path, "node_modules") || strings.Contains(path, ".git") || strings.Contains(path, "vendor") {
+			if d.IsDir() {
 				return filepath.SkipDir
 			}
+			return nil
+		}
+		if d.IsDir() {
 			return nil
 		}
 
@@ -76,7 +80,7 @@ func (s *DatabaseSchemaService) Discover(ctx context.Context, repoPath string) (
 
 		for _, schemaExt := range schemaExtensions {
 			if ext == schemaExt {
-				content := s.extractSchemaContent(path)
+				content := s.extractSchemaContent(repoPath, path)
 				if content != "" {
 					schemaContent = append(schemaContent, content)
 				}
@@ -86,7 +90,7 @@ func (s *DatabaseSchemaService) Discover(ctx context.Context, repoPath string) (
 
 		for _, namePattern := range schemaFileNames {
 			if strings.Contains(base, namePattern) && (ext == ".py" || ext == ".rb" || ext == ".ts" || ext == ".go") {
-				content := s.extractSchemaContent(path)
+				content := s.extractSchemaContent(repoPath, path)
 				if content != "" {
 					schemaContent = append(schemaContent, content)
 				}
@@ -113,18 +117,19 @@ func (s *DatabaseSchemaService) Discover(ctx context.Context, repoPath string) (
 	return result, nil
 }
 
-func (s *DatabaseSchemaService) extractSchemaContent(path string) string {
-	info, err := os.Stat(path)
+// extractSchemaContent reads the schema file, or the schema files directly
+// inside the directory, at path relative to repoPath.
+func (s *DatabaseSchemaService) extractSchemaContent(repoPath, path string) string {
+	info, err := workingcopy.Stat(repoPath, path)
 	if err != nil {
 		return ""
 	}
 
-	// Skip directories
 	if info.IsDir() {
-		return s.extractFromDirectory(path)
+		return s.extractFromDirectory(repoPath, path)
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := workingcopy.ReadFile(repoPath, path)
 	if err != nil {
 		return ""
 	}
@@ -139,10 +144,10 @@ func (s *DatabaseSchemaService) extractSchemaContent(path string) string {
 	return "### " + filepath.Base(path) + "\n```\n" + content + "\n```"
 }
 
-func (s *DatabaseSchemaService) extractFromDirectory(dirPath string) string {
+func (s *DatabaseSchemaService) extractFromDirectory(repoPath, dirPath string) string {
 	var contents []string
 
-	entries, err := os.ReadDir(dirPath)
+	entries, err := workingcopy.ReadDir(repoPath, dirPath)
 	if err != nil {
 		return ""
 	}
@@ -160,8 +165,7 @@ func (s *DatabaseSchemaService) extractFromDirectory(dirPath string) string {
 			continue
 		}
 
-		filePath := filepath.Join(dirPath, name)
-		data, err := os.ReadFile(filePath)
+		data, err := workingcopy.ReadFile(repoPath, filepath.Join(dirPath, name))
 		if err != nil {
 			continue
 		}

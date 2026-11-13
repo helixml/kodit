@@ -17,6 +17,7 @@ import (
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/chunking"
 	"github.com/helixml/kodit/infrastructure/extraction"
+	"github.com/helixml/kodit/internal/workingcopy"
 )
 
 // FileContentSource reads file content at a specific commit.
@@ -42,6 +43,7 @@ type ChunkFiles struct {
 	associationStore enrichment.AssociationStore
 	lineRangeStore   sourcelocation.Store
 	fileStore        repository.FileStore
+	commits          CommitReader
 	fileContent      FileContentSource
 	documentText     DocumentTextSource
 	extractors       *extraction.Extractors
@@ -61,6 +63,7 @@ func NewChunkFiles(
 	associationStore enrichment.AssociationStore,
 	lineRangeStore sourcelocation.Store,
 	fileStore repository.FileStore,
+	commits CommitReader,
 	fileContent FileContentSource,
 	documentText DocumentTextSource,
 	extractors *extraction.Extractors,
@@ -75,6 +78,7 @@ func NewChunkFiles(
 		associationStore: associationStore,
 		lineRangeStore:   lineRangeStore,
 		fileStore:        fileStore,
+		commits:          commits,
 		fileContent:      fileContent,
 		documentText:     documentText,
 		extractors:       extractors,
@@ -107,6 +111,13 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 	}
 
 	if len(existing) > 0 {
+		repo, err := h.repoStore.FindOne(ctx, repository.WithID(cp.RepoID()))
+		if err != nil {
+			return fmt.Errorf("get repository: %w", err)
+		}
+		if err := shareCommitEnrichments(ctx, h.commits, h.associationStore, repo, existing, cp.CommitSHA()); err != nil {
+			return err
+		}
 		tracker.Skip(ctx, "Chunks already created for commit")
 		return nil
 	}
@@ -165,9 +176,9 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 				processed++
 				continue
 			}
-			diskPath, safe := safeDiskPath(clonedPath, relPath)
-			if !safe {
-				h.logger.Warn().Str("path", f.Path()).Msg("file path escapes clone directory, skipping")
+			diskPath, pathErr := workingcopy.File(clonedPath, relPath)
+			if pathErr != nil {
+				h.logger.Warn().Str("path", f.Path()).Str("error", pathErr.Error()).Msg("file is not readable inside the working copy, skipping")
 				processed++
 				continue
 			}
@@ -336,18 +347,6 @@ func relativeFilePath(filePath, clonedPath string) string {
 	}
 
 	return filePath
-}
-
-// safeDiskPath joins clonedPath and relPath and verifies the result stays
-// inside clonedPath. Returns ("", false) if the resolved path escapes.
-func safeDiskPath(clonedPath, relPath string) (string, bool) {
-	diskPath := filepath.Join(clonedPath, relPath)
-	clean := filepath.Clean(diskPath)
-	base := filepath.Clean(clonedPath) + string(filepath.Separator)
-	if !strings.HasPrefix(clean, base) && clean != filepath.Clean(clonedPath) {
-		return "", false
-	}
-	return clean, true
 }
 
 // indexableExtensions lists file extensions that contain human-written source

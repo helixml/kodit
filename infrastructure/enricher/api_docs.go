@@ -2,12 +2,12 @@ package enricher
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/internal/workingcopy"
 )
 
 // APIDocService extracts API documentation from code files.
@@ -18,9 +18,10 @@ func NewAPIDocService() *APIDocService {
 	return &APIDocService{}
 }
 
-// Extract analyzes files to extract public API documentation.
+// Extract analyzes files to extract public API documentation. File paths are
+// read relative to the working copy at repoPath.
 // This is a simplified implementation that looks for common API patterns.
-func (s *APIDocService) Extract(ctx context.Context, files []repository.File, language string, includePrivate bool) ([]enrichment.Enrichment, error) {
+func (s *APIDocService) Extract(ctx context.Context, repoPath string, files []repository.File, language string, includePrivate bool) ([]enrichment.Enrichment, error) {
 	var enrichments []enrichment.Enrichment
 
 	for _, file := range files {
@@ -35,7 +36,7 @@ func (s *APIDocService) Extract(ctx context.Context, files []repository.File, la
 			continue
 		}
 
-		content := s.extractPublicAPI(filePath, language, includePrivate)
+		content := s.extractPublicAPI(repoPath, filePath, language, includePrivate)
 		if content == "" {
 			continue
 		}
@@ -52,8 +53,8 @@ func (s *APIDocService) Extract(ctx context.Context, files []repository.File, la
 	return enrichments, nil
 }
 
-func (s *APIDocService) extractPublicAPI(filePath, language string, includePrivate bool) string {
-	data, err := os.ReadFile(filePath)
+func (s *APIDocService) extractPublicAPI(repoPath, filePath, language string, includePrivate bool) string {
+	data, err := workingcopy.ReadFile(repoPath, filePath)
 	if err != nil {
 		return ""
 	}
