@@ -187,6 +187,11 @@ func WithRepoID(id int64) Option {
 	return WithCondition("repo_id", id)
 }
 
+// WithRepoIDIn filters by the "repo_id" column matching any of the given IDs.
+func WithRepoIDIn(ids []int64) Option {
+	return WithConditionIn("repo_id", ids)
+}
+
 // WithLimit sets the maximum number of results.
 func WithLimit(n int) Option {
 	return func(q Query) Query {

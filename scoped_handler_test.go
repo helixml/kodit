@@ -45,27 +45,25 @@ func TestScopedMCPServer_RepositoryListFiltered(t *testing.T) {
 	fileLister := &scopedFakeFileLister{}
 
 	// Scope to only repo 1.
-	scopedRepos, scopedFC, scopedSS, scopedKS, scopedG, scopedFL :=
-		mcpinternal.Scope(repos, fileContent, semantic, keyword, grepper, fileLister, []int64{1})
-
 	srv := mcpinternal.NewServer(
-		scopedRepos,
+		repos,
 		&scopedFakeCommitFinder{commits: []repository.Commit{commit}},
 		&scopedFakeEnrichmentQuery{},
-		scopedFC,
-		scopedSS,
-		scopedKS,
+		fileContent,
+		semantic,
+		keyword,
 		nil,
 		&scopedFakeEnrichmentResolver{
 			sourceFiles:   map[string][]int64{},
 			lineRanges:    map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
-		scopedFL,
+		fileLister,
 		&scopedFakeFileFinder{},
-		scopedG,
+		grepper,
 		"test",
 		zerolog.Nop(),
+		mcpinternal.WithRepositoryScope([]int64{1}),
 	)
 
 	// Initialize.
@@ -109,28 +107,24 @@ func TestScopedMCPServer_ReadResourceBlocked(t *testing.T) {
 	repos := &scopedFakeRepositoryLister{repos: []repository.Repository{repo1}}
 	fileContent := &scopedFakeFileContentReader{content: []byte("secret")}
 
-	_, scopedFC, scopedSS, scopedKS, scopedG, scopedFL :=
-		mcpinternal.Scope(repos, fileContent,
-			&scopedFakeSemanticSearcher{}, &scopedFakeKeywordSearcher{},
-			&scopedFakeGrepper{}, &scopedFakeFileLister{}, []int64{1})
-
 	srv := mcpinternal.NewServer(
-		repos, // unscoped repos is fine here — we test file content gating
+		repos,
 		&scopedFakeCommitFinder{},
 		&scopedFakeEnrichmentQuery{},
-		scopedFC,
-		scopedSS,
-		scopedKS,
+		fileContent,
+		&scopedFakeSemanticSearcher{},
+		&scopedFakeKeywordSearcher{},
 		nil,
 		&scopedFakeEnrichmentResolver{
 			sourceFiles: map[string][]int64{}, lineRanges: map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
-		scopedFL,
+		&scopedFakeFileLister{},
 		&scopedFakeFileFinder{},
-		scopedG,
+		&scopedFakeGrepper{},
 		"test",
 		zerolog.Nop(),
+		mcpinternal.WithRepositoryScope([]int64{1}),
 	)
 
 	send(t, srv, "initialize", 0, map[string]any{
@@ -154,9 +148,9 @@ func TestScopedMCPServer_ReadResourceBlocked(t *testing.T) {
 	}
 }
 
-// TestScopedMCPServer_NilRepoIDsNoScoping verifies that an empty/nil repoIDs
-// set results in unscoped behavior.
-func TestScopedMCPServer_NilRepoIDsNoScoping(t *testing.T) {
+// TestScopedMCPServer_NoScopeOptionSeesAllRepositories verifies that a server
+// built without a repository scope sees every repository.
+func TestScopedMCPServer_NoScopeOptionSeesAllRepositories(t *testing.T) {
 	repo1 := repository.ReconstructRepository(
 		1, 0, "https://github.com/org/repo1", "https://github.com/org/repo1", "",
 		repository.WorkingCopy{}, repository.NewTrackingConfigForBranch("main"),
@@ -283,28 +277,24 @@ func TestScopedMCPServer_ListRepositories_SanitizesCredentials(t *testing.T) {
 	)
 
 	repos := &scopedFakeRepositoryLister{repos: []repository.Repository{repo}}
-	scopedRepos, scopedFC, scopedSS, scopedKS, scopedG, scopedFL :=
-		mcpinternal.Scope(repos, &scopedFakeFileContentReader{},
-			&scopedFakeSemanticSearcher{}, &scopedFakeKeywordSearcher{},
-			&scopedFakeGrepper{}, &scopedFakeFileLister{}, []int64{1})
-
 	srv := mcpinternal.NewServer(
-		scopedRepos,
+		repos,
 		&scopedFakeCommitFinder{commits: []repository.Commit{commit}},
 		&scopedFakeEnrichmentQuery{},
-		scopedFC,
-		scopedSS,
-		scopedKS,
+		&scopedFakeFileContentReader{},
+		&scopedFakeSemanticSearcher{},
+		&scopedFakeKeywordSearcher{},
 		nil,
 		&scopedFakeEnrichmentResolver{
 			sourceFiles: map[string][]int64{}, lineRanges: map[string]sourcelocation.SourceLocation{},
 			repositoryIDs: map[string]int64{},
 		},
-		scopedFL,
+		&scopedFakeFileLister{},
 		&scopedFakeFileFinder{},
-		scopedG,
+		&scopedFakeGrepper{},
 		"test",
 		zerolog.Nop(),
+		mcpinternal.WithRepositoryScope([]int64{1}),
 	)
 
 	send(t, srv, "initialize", 0, map[string]any{

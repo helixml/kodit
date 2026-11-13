@@ -111,6 +111,7 @@ type Server struct {
 	fileLister         FileLister
 	files              FileFinder
 	grepper            Grepper
+	scope              *repoScope
 	version            string
 	logger             zerolog.Logger
 }
@@ -201,6 +202,10 @@ func NewServer(
 	}
 	for _, opt := range opts {
 		opt(s)
+	}
+	// Scope last so that dependencies supplied by any option are wrapped too.
+	if s.scope != nil {
+		s.scope.apply(s)
 	}
 
 	mcpServer := server.NewMCPServer(
@@ -311,6 +316,42 @@ func (s *Server) resolveRepository(ctx context.Context, repoURL string) ([]repos
 	return s.repositories.Find(ctx, repository.WithUpstreamURL(repoURL))
 }
 
+// commitForRepo returns the commit SHA a repository-bound tool should read.
+// A requested SHA must belong to repoID, so a tool given one repository's URL
+// cannot read enrichments of a commit from another repository. With no SHA
+// requested, it returns the repository's latest commit.
+func (s *Server) commitForRepo(ctx context.Context, repoID int64, requested string) (string, *mcp.CallToolResult) {
+	if requested != "" {
+		commits, err := s.commits.Find(ctx,
+			repository.WithRepoID(repoID),
+			repository.WithSHA(requested),
+			repository.WithLimit(1),
+		)
+		if err != nil {
+			s.logger.Error().Interface("error", err).Msg("failed to find commit")
+			return "", mcp.NewToolResultError(fmt.Sprintf("failed to find commit: %v", err))
+		}
+		if len(commits) == 0 {
+			return "", mcp.NewToolResultError(fmt.Sprintf("commit %s not found in repository", requested))
+		}
+		return commits[0].SHA(), nil
+	}
+
+	commits, err := s.commits.Find(ctx,
+		repository.WithRepoID(repoID),
+		repository.WithOrderDesc("date"),
+		repository.WithLimit(1),
+	)
+	if err != nil {
+		s.logger.Error().Interface("error", err).Msg("failed to find latest commit")
+		return "", mcp.NewToolResultError(fmt.Sprintf("failed to find latest commit: %v", err))
+	}
+	if len(commits) == 0 {
+		return "", mcp.NewToolResultError("no commits found for repository")
+	}
+	return commits[0].SHA(), nil
+}
+
 func (s *Server) handleGetArchitectureDocs(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	typ := enrichment.TypeArchitecture
 	subtype := enrichment.SubtypePhysical
@@ -357,21 +398,9 @@ func (s *Server) handleGetWiki(ctx context.Context, request mcp.CallToolRequest)
 		return mcp.NewToolResultError(fmt.Sprintf("repository not found: %s", repoURL)), nil
 	}
 
-	commitSHA := request.GetString("commit_sha", "")
-	if commitSHA == "" {
-		commits, commitErr := s.commits.Find(ctx,
-			repository.WithRepoID(repos[0].ID()),
-			repository.WithOrderDesc("date"),
-			repository.WithLimit(1),
-		)
-		if commitErr != nil {
-			s.logger.Error().Interface("error", commitErr).Msg("failed to find latest commit")
-			return mcp.NewToolResultError(fmt.Sprintf("failed to find latest commit: %v", commitErr)), nil
-		}
-		if len(commits) == 0 {
-			return mcp.NewToolResultError("no commits found for repository"), nil
-		}
-		commitSHA = commits[0].SHA()
+	commitSHA, errResult := s.commitForRepo(ctx, repos[0].ID(), request.GetString("commit_sha", ""))
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	typ := enrichment.TypeUsage
@@ -423,21 +452,9 @@ func (s *Server) handleGetWikiPage(ctx context.Context, request mcp.CallToolRequ
 		return mcp.NewToolResultError(fmt.Sprintf("repository not found: %s", repoURL)), nil
 	}
 
-	commitSHA := request.GetString("commit_sha", "")
-	if commitSHA == "" {
-		commits, commitErr := s.commits.Find(ctx,
-			repository.WithRepoID(repos[0].ID()),
-			repository.WithOrderDesc("date"),
-			repository.WithLimit(1),
-		)
-		if commitErr != nil {
-			s.logger.Error().Interface("error", commitErr).Msg("failed to find latest commit")
-			return mcp.NewToolResultError(fmt.Sprintf("failed to find latest commit: %v", commitErr)), nil
-		}
-		if len(commits) == 0 {
-			return mcp.NewToolResultError("no commits found for repository"), nil
-		}
-		commitSHA = commits[0].SHA()
+	commitSHA, errResult := s.commitForRepo(ctx, repos[0].ID(), request.GetString("commit_sha", ""))
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	typ := enrichment.TypeUsage
@@ -500,21 +517,9 @@ func (s *Server) handleEnrichmentDocs(
 		return mcp.NewToolResultError(fmt.Sprintf("repository not found: %s", repoURL)), nil
 	}
 
-	commitSHA := request.GetString("commit_sha", "")
-	if commitSHA == "" {
-		commits, commitErr := s.commits.Find(ctx,
-			repository.WithRepoID(repos[0].ID()),
-			repository.WithOrderDesc("date"),
-			repository.WithLimit(1),
-		)
-		if commitErr != nil {
-			s.logger.Error().Interface("error", commitErr).Msg("failed to find latest commit")
-			return mcp.NewToolResultError(fmt.Sprintf("failed to find latest commit: %v", commitErr)), nil
-		}
-		if len(commits) == 0 {
-			return mcp.NewToolResultError("no commits found for repository"), nil
-		}
-		commitSHA = commits[0].SHA()
+	commitSHA, errResult := s.commitForRepo(ctx, repos[0].ID(), request.GetString("commit_sha", ""))
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	enrichments, err := s.enrichmentQuery.List(ctx, &service.EnrichmentListParams{
@@ -559,7 +564,8 @@ type fileResult struct {
 // resolveFileResults converts enrichments and scores into file-based results
 // with resource URIs. It resolves source files, line ranges, and repository IDs
 // for each enrichment, then builds the file result list. If sourceRepoID > 0,
-// results are post-filtered to only include files from that repository.
+// results are post-filtered to only include files from that repository; on a
+// scoped server they are also post-filtered to the scope.
 func (s *Server) resolveFileResults(
 	ctx context.Context,
 	enrichments []enrichment.Enrichment,
@@ -590,13 +596,23 @@ func (s *Server) resolveFileResults(
 		return nil, fmt.Errorf("resolve repository IDs: %w", err)
 	}
 
-	if sourceRepoID > 0 {
-		filtered := enrichments[:0]
+	// Post-filter even when the searcher already applied source-repo filters:
+	// a result outside the requested repository or the server's scope is
+	// never returned, whatever the searcher did.
+	if sourceRepoID > 0 || s.scope != nil {
+		filtered := make([]enrichment.Enrichment, 0, len(enrichments))
 		for _, e := range enrichments {
-			idStr := strconv.FormatInt(e.ID(), 10)
-			if repoIDs[idStr] == sourceRepoID {
-				filtered = append(filtered, e)
+			repoID, found := repoIDs[strconv.FormatInt(e.ID(), 10)]
+			if !found {
+				continue
 			}
+			if sourceRepoID > 0 && repoID != sourceRepoID {
+				continue
+			}
+			if s.scope != nil && !s.scope.contains(repoID) {
+				continue
+			}
+			filtered = append(filtered, e)
 		}
 		enrichments = filtered
 		if len(enrichments) == 0 {
