@@ -3,7 +3,6 @@ package indexing
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -16,43 +15,40 @@ import (
 	"github.com/helixml/kodit/internal/testdb"
 )
 
-// TestChunkFiles_AlreadyChunkedCommit covers a repository whose commit SHA
-// another repository already chunked. A git commit is shared, so the second
-// repository gains a repository association on the existing chunk. A
-// directory snapshot is never shared.
+// TestChunkFiles_AlreadyChunkedCommit covers a repository indexing a commit
+// SHA another repository already chunked. The repository gains a repository
+// association on the existing chunk only when its own git history holds the
+// commit; a SHA it does not hold (named by a rescan, a tracking config or a
+// task) shares nothing.
 func TestChunkFiles_AlreadyChunkedCommit(t *testing.T) {
+	const sha = "shared123"
 	tests := []struct {
 		name      string
-		commit    func(sha string, repoID int64) repository.Commit
+		holds     commitReader
 		wantOwner []string
 	}{
-		{
-			name: "git commit is shared",
-			commit: func(sha string, repoID int64) repository.Commit {
-				author := repository.NewAuthor("Dev", "dev@example.com")
-				return repository.NewCommit(sha, repoID, "m", author, author, time.Now(), time.Now())
-			},
-			wantOwner: []string{"1", "2"},
-		},
-		{
-			name: "directory snapshot is not shared",
-			commit: func(sha string, repoID int64) repository.Commit {
-				return repository.NewDirectorySnapshot(sha, repoID, time.Now())
-			},
-			wantOwner: []string{"1"},
-		},
+		{"repository holds the commit", commitReader{sha: true}, []string{"1", "2"}},
+		{"repository does not hold the commit", commitReader{}, []string{"1"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			db := testdb.New(t)
+			repos := persistence.NewRepositoryStore(db)
 			enrichments := persistence.NewEnrichmentStore(db)
 			associations := persistence.NewAssociationStore(db)
-			commits := persistence.NewCommitStore(db)
 
-			const sha = "shared123"
-			_, err := commits.Save(ctx, tt.commit(sha, 1))
-			require.NoError(t, err)
+			var repoIDs []int64
+			for _, url := range []string{"https://example.com/a.git", "https://example.com/b.git"} {
+				r, err := repository.NewRepository(url)
+				require.NoError(t, err)
+				r = r.WithWorkingCopy(repository.NewWorkingCopy(t.TempDir(), url))
+				saved, err := repos.Save(ctx, r)
+				require.NoError(t, err)
+				repoIDs = append(repoIDs, saved.ID())
+			}
+			require.Equal(t, []int64{1, 2}, repoIDs)
+
 			chunk, err := enrichments.Save(ctx, enrichment.NewEnrichment(enrichment.TypeDevelopment, enrichment.SubtypeChunk, enrichment.EntityTypeCommit, "chunk"))
 			require.NoError(t, err)
 			for _, a := range []enrichment.Association{
@@ -63,7 +59,7 @@ func TestChunkFiles_AlreadyChunkedCommit(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			h := NewChunkFiles(nil, enrichments, associations, nil, nil, commits, nil, nil, nil, nil,
+			h := NewChunkFiles(repos, enrichments, associations, nil, nil, tt.holds, nil, nil, nil, nil,
 				chunking.ChunkParams{}, &fakeTrackerFactory{}, zerolog.Nop())
 			for range 2 { // running twice must not add a second association
 				require.NoError(t, h.Execute(ctx, map[string]any{"repository_id": int64(2), "commit_sha": sha}))

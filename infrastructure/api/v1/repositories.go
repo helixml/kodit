@@ -274,6 +274,10 @@ func (r *RepositoriesRouter) Add(w http.ResponseWriter, req *http.Request) {
 		UpstreamURL: body.Data.Attributes.UpstreamURL,
 		Pipeline:    body.Data.Attributes.Pipeline,
 	})
+	if errors.Is(err, repository.ErrUnsupportedRemoteURL) {
+		middleware.WriteError(w, req, fmt.Errorf("%w: %w", err, middleware.ErrValidation), r.logger)
+		return
+	}
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return

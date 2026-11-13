@@ -158,6 +158,23 @@ func (s *Enrichment) DeleteBy(ctx context.Context, opts ...repository.Option) er
 	return s.enrichmentStore.DeleteBy(ctx, opts...)
 }
 
+// RepositoryEnrichmentIDs returns the IDs of the enrichments directly
+// associated with repoID.
+func (s *Enrichment) RepositoryEnrichmentIDs(ctx context.Context, repoID int64) ([]int64, error) {
+	associations, err := s.associationStore.Find(ctx,
+		enrichment.WithEntityType(enrichment.EntityTypeRepository),
+		enrichment.WithEntityID(strconv.FormatInt(repoID, 10)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("find repository associations: %w", err)
+	}
+	ids := make([]int64, 0, len(associations))
+	for _, a := range associations {
+		ids = append(ids, a.EnrichmentID())
+	}
+	return ids, nil
+}
+
 // ReleaseForRepository removes repoID's claim on the given enrichments and
 // returns the IDs it deleted. An enrichment that another repository also owns
 // through its own repository association keeps existing and loses only

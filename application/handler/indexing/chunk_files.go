@@ -43,7 +43,7 @@ type ChunkFiles struct {
 	associationStore enrichment.AssociationStore
 	lineRangeStore   sourcelocation.Store
 	fileStore        repository.FileStore
-	commitStore      repository.CommitStore
+	commits          CommitReader
 	fileContent      FileContentSource
 	documentText     DocumentTextSource
 	extractors       *extraction.Extractors
@@ -63,7 +63,7 @@ func NewChunkFiles(
 	associationStore enrichment.AssociationStore,
 	lineRangeStore sourcelocation.Store,
 	fileStore repository.FileStore,
-	commitStore repository.CommitStore,
+	commits CommitReader,
 	fileContent FileContentSource,
 	documentText DocumentTextSource,
 	extractors *extraction.Extractors,
@@ -78,7 +78,7 @@ func NewChunkFiles(
 		associationStore: associationStore,
 		lineRangeStore:   lineRangeStore,
 		fileStore:        fileStore,
-		commitStore:      commitStore,
+		commits:          commits,
 		fileContent:      fileContent,
 		documentText:     documentText,
 		extractors:       extractors,
@@ -111,7 +111,11 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 	}
 
 	if len(existing) > 0 {
-		if err := shareCommitEnrichments(ctx, h.commitStore, h.associationStore, existing, cp.CommitSHA(), cp.RepoID()); err != nil {
+		repo, err := h.repoStore.FindOne(ctx, repository.WithID(cp.RepoID()))
+		if err != nil {
+			return fmt.Errorf("get repository: %w", err)
+		}
+		if err := shareCommitEnrichments(ctx, h.commits, h.associationStore, repo, existing, cp.CommitSHA()); err != nil {
 			return err
 		}
 		tracker.Skip(ctx, "Chunks already created for commit")

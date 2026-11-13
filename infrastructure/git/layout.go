@@ -55,9 +55,11 @@ func (l Layout) Managed(path string) bool {
 
 // hardened adds the configuration every git command kodit runs must carry,
 // whatever the repository's own configuration says: no implicit bare
-// repositories, no filesystem monitor, and no hooks.
+// repositories, no filesystem monitor, no hooks, and no ext:: transport
+// (which runs a command to reach a remote).
 func hardened(c *gitcmd.Command) *gitcmd.Command {
 	return c.AddConfig("safe.bareRepository", "explicit").
 		AddConfig("core.fsmonitor", "false").
-		AddConfig("core.hooksPath", os.DevNull)
+		AddConfig("core.hooksPath", os.DevNull).
+		AddConfig("protocol.ext.allow", "never")
 }

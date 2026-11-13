@@ -7,28 +7,35 @@ import (
 
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/infrastructure/git"
 )
 
-// shareCommitEnrichments records repoID as an owner of enrichments another
-// repository already produced for the same commit, so searches scoped to
-// repoID find them. Search scoping reads only these repository associations.
+// CommitReader reads a commit from a working copy's git history.
+type CommitReader interface {
+	CommitDetails(ctx context.Context, localPath string, commitSHA string) (git.CommitInfo, error)
+}
+
+// shareCommitEnrichments records repo as an owner of enrichments another
+// repository already produced for commitSHA, so searches scoped to repo find
+// them. Search scoping reads only these repository associations.
 //
-// Only git commits are shared: two repositories with the same git commit SHA
-// hold the same content. A directory snapshot's SHA is a hash kodit computes
-// (salted with the repository ID), so its enrichments are never shared.
+// Content is shared only for a commit the repository holds: its own git
+// history must contain commitSHA. A SHA named in a task payload, a rescan or
+// a tracking config is not proof. A directory snapshot is never shared,
+// because a plain directory has no git history (ErrNotGitRepository). Any
+// error reading the commit means the repository does not hold it.
 func shareCommitEnrichments(
 	ctx context.Context,
-	commits repository.CommitStore,
+	commits CommitReader,
 	associations enrichment.AssociationStore,
+	repo repository.Repository,
 	existing []enrichment.Enrichment,
 	commitSHA string,
-	repoID int64,
 ) error {
-	recorded, err := commits.Find(ctx, repository.WithSHA(commitSHA), repository.WithLimit(1))
-	if err != nil {
-		return fmt.Errorf("find commit: %w", err)
+	if !repo.HasWorkingCopy() {
+		return nil
 	}
-	if len(recorded) == 0 || recorded[0].IsDirectorySnapshot() {
+	if _, err := commits.CommitDetails(ctx, repo.WorkingCopy().Path(), commitSHA); err != nil {
 		return nil
 	}
 
@@ -36,7 +43,7 @@ func shareCommitEnrichments(
 	for i, e := range existing {
 		ids[i] = e.ID()
 	}
-	repoKey := strconv.FormatInt(repoID, 10)
+	repoKey := strconv.FormatInt(repo.ID(), 10)
 	owned, err := associations.Find(ctx,
 		enrichment.WithEnrichmentIDIn(ids),
 		enrichment.WithEntityType(enrichment.EntityTypeRepository),

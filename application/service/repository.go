@@ -8,6 +8,7 @@ import (
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
+	"github.com/helixml/kodit/internal/database"
 )
 
 // RepositoryAddParams configures adding a new repository.
@@ -88,6 +89,9 @@ func NewRepository(
 // Returns the source, whether it was newly created, and any error.
 // If the repository already exists, it returns the existing one with created=false.
 func (s *Repository) Add(ctx context.Context, params *RepositoryAddParams) (repository.Source, bool, error) {
+	if err := repository.ValidateRemoteURL(params.URL); err != nil {
+		return repository.Source{}, false, err
+	}
 	existing, err := s.repoStore.Exists(ctx, repository.WithRemoteURL(params.URL))
 	if err != nil {
 		return repository.Source{}, false, fmt.Errorf("check existing: %w", err)
@@ -193,6 +197,16 @@ func (s *Repository) Rescan(ctx context.Context, params *RescanParams) error {
 	repo, err := s.repoStore.FindOne(ctx, repository.WithID(params.RepositoryID))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
+	}
+	// Only a commit recorded for this repository can be rescanned. Checked
+	// before anything is enqueued, so no pipeline task runs for a commit the
+	// repository does not hold.
+	recorded, err := s.commitStore.Exists(ctx, repository.WithRepoID(repo.ID()), repository.WithSHA(params.CommitSHA))
+	if err != nil {
+		return fmt.Errorf("check commit: %w", err)
+	}
+	if !recorded {
+		return fmt.Errorf("commit %s of repository %d: %w", params.CommitSHA, repo.ID(), database.ErrNotFound)
 	}
 	return s.enqueueRescan(ctx, repo, params.CommitSHA)
 }

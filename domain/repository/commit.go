@@ -49,12 +49,6 @@ func NewDirectorySnapshot(sha string, repoID int64, at time.Time) Commit {
 	return NewCommit(sha, repoID, "Directory snapshot", author, author, at, at)
 }
 
-// IsDirectorySnapshot reports whether the commit is a synthetic snapshot of a
-// plain directory rather than a git commit.
-func (c Commit) IsDirectorySnapshot() bool {
-	return c.author.Email() == directorySnapshotEmail
-}
-
 // ReconstructCommit reconstructs a Commit from persistence.
 func ReconstructCommit(
 	id int64,

@@ -17,18 +17,17 @@ tag are on the [GitHub releases page](https://github.com/helixml/kodit/releases)
   enables it with `WithLocalGitRepositories()` (server:
   `ALLOW_LOCAL_GIT_REPOSITORIES=true`). Without it, every `file://`
   repository is indexed as a plain directory, even one that contains a git
-  repository. Git was previously detected automatically with
-  `git rev-parse`. That treated any directory holding `HEAD`, `config`,
-  `objects` and `refs` as a bare repository, and git then honoured that
-  directory's `objects/info/alternates`, configuration and attributes.
+  repository. Previously kodit detected git in these directories
+  automatically and honoured any git configuration and object store they
+  contained.
   - With the option on, kodit uses git only for a directory with a real
     `.git` directory (not a symbolic link).
   - A `file://` path inside kodit's clone directory is refused.
   - Plain directories skip `.git` directories when they are indexed.
 - Every git command kodit builds runs with
   `-c safe.bareRepository=explicit -c core.fsmonitor=false
-  -c core.hooksPath=/dev/null`. Commit diffs and logs pass
-  `--no-textconv --no-ext-diff`. Cloning goes through the same hardened
+  -c core.hooksPath=/dev/null -c protocol.ext.allow=never`. Commit diffs
+  and logs pass `--no-textconv --no-ext-diff`. Cloning goes through the same
   command, no longer through Gitea's `Clone`.
 - Directory snapshot SHAs are salted with the repository ID, so two
   directories with the same contents get different SHAs. A directory
@@ -48,23 +47,23 @@ tag are on the [GitHub releases page](https://github.com/helixml/kodit/releases)
   its content.
 - Search scoping uses only an enrichment's direct repository associations.
   Both the search stores' source-repository filter and the MCP result filter
-  apply this rule. Previously the store filter matched any repository that
-  `git_commits` recorded for the enrichment's commit SHA. That row moves to
-  whichever repository was scanned last with that SHA, so another repository
-  could gain the enrichments.
+  apply this rule. Previously the store filter also used the repository
+  `git_commits` recorded for the enrichment's commit SHA, which is not always
+  the repository that indexed it.
   - A commit SHA already recorded for another repository keeps its owner when
     a second repository scans it.
-  - When the commit is a git commit, indexing shares the existing chunks and
-    page images with the second repository by adding its repository
-    association. Directory snapshots are never shared.
+  - Repositories only share indexed content for commits they hold. When a
+    commit's chunks and page images already exist, indexing adds the
+    repository's association only after reading the commit from that
+    repository's own git history. Directory snapshots are never shared.
   - `Enrichment.RepositoryIDs` returns every repository an enrichment is
     associated with (`map[string][]int64`).
-  - A rescan refuses a commit that is not recorded for the rescanning
-    repository.
-  - A rescan, and the old-commit cleanup after indexing, delete only
-    enrichments that no other repository shares. A shared enrichment loses
-    only the rescanning repository's association; its files and commit row
-    are kept.
+  - A rescan of a commit that is not recorded for the repository is
+    refused with a not-found error before any task is enqueued.
+  - A rescan, the old-commit cleanup after indexing, and repository deletion
+    delete only enrichments that no other repository shares. A shared
+    enrichment loses only that repository's association. On a rescan, the
+    shared commit's files and commit row are also kept.
 - `kodit_semantic_search`, `kodit_keyword_search` and `kodit_visual_search`
   return at most 100 results, whatever `limit` is requested.
 - Constructor changes:
@@ -73,6 +72,10 @@ tag are on the [GitHub releases page](https://github.com/helixml/kodit/releases)
     commit store.
   - `enrichment.NewAPIDocs` takes a repository store.
   - The unused `git.IgnorePattern` is removed.
+
+- `Repositories.Add` (and the REST create endpoint, as a validation error)
+  accepts only `http`, `https`, `ssh`, `git` and `file` URLs and scp-style
+  SSH addresses (`[user@]host:path`).
 
 ### Added
 
@@ -104,6 +107,13 @@ tag are on the [GitHub releases page](https://github.com/helixml/kodit/releases)
 - The API-docs enricher reads files from the repository's working copy. It
   previously resolved repository-relative paths against the process's working
   directory.
+
+### Upgrading
+
+- Run a one-off Sync of every directory (`file://`) repository after
+  upgrading. This moves the repository to its salted snapshot SHA and
+  re-indexes it; until then it keeps the SHA computed by the earlier
+  release.
 
 ### Known limitations
 

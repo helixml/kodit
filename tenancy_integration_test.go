@@ -16,6 +16,7 @@ import (
 	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/internal/database"
 )
 
 func newTenancyClient(t *testing.T, opts ...kodit.Option) *kodit.Client {
@@ -153,9 +154,8 @@ func TestIntegration_SharedGitCommit_VisibleToBothRepositories(t *testing.T) {
 	// results, and the owner's are restored by indexing.
 	require.NoError(t, client.Repositories.Rescan(ctx, &service.RescanParams{RepositoryID: repoA.ID(), CommitSHA: sha}))
 	waitForTasks(ctx, t, client, 60*time.Second)
-	// The other repository cannot rescan a commit recorded for the owner;
-	// the task is refused and changes nothing.
-	require.NoError(t, client.Repositories.Rescan(ctx, &service.RescanParams{RepositoryID: repoB.ID(), CommitSHA: sha}))
+	// The other repository cannot rescan a commit recorded for the owner.
+	require.ErrorIs(t, client.Repositories.Rescan(ctx, &service.RescanParams{RepositoryID: repoB.ID(), CommitSHA: sha}), database.ErrNotFound)
 	waitForTasks(ctx, t, client, 60*time.Second)
 
 	for _, repo := range []repository.Source{repoA, repoB} {
@@ -236,4 +236,60 @@ func TestIntegration_UntrustedDirectory_IsIndexedAsPlainFiles(t *testing.T) {
 
 	_, statErr := os.Stat(marker)
 	assert.True(t, os.IsNotExist(statErr), "a command from the directory's git configuration ran")
+}
+
+// TestIntegration_ForeignCommitSHA_SharesNothing covers a repository naming a
+// commit SHA it does not hold: by rescanning it, or by tracking it as a
+// commit. Repositories only share indexed content for commits their own
+// history holds, so the repository never gains the other repository's
+// results.
+func TestIntegration_ForeignCommitSHA_SharesNothing(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	t.Parallel()
+
+	pathA := createTestGitRepo(t)
+	dirB := filepath.Join(t.TempDir(), "folder-b")
+	writeFiles(t, dirB, map[string]string{"guide.md": "# Unrelated\n\nnothing here\n"})
+	dirC := filepath.Join(t.TempDir(), "folder-c")
+	writeFiles(t, dirC, map[string]string{"guide.md": "# Also unrelated\n\nnothing here either\n"})
+	pathD := createTestGitRepoWithDocuments(t) // a git repository without A's commit
+
+	client := newTenancyClient(t, kodit.WithLocalGitRepositories())
+	ctx := context.Background()
+	repoA, _, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(pathA), Branch: currentBranch(t, pathA)})
+	require.NoError(t, err)
+	repoB, _, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(dirB)})
+	require.NoError(t, err)
+	repoC, _, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(dirC)})
+	require.NoError(t, err)
+	repoD, _, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(pathD), Branch: currentBranch(t, pathD)})
+	require.NoError(t, err)
+	waitForTasks(ctx, t, client, 60*time.Second)
+	shaA := latestSHA(t, client, repoA.ID())
+
+	// Rescanning a commit the repository does not hold is refused before
+	// any task is enqueued.
+	require.ErrorIs(t, client.Repositories.Rescan(ctx, &service.RescanParams{RepositoryID: repoB.ID(), CommitSHA: shaA}), database.ErrNotFound)
+	waitForTasks(ctx, t, client, 60*time.Second)
+
+	// Tracking the other repository's commit runs the pipeline for that SHA;
+	// indexing must not share A's content with a repository that does not
+	// hold the commit, whether it is a directory or a git repository.
+	for _, repo := range []repository.Source{repoC, repoD} {
+		_, err := client.Repositories.UpdateTrackingConfig(ctx, repo.ID(), &service.TrackingConfigParams{Commit: shaA})
+		require.NoError(t, err)
+		require.NoError(t, client.Repositories.Sync(ctx, repo.ID()))
+	}
+	waitForTasks(ctx, t, client, 60*time.Second)
+
+	for _, repo := range []repository.Source{repoB, repoC, repoD} {
+		for _, text := range keywordSearch(t, client, repo, "Subtract") {
+			assert.NotContains(t, text, "main.go", "repository %d gained another repository's results", repo.ID())
+		}
+	}
+	for _, text := range keywordSearch(t, client, repoA, "Subtract") {
+		assert.Contains(t, text, "main.go", "the owner keeps its results")
+	}
 }

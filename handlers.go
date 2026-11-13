@@ -45,7 +45,7 @@ func (c *Client) registerHandlers() error {
 	c.registry.Register(task.OperationExtractSnippetsForCommit, handler.WithCleanup(
 		indexinghandler.NewChunkFiles(
 			c.repoStores.Repositories, c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.lineRangeStore,
-			c.repoStores.Files, c.repoStores.Commits, c.gitInfra.Adapter, c.documentText, extraction.NewExtractors(),
+			c.repoStores.Files, c.gitInfra.Adapter, c.gitInfra.Adapter, c.documentText, extraction.NewExtractors(),
 			c.textRenderers, c.chunkParams, c.enrichCtx.Tracker, c.logger,
 		),
 		handler.NewEnrichmentCleanup(c.Enrichments, c.repoStores.Commits,
@@ -56,7 +56,7 @@ func (c *Client) registerHandlers() error {
 	c.registry.Register(task.OperationExtractPageImagesForCommit, handler.WithCleanup(
 		indexinghandler.NewExtractPageImages(
 			c.repoStores.Repositories, c.enrichCtx.Enrichments, c.enrichCtx.Associations,
-			c.lineRangeStore, c.repoStores.Files, c.repoStores.Commits, c.rasterizers,
+			c.lineRangeStore, c.repoStores.Files, c.gitInfra.Adapter, c.rasterizers,
 			c.enrichCtx.Tracker, c.logger,
 		),
 		handler.NewEnrichmentCleanup(c.Enrichments, c.repoStores.Commits,

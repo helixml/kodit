@@ -2,12 +2,43 @@ package repository
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 )
 
 // ErrEmptyRemoteURL indicates a repo was created with an empty remote URL.
 var ErrEmptyRemoteURL = errors.New("remote URL cannot be empty")
+
+// ErrUnsupportedRemoteURL indicates a remote URL kodit does not clone from.
+var ErrUnsupportedRemoteURL = errors.New("unsupported remote URL")
+
+// remoteURLSchemes are the URL schemes kodit clones from.
+var remoteURLSchemes = map[string]bool{"http": true, "https": true, "ssh": true, "git": true, "file": true}
+
+// ValidateRemoteURL accepts http(s), ssh, git and file URLs, and scp-style
+// SSH addresses ([user@]host:path). Anything else, such as a bare local path
+// or a git transport-helper address, is rejected.
+func ValidateRemoteURL(remoteURL string) error {
+	if remoteURL == "" {
+		return ErrEmptyRemoteURL
+	}
+	if strings.HasPrefix(remoteURL, "-") {
+		return fmt.Errorf("%w: %q", ErrUnsupportedRemoteURL, remoteURL)
+	}
+	if scheme, _, ok := strings.Cut(remoteURL, "://"); ok {
+		if !remoteURLSchemes[strings.ToLower(scheme)] {
+			return fmt.Errorf("%w: scheme %q", ErrUnsupportedRemoteURL, scheme)
+		}
+		return nil
+	}
+	// git reads "host:path" as SSH only when no slash comes before the colon.
+	host, _, ok := strings.Cut(remoteURL, ":")
+	if !ok || host == "" || strings.Contains(host, "/") || strings.Contains(remoteURL, "::") {
+		return fmt.Errorf("%w: %q", ErrUnsupportedRemoteURL, remoteURL)
+	}
+	return nil
+}
 
 // ErrNotCloned indicates an operation requires a working copy that does not exist.
 var ErrNotCloned = errors.New("repository has not been cloned")

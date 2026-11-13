@@ -12,6 +12,7 @@ import (
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/persistence"
+	"github.com/helixml/kodit/internal/database"
 	"github.com/helixml/kodit/internal/testdb"
 )
 
@@ -251,8 +252,11 @@ func TestRepository_Rescan_EnqueuesOperations(t *testing.T) {
 	ctx := context.Background()
 
 	saved := saveRepoWithDefaults(t, deps, "https://github.com/test/repo")
+	author := repository.NewAuthor("Test", "test@example.com")
+	_, err := deps.stores.commits.Save(ctx, repository.NewCommit("abc123", saved.ID(), "m", author, author, time.Now(), time.Now()))
+	require.NoError(t, err)
 
-	err := deps.service.Rescan(ctx, &RescanParams{
+	err = deps.service.Rescan(ctx, &RescanParams{
 		RepositoryID: saved.ID(),
 		CommitSHA:    "abc123",
 	})
@@ -277,6 +281,24 @@ func TestRepository_Rescan_NotFound(t *testing.T) {
 		CommitSHA:    "abc123",
 	})
 	assert.Error(t, err)
+}
+
+// TestRepository_Rescan_CommitOfAnotherRepository checks that a rescan of a
+// commit not recorded for the repository is refused before any task is
+// enqueued.
+func TestRepository_Rescan_CommitOfAnotherRepository(t *testing.T) {
+	deps := newRepositoryTestDeps(t)
+	ctx := context.Background()
+
+	owner := saveRepoWithDefaults(t, deps, "https://github.com/test/owner")
+	other := saveRepoWithDefaults(t, deps, "https://github.com/test/other")
+	author := repository.NewAuthor("Test", "test@example.com")
+	_, err := deps.stores.commits.Save(ctx, repository.NewCommit("abc123", owner.ID(), "m", author, author, time.Now(), time.Now()))
+	require.NoError(t, err)
+
+	err = deps.service.Rescan(ctx, &RescanParams{RepositoryID: other.ID(), CommitSHA: "abc123"})
+	require.ErrorIs(t, err, database.ErrNotFound)
+	assert.Empty(t, savedTasks(t, deps))
 }
 
 func TestRepository_RescanAll(t *testing.T) {

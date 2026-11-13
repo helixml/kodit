@@ -58,7 +58,6 @@ func setupPageImageTest(t *testing.T) (
 	persistence.SourceLocationStore,
 	persistence.RepositoryStore,
 	persistence.FileStore,
-	persistence.CommitStore,
 ) {
 	t.Helper()
 	db := testdb.New(t)
@@ -67,8 +66,7 @@ func setupPageImageTest(t *testing.T) (
 		persistence.NewAssociationStore(db),
 		persistence.NewSourceLocationStore(db),
 		persistence.NewRepositoryStore(db),
-		persistence.NewFileStore(db),
-		persistence.NewCommitStore(db)
+		persistence.NewFileStore(db)
 }
 
 func saveTestRepo(t *testing.T, ctx context.Context, repoStore persistence.RepositoryStore) repository.Repository {
@@ -93,7 +91,7 @@ func TestExtractPageImages_NilRegistry(t *testing.T) {
 }
 
 func TestExtractPageImages_SkipsWhenEnrichmentsExist(t *testing.T) {
-	ctx, enrichmentStore, associationStore, sourceLocStore, repoStore, fileStore, commitStore := setupPageImageTest(t)
+	ctx, enrichmentStore, associationStore, sourceLocStore, repoStore, fileStore := setupPageImageTest(t)
 	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 	commitSHA := "aaa111bbb222"
 
@@ -106,7 +104,7 @@ func TestExtractPageImages_SkipsWhenEnrichmentsExist(t *testing.T) {
 
 	reg := newTestRegistry(&fakeRasterizer{pages: map[string]int{}}, ".pdf")
 
-	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, commitStore, reg, &fakeTrackerFactory{}, logger)
+	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, commitReader{}, reg, &fakeTrackerFactory{}, logger)
 
 	err = h.Execute(ctx, map[string]any{
 		"repository_id": savedRepo.ID(),
@@ -124,7 +122,7 @@ func TestExtractPageImages_SkipsWhenEnrichmentsExist(t *testing.T) {
 }
 
 func TestExtractPageImages_CreatesEnrichmentsForPDFPages(t *testing.T) {
-	ctx, enrichmentStore, associationStore, sourceLocStore, repoStore, fileStore, commitStore := setupPageImageTest(t)
+	ctx, enrichmentStore, associationStore, sourceLocStore, repoStore, fileStore := setupPageImageTest(t)
 	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 	commitSHA := "bbb222ccc333"
 
@@ -139,7 +137,7 @@ func TestExtractPageImages_CreatesEnrichmentsForPDFPages(t *testing.T) {
 	rast := &fakeRasterizer{pages: map[string]int{diskPath: 3}}
 	reg := newTestRegistry(rast, ".pdf")
 
-	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, commitStore, reg, &fakeTrackerFactory{}, logger)
+	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, commitReader{}, reg, &fakeTrackerFactory{}, logger)
 
 	err = h.Execute(ctx, map[string]any{
 		"repository_id": savedRepo.ID(),
@@ -195,7 +193,7 @@ func TestExtractPageImages_CreatesEnrichmentsForPDFPages(t *testing.T) {
 }
 
 func TestExtractPageImages_SkipsNonRasterizableFiles(t *testing.T) {
-	ctx, enrichmentStore, associationStore, sourceLocStore, repoStore, fileStore, commitStore := setupPageImageTest(t)
+	ctx, enrichmentStore, associationStore, sourceLocStore, repoStore, fileStore := setupPageImageTest(t)
 	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 	commitSHA := "ccc333ddd444"
 
@@ -215,7 +213,7 @@ func TestExtractPageImages_SkipsNonRasterizableFiles(t *testing.T) {
 	rast := &fakeRasterizer{pages: map[string]int{diskPath: 2}}
 	reg := newTestRegistry(rast, ".pdf")
 
-	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, commitStore, reg, &fakeTrackerFactory{}, logger)
+	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, commitReader{}, reg, &fakeTrackerFactory{}, logger)
 
 	err = h.Execute(ctx, map[string]any{
 		"repository_id": savedRepo.ID(),
@@ -234,7 +232,7 @@ func TestExtractPageImages_SkipsNonRasterizableFiles(t *testing.T) {
 }
 
 func TestExtractPageImages_ContinuesOnPageCountError(t *testing.T) {
-	ctx, enrichmentStore, associationStore, sourceLocStore, repoStore, fileStore, commitStore := setupPageImageTest(t)
+	ctx, enrichmentStore, associationStore, sourceLocStore, repoStore, fileStore := setupPageImageTest(t)
 	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 	commitSHA := "ddd444eee555"
 
@@ -253,7 +251,7 @@ func TestExtractPageImages_ContinuesOnPageCountError(t *testing.T) {
 	}}
 	reg := newTestRegistry(rast, ".pdf")
 
-	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, commitStore, reg, &fakeTrackerFactory{}, logger)
+	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, commitReader{}, reg, &fakeTrackerFactory{}, logger)
 
 	err = h.Execute(ctx, map[string]any{
 		"repository_id": savedRepo.ID(),
@@ -272,7 +270,7 @@ func TestExtractPageImages_ContinuesOnPageCountError(t *testing.T) {
 }
 
 func TestExtractPageImages_DataAccessibleAfterIndexing(t *testing.T) {
-	ctx, enrichmentStore, associationStore, sourceLocStore, repoStore, fileStore, commitStore := setupPageImageTest(t)
+	ctx, enrichmentStore, associationStore, sourceLocStore, repoStore, fileStore := setupPageImageTest(t)
 	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 	commitSHA := "fff666aaa777"
 
@@ -294,7 +292,7 @@ func TestExtractPageImages_DataAccessibleAfterIndexing(t *testing.T) {
 	}}
 	reg := newTestRegistry(rast, ".pdf")
 
-	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, commitStore, reg, &fakeTrackerFactory{}, logger)
+	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, commitReader{}, reg, &fakeTrackerFactory{}, logger)
 	err = h.Execute(ctx, map[string]any{
 		"repository_id": savedRepo.ID(),
 		"commit_sha":    commitSHA,
@@ -376,7 +374,7 @@ func TestExtractPageImages_DataAccessibleAfterIndexing(t *testing.T) {
 }
 
 func TestExtractPageImages_NoFiles(t *testing.T) {
-	ctx, enrichmentStore, associationStore, sourceLocStore, repoStore, fileStore, commitStore := setupPageImageTest(t)
+	ctx, enrichmentStore, associationStore, sourceLocStore, repoStore, fileStore := setupPageImageTest(t)
 	logger := zerolog.New(os.Stdout).Level(zerolog.ErrorLevel)
 	commitSHA := "eee555fff666"
 
@@ -384,7 +382,7 @@ func TestExtractPageImages_NoFiles(t *testing.T) {
 
 	reg := newTestRegistry(&fakeRasterizer{}, ".pdf")
 
-	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, commitStore, reg, &fakeTrackerFactory{}, logger)
+	h := NewExtractPageImages(repoStore, enrichmentStore, associationStore, sourceLocStore, fileStore, commitReader{}, reg, &fakeTrackerFactory{}, logger)
 
 	err := h.Execute(ctx, map[string]any{
 		"repository_id": savedRepo.ID(),
