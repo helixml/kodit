@@ -28,7 +28,6 @@ type Enrichment struct {
 	repository.Collection[enrichment.Enrichment]
 	enrichmentStore      enrichment.EnrichmentStore
 	associationStore     enrichment.AssociationStore
-	commitStore          repository.CommitStore
 	bm25Store            search.Store
 	codeEmbeddingStore   search.Store
 	textEmbeddingStore   search.Store
@@ -40,7 +39,6 @@ type Enrichment struct {
 func NewEnrichment(
 	enrichmentStore enrichment.EnrichmentStore,
 	associationStore enrichment.AssociationStore,
-	commitStore repository.CommitStore,
 	bm25Store search.Store,
 	codeEmbeddingStore search.Store,
 	textEmbeddingStore search.Store,
@@ -51,7 +49,6 @@ func NewEnrichment(
 		Collection:           repository.NewCollection[enrichment.Enrichment](enrichmentStore),
 		enrichmentStore:      enrichmentStore,
 		associationStore:     associationStore,
-		commitStore:          commitStore,
 		bm25Store:            bm25Store,
 		codeEmbeddingStore:   codeEmbeddingStore,
 		textEmbeddingStore:   textEmbeddingStore,
@@ -151,12 +148,54 @@ func (s *Enrichment) DeleteBy(ctx context.Context, opts ...repository.Option) er
 				return fmt.Errorf("delete text embeddings: %w", err)
 			}
 		}
-		if err := s.visionEmbeddingStore.DeleteBy(ctx, searchOpts...); err != nil {
-			return fmt.Errorf("delete vision embeddings: %w", err)
+		if s.visionEmbeddingStore != nil {
+			if err := s.visionEmbeddingStore.DeleteBy(ctx, searchOpts...); err != nil {
+				return fmt.Errorf("delete vision embeddings: %w", err)
+			}
 		}
 	}
 
 	return s.enrichmentStore.DeleteBy(ctx, opts...)
+}
+
+// ReleaseForRepository removes repoID's claim on the given enrichments and
+// returns the IDs it deleted. An enrichment that another repository also owns
+// through its own repository association keeps existing and loses only
+// repoID's association; every other enrichment is deleted with DeleteBy.
+func (s *Enrichment) ReleaseForRepository(ctx context.Context, enrichmentIDs []int64, repoID int64) ([]int64, error) {
+	if len(enrichmentIDs) == 0 {
+		return nil, nil
+	}
+	owners, err := s.RepositoryIDs(ctx, enrichmentIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	var shared, deleted []int64
+	for _, id := range enrichmentIDs {
+		others := slices.ContainsFunc(owners[strconv.FormatInt(id, 10)], func(owner int64) bool { return owner != repoID })
+		if others {
+			shared = append(shared, id)
+		} else {
+			deleted = append(deleted, id)
+		}
+	}
+
+	if len(shared) > 0 {
+		if err := s.associationStore.DeleteBy(ctx,
+			enrichment.WithEnrichmentIDIn(shared),
+			enrichment.WithEntityType(enrichment.EntityTypeRepository),
+			enrichment.WithEntityID(strconv.FormatInt(repoID, 10)),
+		); err != nil {
+			return nil, fmt.Errorf("delete repository associations: %w", err)
+		}
+	}
+	if len(deleted) > 0 {
+		if err := s.DeleteBy(ctx, repository.WithIDIn(deleted)); err != nil {
+			return nil, err
+		}
+	}
+	return deleted, nil
 }
 
 // RelatedEnrichments returns enrichments that reference the given enrichment IDs
@@ -266,72 +305,39 @@ func (s *Enrichment) SourceLocations(ctx context.Context, enrichmentIDs []int64)
 	return result, nil
 }
 
-// RepositoryMemberships returns, keyed by enrichment ID, the repositories
-// each enrichment belongs to, in ascending order. An enrichment belongs to
-// every repository it is directly associated with and to the repository
-// recorded for each commit it is associated with. Two repositories that share
-// a commit SHA can each own the commit's enrichments this way, even though
-// git_commits records only one repository per SHA.
-//
-// The search stores apply the same rule when filtering by source repository
-// (infrastructure/persistence/search_filter_options.go); change both together.
-func (s *Enrichment) RepositoryMemberships(ctx context.Context, enrichmentIDs []int64) (map[string][]int64, error) {
+// RepositoryIDs returns, keyed by enrichment ID, the repositories each
+// enrichment belongs to, in ascending order. Membership comes only from the
+// enrichment's direct repository associations, which indexing writes for the
+// repository that produced the enrichment and for each repository that shares
+// the commit. The search stores apply the same rule when filtering by source
+// repository (infrastructure/persistence/search_filter_options.go).
+func (s *Enrichment) RepositoryIDs(ctx context.Context, enrichmentIDs []int64) (map[string][]int64, error) {
 	if len(enrichmentIDs) == 0 {
 		return map[string][]int64{}, nil
 	}
 
-	associations, err := s.associationStore.Find(ctx, enrichment.WithEnrichmentIDIn(enrichmentIDs))
+	associations, err := s.associationStore.Find(ctx,
+		enrichment.WithEnrichmentIDIn(enrichmentIDs),
+		enrichment.WithEntityType(enrichment.EntityTypeRepository),
+	)
 	if err != nil {
-		return nil, fmt.Errorf("find associations: %w", err)
+		return nil, fmt.Errorf("find repository associations: %w", err)
 	}
 
-	members := make(map[string]map[int64]struct{})
-	add := func(enrichmentID, repoID int64) {
-		key := strconv.FormatInt(enrichmentID, 10)
-		if members[key] == nil {
-			members[key] = make(map[int64]struct{})
-		}
-		members[key][repoID] = struct{}{}
-	}
-
-	commitEnrichments := make(map[string][]int64)
+	result := make(map[string][]int64)
 	for _, a := range associations {
-		switch a.EntityType() {
-		case enrichment.EntityTypeRepository:
-			repoID, parseErr := strconv.ParseInt(a.EntityID(), 10, 64)
-			if parseErr != nil {
-				continue
-			}
-			add(a.EnrichmentID(), repoID)
-		case enrichment.EntityTypeCommit:
-			commitEnrichments[a.EntityID()] = append(commitEnrichments[a.EntityID()], a.EnrichmentID())
-		}
-	}
-
-	if len(commitEnrichments) > 0 {
-		shas := make([]string, 0, len(commitEnrichments))
-		for sha := range commitEnrichments {
-			shas = append(shas, sha)
-		}
-		commits, err := s.commitStore.Find(ctx, repository.WithCommitSHAIn(shas))
+		repoID, err := strconv.ParseInt(a.EntityID(), 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("find commits: %w", err)
+			continue
 		}
-		for _, c := range commits {
-			for _, enrichmentID := range commitEnrichments[c.SHA()] {
-				add(enrichmentID, c.RepoID())
-			}
+		key := strconv.FormatInt(a.EnrichmentID(), 10)
+		if !slices.Contains(result[key], repoID) {
+			result[key] = append(result[key], repoID)
 		}
+	}
+	for _, ids := range result {
+		slices.Sort(ids)
 	}
 
-	result := make(map[string][]int64, len(members))
-	for key, set := range members {
-		ids := make([]int64, 0, len(set))
-		for id := range set {
-			ids = append(ids, id)
-		}
-		slices.Sort(ids)
-		result[key] = ids
-	}
 	return result, nil
 }

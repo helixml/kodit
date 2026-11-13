@@ -76,9 +76,9 @@ type VisualSearcher interface {
 type EnrichmentResolver interface {
 	SourceFiles(ctx context.Context, enrichmentIDs []int64) (map[string][]int64, error)
 	SourceLocations(ctx context.Context, enrichmentIDs []int64) (map[string]sourcelocation.SourceLocation, error)
-	// RepositoryMemberships returns, keyed by enrichment ID, the repositories
-	// each enrichment belongs to, in ascending order.
-	RepositoryMemberships(ctx context.Context, enrichmentIDs []int64) (map[string][]int64, error)
+	// RepositoryIDs returns, keyed by enrichment ID, the repositories each
+	// enrichment belongs to, in ascending order.
+	RepositoryIDs(ctx context.Context, enrichmentIDs []int64) (map[string][]int64, error)
 }
 
 // FileLister provides pattern-based file listing from repository working copies.
@@ -597,7 +597,7 @@ func (s *Server) resolveFileResults(
 		return nil, fmt.Errorf("resolve line ranges: %w", err)
 	}
 
-	memberships, err := s.enrichmentResolver.RepositoryMemberships(ctx, ids)
+	memberships, err := s.enrichmentResolver.RepositoryIDs(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("resolve repository IDs: %w", err)
 	}

@@ -65,6 +65,20 @@ func (h *Scan) Execute(ctx context.Context, payload map[string]any) error {
 		return nil
 	}
 
+	// git_commits keeps one row per SHA. A commit another repository already
+	// recorded keeps its owner: overwriting repo_id would hand that
+	// repository's commit to this one. Indexing shares the commit's
+	// enrichments with this repository when the commit is a git commit.
+	ownedElsewhere, err := h.commitStore.Exists(ctx, repository.WithSHA(cp.CommitSHA()))
+	if err != nil {
+		return fmt.Errorf("check commit owner: %w", err)
+	}
+	if ownedElsewhere {
+		h.logger.Info().Int64("repo_id", cp.RepoID()).Str("commit", handler.ShortSHA(cp.CommitSHA())).Msg("commit already recorded for another repository")
+		tracker.Skip(ctx, "Commit already recorded for another repository")
+		return nil
+	}
+
 	repo, err := h.repoStore.FindOne(ctx, repository.WithID(cp.RepoID()))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)

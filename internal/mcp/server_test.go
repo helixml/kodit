@@ -129,7 +129,7 @@ func (f *fakeEnrichmentResolver) SourceLocations(_ context.Context, _ []int64) (
 	return f.lineRanges, nil
 }
 
-func (f *fakeEnrichmentResolver) RepositoryMemberships(_ context.Context, _ []int64) (map[string][]int64, error) {
+func (f *fakeEnrichmentResolver) RepositoryIDs(_ context.Context, _ []int64) (map[string][]int64, error) {
 	members := make(map[string][]int64, len(f.repositoryIDs))
 	for id, repoID := range f.repositoryIDs {
 		members[id] = []int64{repoID}

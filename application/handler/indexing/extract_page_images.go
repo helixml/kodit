@@ -26,6 +26,7 @@ type ExtractPageImages struct {
 	associationStore enrichment.AssociationStore
 	sourceLocStore   sourcelocation.Store
 	fileStore        repository.FileStore
+	commitStore      repository.CommitStore
 	rasterizers      *rasterization.Registry
 	trackerFactory   handler.TrackerFactory
 	logger           zerolog.Logger
@@ -39,6 +40,7 @@ func NewExtractPageImages(
 	associationStore enrichment.AssociationStore,
 	sourceLocStore sourcelocation.Store,
 	fileStore repository.FileStore,
+	commitStore repository.CommitStore,
 	rasterizers *rasterization.Registry,
 	trackerFactory handler.TrackerFactory,
 	logger zerolog.Logger,
@@ -49,6 +51,7 @@ func NewExtractPageImages(
 		associationStore: associationStore,
 		sourceLocStore:   sourceLocStore,
 		fileStore:        fileStore,
+		commitStore:      commitStore,
 		rasterizers:      rasterizers,
 		trackerFactory:   trackerFactory,
 		logger:           logger,
@@ -81,6 +84,9 @@ func (h *ExtractPageImages) Execute(ctx context.Context, payload map[string]any)
 	}
 
 	if len(existing) > 0 {
+		if err := shareCommitEnrichments(ctx, h.commitStore, h.associationStore, existing, cp.CommitSHA(), cp.RepoID()); err != nil {
+			return err
+		}
 		tracker.Skip(ctx, "Page images already created for commit")
 		return nil
 	}

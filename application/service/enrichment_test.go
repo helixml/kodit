@@ -2,10 +2,8 @@ package service
 
 import (
 	"context"
-	"slices"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
@@ -81,7 +79,7 @@ func TestEnrichment_SourceLocations(t *testing.T) {
 		t.Fatalf("save line range: %v", err)
 	}
 
-	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, nil, nil, stores.lineRanges)
+	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, nil, stores.lineRanges)
 
 	result, err := svc.SourceLocations(ctx, []int64{saved.ID()})
 	if err != nil {
@@ -102,7 +100,7 @@ func TestEnrichment_SourceLocations(t *testing.T) {
 }
 
 func TestEnrichment_SourceLocations_EmptyIDs(t *testing.T) {
-	svc := NewEnrichment(nil, nil, nil, nil, nil, nil, nil, nil)
+	svc := NewEnrichment(nil, nil, nil, nil, nil, nil, nil)
 
 	result, err := svc.SourceLocations(context.Background(), nil)
 	if err != nil {
@@ -126,7 +124,7 @@ func TestEnrichment_List_WithTypeFilter(t *testing.T) {
 		t.Fatalf("save e2: %v", err)
 	}
 
-	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, nil, nil, nil)
+	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, nil, nil)
 	typ := enrichment.TypeDevelopment
 	results, err := svc.List(ctx, &EnrichmentListParams{Type: &typ})
 	if err != nil {
@@ -151,7 +149,7 @@ func TestEnrichment_List_WithPagination(t *testing.T) {
 		}
 	}
 
-	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, nil, nil, nil)
+	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, nil, nil)
 	results, err := svc.List(ctx, &EnrichmentListParams{Limit: 2})
 	if err != nil {
 		t.Fatalf("List: %v", err)
@@ -162,7 +160,7 @@ func TestEnrichment_List_WithPagination(t *testing.T) {
 }
 
 func TestEnrichment_List_NilParams(t *testing.T) {
-	svc := NewEnrichment(nil, nil, nil, nil, nil, nil, nil, nil)
+	svc := NewEnrichment(nil, nil, nil, nil, nil, nil, nil)
 
 	results, err := svc.List(context.Background(), nil)
 	if err != nil {
@@ -186,7 +184,7 @@ func TestEnrichment_Count_WithFilter(t *testing.T) {
 		}
 	}
 
-	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, nil, nil, nil)
+	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, nil, nil)
 	typ := enrichment.TypeDevelopment
 	count, err := svc.Count(ctx, &EnrichmentListParams{Type: &typ})
 	if err != nil {
@@ -212,7 +210,7 @@ func TestEnrichment_DeleteBy_CleansUpSearchIndexes(t *testing.T) {
 	textEmb := &recordingEmbeddingStore{}
 	visionEmb := &recordingEmbeddingStore{}
 
-	svc := NewEnrichment(stores.enrichments, nil, nil, bm25, codeEmb, textEmb, visionEmb, nil)
+	svc := NewEnrichment(stores.enrichments, nil, bm25, codeEmb, textEmb, visionEmb, nil)
 	if err := svc.DeleteBy(ctx, repository.WithID(saved.ID())); err != nil {
 		t.Fatalf("DeleteBy: %v", err)
 	}
@@ -251,7 +249,7 @@ func TestEnrichment_DeleteBy_NilStores(t *testing.T) {
 
 	// Vision store is always required; BM25, code, and text stores may be nil.
 	visionEmb := &recordingEmbeddingStore{}
-	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, nil, visionEmb, nil)
+	svc := NewEnrichment(stores.enrichments, nil, nil, nil, nil, visionEmb, nil)
 	if err := svc.DeleteBy(ctx, repository.WithID(saved.ID())); err != nil {
 		t.Fatalf("DeleteBy: %v", err)
 	}
@@ -287,7 +285,7 @@ func TestEnrichment_RelatedEnrichments(t *testing.T) {
 		t.Fatalf("save association: %v", err)
 	}
 
-	svc := NewEnrichment(stores.enrichments, stores.associations, nil, nil, nil, nil, nil, nil)
+	svc := NewEnrichment(stores.enrichments, stores.associations, nil, nil, nil, nil, nil)
 	result, err := svc.RelatedEnrichments(ctx, []int64{savedParent.ID()})
 	if err != nil {
 		t.Fatalf("RelatedEnrichments: %v", err)
@@ -306,7 +304,7 @@ func TestEnrichment_RelatedEnrichments(t *testing.T) {
 }
 
 func TestEnrichment_RelatedEnrichments_EmptyIDs(t *testing.T) {
-	svc := NewEnrichment(nil, nil, nil, nil, nil, nil, nil, nil)
+	svc := NewEnrichment(nil, nil, nil, nil, nil, nil, nil)
 
 	result, err := svc.RelatedEnrichments(context.Background(), nil)
 	if err != nil {
@@ -336,7 +334,7 @@ func TestEnrichment_SourceFiles(t *testing.T) {
 		t.Fatalf("save assoc2: %v", err)
 	}
 
-	svc := NewEnrichment(stores.enrichments, stores.associations, nil, nil, nil, nil, nil, nil)
+	svc := NewEnrichment(stores.enrichments, stores.associations, nil, nil, nil, nil, nil)
 	result, err := svc.SourceFiles(ctx, []int64{saved.ID()})
 	if err != nil {
 		t.Fatalf("SourceFiles: %v", err)
@@ -353,7 +351,7 @@ func TestEnrichment_SourceFiles(t *testing.T) {
 }
 
 func TestEnrichment_SourceFiles_EmptyIDs(t *testing.T) {
-	svc := NewEnrichment(nil, nil, nil, nil, nil, nil, nil, nil)
+	svc := NewEnrichment(nil, nil, nil, nil, nil, nil, nil)
 
 	result, err := svc.SourceFiles(context.Background(), nil)
 	if err != nil {
@@ -364,89 +362,77 @@ func TestEnrichment_SourceFiles_EmptyIDs(t *testing.T) {
 	}
 }
 
-func TestEnrichment_RepositoryMemberships(t *testing.T) {
+func TestEnrichment_RepositoryIDs(t *testing.T) {
 	stores := newTestStores(t)
 	ctx := context.Background()
 
-	save := func(content string) enrichment.Enrichment {
-		t.Helper()
-		e, err := stores.enrichments.Save(ctx, enrichment.NewEnrichment(enrichment.TypeDevelopment, enrichment.SubtypeChunk, enrichment.EntityTypeCommit, content))
-		if err != nil {
-			t.Fatalf("save enrichment: %v", err)
-		}
-		return e
+	e := enrichment.NewEnrichment(enrichment.TypeDevelopment, enrichment.SubtypeSnippet, enrichment.EntityTypeSnippet, "code")
+	saved, err := stores.enrichments.Save(ctx, e)
+	if err != nil {
+		t.Fatalf("save enrichment: %v", err)
 	}
-	associate := func(e enrichment.Enrichment, entityID string, entityType enrichment.EntityTypeKey) {
-		t.Helper()
-		if _, err := stores.associations.Save(ctx, enrichment.NewAssociation(e.ID(), entityID, entityType)); err != nil {
+
+	assoc := enrichment.NewAssociation(saved.ID(), "42", enrichment.EntityTypeRepository)
+	if _, err := stores.associations.Save(ctx, assoc); err != nil {
+		t.Fatalf("save association: %v", err)
+	}
+
+	svc := NewEnrichment(stores.enrichments, stores.associations, nil, nil, nil, nil, nil)
+	result, err := svc.RepositoryIDs(ctx, []int64{saved.ID()})
+	if err != nil {
+		t.Fatalf("RepositoryIDs: %v", err)
+	}
+
+	key := strconv.FormatInt(saved.ID(), 10)
+	repoIDs, ok := result[key]
+	if !ok {
+		t.Fatalf("expected entry for enrichment ID %s", key)
+	}
+	if len(repoIDs) != 1 || repoIDs[0] != 42 {
+		t.Errorf("expected repo IDs [42], got %v", repoIDs)
+	}
+}
+
+// TestEnrichment_RepositoryIDs_DirectAssociationsOnly checks that membership
+// comes from repository associations alone: an enrichment shared by two
+// repositories lists both, and a commit association never adds the
+// repository that git_commits records for the SHA.
+func TestEnrichment_RepositoryIDs_DirectAssociationsOnly(t *testing.T) {
+	stores := newTestStores(t)
+	ctx := context.Background()
+
+	saved, err := stores.enrichments.Save(ctx, enrichment.NewEnrichment(enrichment.TypeDevelopment, enrichment.SubtypeChunk, enrichment.EntityTypeCommit, "chunk"))
+	if err != nil {
+		t.Fatalf("save enrichment: %v", err)
+	}
+	for _, a := range []enrichment.Association{
+		enrichment.CommitAssociation(saved.ID(), "sha1"),
+		enrichment.RepositoryAssociation(saved.ID(), "7"),
+		enrichment.RepositoryAssociation(saved.ID(), "3"),
+	} {
+		if _, err := stores.associations.Save(ctx, a); err != nil {
 			t.Fatalf("save association: %v", err)
 		}
 	}
 
-	// Repositories 1 and 3 share commit "shared". The chunk was indexed by
-	// repository 1 (repository association) and repository 3 was scanned
-	// last, so git_commits records repository 3 for the SHA.
-	repo1 := saveTestRepoWithURL(t, stores, "https://example.com/one")
-	repo2 := saveTestRepoWithURL(t, stores, "https://example.com/two")
-	repo3 := saveTestRepoWithURL(t, stores, "https://example.com/three")
-	now := time.Now()
-	author := repository.NewAuthor("Test", "test@example.com")
-	for _, c := range []repository.Commit{
-		repository.NewCommit("shared", repo3.ID(), "m", author, author, now, now),
-		repository.NewCommit("own2", repo2.ID(), "m", author, author, now, now),
-	} {
-		if _, err := stores.commits.Save(ctx, c); err != nil {
-			t.Fatalf("save commit: %v", err)
-		}
-	}
-
-	shared := save("shared chunk")
-	associate(shared, "shared", enrichment.EntityTypeCommit)
-	associate(shared, strconv.FormatInt(repo1.ID(), 10), enrichment.EntityTypeRepository)
-	own := save("own chunk")
-	associate(own, "own2", enrichment.EntityTypeCommit)
-	associate(own, strconv.FormatInt(repo2.ID(), 10), enrichment.EntityTypeRepository)
-	orphan := save("no associations")
-
-	svc := NewEnrichment(stores.enrichments, stores.associations, stores.commits, nil, nil, nil, nil, nil)
-	result, err := svc.RepositoryMemberships(ctx, []int64{shared.ID(), own.ID(), orphan.ID()})
+	svc := NewEnrichment(stores.enrichments, stores.associations, nil, nil, nil, nil, nil)
+	result, err := svc.RepositoryIDs(ctx, []int64{saved.ID()})
 	if err != nil {
-		t.Fatalf("RepositoryMemberships: %v", err)
+		t.Fatalf("RepositoryIDs: %v", err)
 	}
-
-	key := func(e enrichment.Enrichment) string { return strconv.FormatInt(e.ID(), 10) }
-	if got, want := result[key(shared)], []int64{repo1.ID(), repo3.ID()}; !slices.Equal(got, want) {
-		t.Errorf("shared chunk members = %v, want %v", got, want)
-	}
-	if got, want := result[key(own)], []int64{repo2.ID()}; !slices.Equal(got, want) {
-		t.Errorf("own chunk members = %v, want %v", got, want)
-	}
-	if got, ok := result[key(orphan)]; ok {
-		t.Errorf("orphan enrichment has members %v", got)
+	if got := result[strconv.FormatInt(saved.ID(), 10)]; len(got) != 2 || got[0] != 3 || got[1] != 7 {
+		t.Errorf("repo IDs = %v, want [3 7]", got)
 	}
 }
 
-func TestEnrichment_RepositoryMemberships_EmptyIDs(t *testing.T) {
-	svc := NewEnrichment(nil, nil, nil, nil, nil, nil, nil, nil)
+func TestEnrichment_RepositoryIDs_EmptyIDs(t *testing.T) {
+	svc := NewEnrichment(nil, nil, nil, nil, nil, nil, nil)
 
-	result, err := svc.RepositoryMemberships(context.Background(), nil)
+	result, err := svc.RepositoryIDs(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(result) != 0 {
 		t.Errorf("expected empty map, got %d entries", len(result))
 	}
-}
-
-func saveTestRepoWithURL(t *testing.T, stores testStores, url string) repository.Repository {
-	t.Helper()
-	repo, err := repository.NewRepository(url)
-	if err != nil {
-		t.Fatalf("new repository: %v", err)
-	}
-	saved, err := stores.repos.Save(context.Background(), repo)
-	if err != nil {
-		t.Fatalf("save repository: %v", err)
-	}
-	return saved
 }

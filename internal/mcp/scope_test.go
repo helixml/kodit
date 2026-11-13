@@ -280,7 +280,7 @@ func (worldResolver) SourceLocations(_ context.Context, _ []int64) (map[string]s
 	return map[string]sourcelocation.SourceLocation{}, nil
 }
 
-func (worldResolver) RepositoryMemberships(_ context.Context, _ []int64) (map[string][]int64, error) {
+func (worldResolver) RepositoryIDs(_ context.Context, _ []int64) (map[string][]int64, error) {
 	return map[string][]int64{"10": {repoAID}, "20": {repoBID}, "30": {repoAID, repoCID}}, nil
 }
 

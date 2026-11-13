@@ -37,6 +37,24 @@ func NewCommitWithParent(sha string, repoID int64, message string, author, commi
 	return c
 }
 
+// directorySnapshotEmail is the author email of commits kodit synthesises
+// for plain directories.
+const directorySnapshotEmail = "kodit@local"
+
+// NewDirectorySnapshot creates the synthetic commit kodit records for a plain
+// directory's contents. Its SHA is a content hash kodit computes, not a git
+// object ID.
+func NewDirectorySnapshot(sha string, repoID int64, at time.Time) Commit {
+	author := NewAuthor("kodit", directorySnapshotEmail)
+	return NewCommit(sha, repoID, "Directory snapshot", author, author, at, at)
+}
+
+// IsDirectorySnapshot reports whether the commit is a synthetic snapshot of a
+// plain directory rather than a git commit.
+func (c Commit) IsDirectorySnapshot() bool {
+	return c.author.Email() == directorySnapshotEmail
+}
+
 // ReconstructCommit reconstructs a Commit from persistence.
 func ReconstructCommit(
 	id int64,

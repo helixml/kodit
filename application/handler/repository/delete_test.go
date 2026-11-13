@@ -35,7 +35,6 @@ func newDeleteHandler(t *testing.T) (*Delete, persistence.RepositoryStore) {
 	enrichments := service.NewEnrichment(
 		enrichmentStore,
 		associationStore,
-		commitStore,
 		nil, // bm25 — not reached during delete
 		nil, // code embeddings
 		nil, // text embeddings
