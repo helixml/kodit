@@ -25,27 +25,28 @@ const (
 // clientConfig holds configuration for Client construction.
 // Use newClientConfig() to create with defaults from internal/config.
 type clientConfig struct {
-	database               databaseType
-	dbPath                 string
-	dbDSN                  string
-	dataDir                string
-	cloneDir               string
-	modelDir               string
-	textProvider           provider.TextGenerator
-	embeddingProvider      search.Embedder
-	logger                 zerolog.Logger
-	apiKeys                []string
-	workerCount            int
-	workerPollPeriod       time.Duration
-	skipProviderValidation bool
-	embeddingBudget        search.TokenBudget
-	enrichmentBudget       search.TokenBudget
-	embeddingParallelism   int
-	enrichmentParallelism  int
-	enricherParallelism    int
-	periodicSync           config.PeriodicSyncConfig
-	chunkParams            chunking.ChunkParams
-	closers                []io.Closer
+	database                  databaseType
+	dbPath                    string
+	dbDSN                     string
+	dataDir                   string
+	cloneDir                  string
+	modelDir                  string
+	textProvider              provider.TextGenerator
+	embeddingProvider         search.Embedder
+	logger                    zerolog.Logger
+	apiKeys                   []string
+	workerCount               int
+	workerPollPeriod          time.Duration
+	skipProviderValidation    bool
+	allowLocalGitRepositories bool
+	embeddingBudget           search.TokenBudget
+	enrichmentBudget          search.TokenBudget
+	embeddingParallelism      int
+	enrichmentParallelism     int
+	enricherParallelism       int
+	periodicSync              config.PeriodicSyncConfig
+	chunkParams               chunking.ChunkParams
+	closers                   []io.Closer
 
 	// Vision embedding
 	visionEmbedder search.Embedder
@@ -239,6 +240,18 @@ func WithWorkerPollPeriod(d time.Duration) Option {
 func WithSkipProviderValidation() Option {
 	return func(c *clientConfig) {
 		c.skipProviderValidation = true
+	}
+}
+
+// WithLocalGitRepositories lets kodit read a file:// repository with git when
+// the directory has a real .git directory. Without it, every file:// repository
+// is indexed as a plain directory, because git honours configuration, object
+// stores and attributes found in a directory, and anyone who can write to
+// the directory controls them. Enable it only when every file:// path kodit
+// is given is trusted.
+func WithLocalGitRepositories() Option {
+	return func(c *clientConfig) {
+		c.allowLocalGitRepositories = true
 	}
 }
 

@@ -356,7 +356,7 @@ func New(opts ...Option) (*Client, error) {
 	registry := service.NewRegistry()
 	queue = service.NewQueue(taskStore, logger)
 
-	enrichQSvc := service.NewEnrichment(enrichmentStore, associationStore, commitStore, bm25Store, codeEmbeddingStore, textEmbeddingStore, visionEmbeddingStore, lineRangeStore)
+	enrichQSvc := service.NewEnrichment(enrichmentStore, associationStore, bm25Store, codeEmbeddingStore, textEmbeddingStore, visionEmbeddingStore, lineRangeStore)
 	trackingSvc := service.NewTracking(statusStore, taskStore)
 
 	// Create BM25 service for keyword search (always available)
@@ -366,12 +366,13 @@ func New(opts ...Option) (*Client, error) {
 	}
 
 	// Create git infrastructure
-	gitAdapter, err := git.NewGiteaAdapter(logger)
+	gitLayout := git.NewLayout(cloneDir, cfg.allowLocalGitRepositories)
+	gitAdapter, err := git.NewGiteaAdapter(gitLayout, logger)
 	if err != nil {
 		return nil, fmt.Errorf("create git adapter: %w", err)
 	}
 	clonerSvc := git.NewRepositoryCloner(gitAdapter, cloneDir, logger)
-	scannerSvc := git.NewRepositoryScanner(gitAdapter, logger)
+	scannerSvc := git.NewRepositoryScanner(gitAdapter, gitLayout, logger)
 
 	gitInfra := handler.GitInfrastructure{
 		Adapter: gitAdapter,

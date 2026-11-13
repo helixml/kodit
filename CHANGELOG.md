@@ -10,26 +10,75 @@ tag are on the [GitHub releases page](https://github.com/helixml/kodit/releases)
 - `NewScopedMCPHandler(client, repoIDs)` with a nil or empty `repoIDs` now
   sees **no** repositories. Previously an empty list produced an unscoped
   handler that saw every repository. Callers that want every repository must
-  switch to the new `NewMCPHandler(client)`.
+  switch to the new `NewMCPHandler(client)`. A caller that refuses an empty
+  list before calling can keep doing so for a clearer error, but comments
+  that describe an empty list as "every repository" no longer hold.
+- `file://` repositories are no longer read with git unless the operator
+  enables it with `WithLocalGitRepositories()` (server:
+  `ALLOW_LOCAL_GIT_REPOSITORIES=true`). Without it, every `file://`
+  repository is indexed as a plain directory, even one that contains a git
+  repository. Git was previously detected automatically with
+  `git rev-parse`. That treated any directory holding `HEAD`, `config`,
+  `objects` and `refs` as a bare repository, and git then honoured that
+  directory's `objects/info/alternates`, configuration and attributes.
+  - With the option on, kodit uses git only for a directory with a real
+    `.git` directory (not a symbolic link).
+  - A `file://` path inside kodit's clone directory is refused.
+  - Plain directories skip `.git` directories when they are indexed.
+- Every git command kodit builds runs with
+  `-c safe.bareRepository=explicit -c core.fsmonitor=false
+  -c core.hooksPath=/dev/null`. Commit diffs and logs pass
+  `--no-textconv --no-ext-diff`. Cloning goes through the same hardened
+  command, no longer through Gitea's `Clone`.
+- Directory snapshot SHAs are salted with the repository ID, so two
+  directories with the same contents get different SHAs. A directory
+  repository indexed by an earlier release gets a new snapshot SHA, and is
+  re-indexed, on its next sync.
 - Symbolic links in repository working copies are no longer followed. Every
   read of working-copy content goes through `internal/workingcopy`, which
-  refuses a path that is, or passes through, a symbolic link. This covers
-  raster and text document reads (MCP and REST), document indexing, page-image
-  extraction, the cookbook, wiki, database-schema, physical-architecture and
-  API-docs enrichers, `.noindex`, and scanning, hashing and reading non-git
-  directories. A symlinked document now reads as not found and is skipped
-  during indexing; plain reads of git repositories already returned a link's
-  target path, not its content.
+  refuses a path that is, or passes through, a symbolic link. This covers:
+  - raster and text document reads (MCP and REST)
+  - document indexing and page-image extraction
+  - the cookbook, wiki, database-schema, physical-architecture and API-docs
+    enrichers
+  - scanning, hashing and reading non-git directories
+
+  A symlinked document now reads as not found and is skipped during indexing.
+  Plain reads of git repositories already returned a link's target path, not
+  its content.
+- Search scoping uses only an enrichment's direct repository associations.
+  Both the search stores' source-repository filter and the MCP result filter
+  apply this rule. Previously the store filter matched any repository that
+  `git_commits` recorded for the enrichment's commit SHA. That row moves to
+  whichever repository was scanned last with that SHA, so another repository
+  could gain the enrichments.
+  - A commit SHA already recorded for another repository keeps its owner when
+    a second repository scans it.
+  - When the commit is a git commit, indexing shares the existing chunks and
+    page images with the second repository by adding its repository
+    association. Directory snapshots are never shared.
+  - `Enrichment.RepositoryIDs` returns every repository an enrichment is
+    associated with (`map[string][]int64`).
+  - A rescan refuses a commit that is not recorded for the rescanning
+    repository.
+  - A rescan, and the old-commit cleanup after indexing, delete only
+    enrichments that no other repository shares. A shared enrichment loses
+    only the rescanning repository's association; its files and commit row
+    are kept.
 - `kodit_semantic_search`, `kodit_keyword_search` and `kodit_visual_search`
   return at most 100 results, whatever `limit` is requested.
-- `service.NewEnrichment` takes a `repository.CommitStore` after the
-  association store, and `Enrichment.RepositoryIDs` is replaced by
-  `Enrichment.RepositoryMemberships`. It returns every repository an
-  enrichment belongs to.
+- Constructor changes:
+  - `git.NewGiteaAdapter` and `git.NewRepositoryScanner` take a `git.Layout`.
+  - `indexing.NewChunkFiles` and `indexing.NewExtractPageImages` take a
+    commit store.
+  - `enrichment.NewAPIDocs` takes a repository store.
+  - The unused `git.IgnorePattern` is removed.
 
 ### Added
 
 - `NewMCPHandler(client)`: an MCP HTTP handler that sees every repository.
+- `WithLocalGitRepositories()` / `ALLOW_LOCAL_GIT_REPOSITORIES`: read
+  `file://` repositories that have a `.git` directory with git.
 
 ### Fixed
 
@@ -49,12 +98,6 @@ tag are on the [GitHub releases page](https://github.com/helixml/kodit/releases)
     unfiltered.
 - The docs and wiki tools reject a `commit_sha` that does not belong to the
   repository named by `repo_url`, on scoped and unscoped servers alike.
-- Search results from a commit that two repositories share are visible to
-  both repositories. An enrichment belongs to every repository it is directly
-  associated with, and to the repository `git_commits` records for its
-  commit. The search stores' source-repository filter and the MCP result
-  filter now use that same rule. Before, they used different sources, and a
-  shared commit could be hidden from both repositories.
 - `kodit_keyword_search` with `source_repo` now filters in the search store
   as well as afterwards, so matches from other repositories no longer use up
   the result limit.
@@ -64,9 +107,10 @@ tag are on the [GitHub releases page](https://github.com/helixml/kodit/releases)
 
 ### Known limitations
 
-- `git_commits` keys commits by SHA alone, so when two repositories contain
-  the same commit, only the repository scanned last owns its row. Commit
-  lookups for the other repository (its latest commit, `commit_sha`
-  validation in the docs and wiki tools, `kodit_ls`) do not find that commit
-  until the key includes the repository
-  ([#583](https://github.com/helixml/kodit/issues/583)).
+- `git_commits` keys commits by SHA alone. When two repositories contain the
+  same git commit, only the repository that recorded it first owns the row,
+  so the other repository's commit lookups do not find that commit. These
+  include its latest commit, `commit_sha` validation in the docs and wiki
+  tools, and `kodit_ls`. The other repository also cannot rescan the commit.
+  Its search results are not affected. The fix is to make the key include
+  the repository ([#583](https://github.com/helixml/kodit/issues/583)).

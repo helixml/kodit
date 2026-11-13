@@ -45,7 +45,7 @@ func nonGitDirWithSymlinks(t *testing.T) (dir, outsideFile string) {
 
 func TestFileContent_NonGitDir_DoesNotFollowSymlinks(t *testing.T) {
 	dir, _ := nonGitDirWithSymlinks(t)
-	adapter := &GiteaAdapter{logger: zerolog.Nop()}
+	adapter := &GiteaAdapter{layout: NewLayout("", false), logger: zerolog.Nop()}
 	ctx := context.Background()
 
 	got, err := adapter.FileContent(ctx, dir, "", "own.txt")
@@ -62,7 +62,7 @@ func TestFileContent_NonGitDir_DoesNotFollowSymlinks(t *testing.T) {
 
 func TestScanCommit_NonGitDir_SkipsSymlinks(t *testing.T) {
 	dir, outsideFile := nonGitDirWithSymlinks(t)
-	scanner := NewRepositoryScanner(&GiteaAdapter{logger: zerolog.Nop()}, zerolog.Nop())
+	scanner := NewRepositoryScanner(&GiteaAdapter{logger: zerolog.Nop()}, NewLayout("", false), zerolog.Nop())
 
 	result, err := scanner.ScanCommit(context.Background(), dir, "sha", 1)
 	if err != nil {
@@ -77,14 +77,14 @@ func TestScanCommit_NonGitDir_SkipsSymlinks(t *testing.T) {
 	}
 
 	// The directory hash must not depend on a symlink target's content.
-	before, err := dirHash(dir)
+	before, err := dirHash(dir, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(outsideFile, []byte("changed"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	after, err := dirHash(dir)
+	after, err := dirHash(dir, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -90,6 +90,7 @@ func TestIntegration_WorkingCopySymlinks_AreNotFollowed(t *testing.T) {
 		kodit.WithCloneDir(filepath.Join(tmpDir, "repos")),
 		kodit.WithModelDir("infrastructure/provider/models"),
 		kodit.WithWorkerPollPeriod(testPollPeriod),
+		kodit.WithLocalGitRepositories(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()

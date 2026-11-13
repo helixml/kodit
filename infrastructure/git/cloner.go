@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -25,14 +24,6 @@ func isFileURI(uri string) bool {
 // file:///home/user/project → /home/user/project
 func localPathFromFileURI(uri string) string {
 	return strings.TrimPrefix(uri, "file://")
-}
-
-// isGitRepo reports whether path is recognised as a git repository by git itself.
-// It handles regular repos (.git/), bare repos, and worktrees.
-func isGitRepo(path string) bool {
-	cmd := exec.Command("git", "rev-parse", "--git-dir")
-	cmd.Dir = path
-	return cmd.Run() == nil
 }
 
 // RepositoryCloner handles repository cloning and updating operations.
@@ -69,6 +60,11 @@ func (c *RepositoryCloner) ClonePathFromURI(uri string) string {
 func (c *RepositoryCloner) Clone(ctx context.Context, remoteURI string) (string, error) {
 	if isFileURI(remoteURI) {
 		localPath := localPathFromFileURI(remoteURI)
+		// A local directory inside the clone directory would be another
+		// repository's clone, which kodit reads with git.
+		if NewLayout(c.cloneDir, false).Managed(localPath) || filepath.Clean(localPath) == filepath.Clean(c.cloneDir) {
+			return "", fmt.Errorf("file:// repository %s is inside the clone directory", localPath)
+		}
 		c.logger.Info().Str("uri", remoteURI).Str("path", localPath).Msg("file:// repository; skipping clone")
 		return localPath, nil
 	}
@@ -119,10 +115,13 @@ func (c *RepositoryCloner) Update(ctx context.Context, repo repository.Repositor
 		c.logger.Debug().Int64("repo_id", repo.ID()).Str("path", clonePath).Msg("file:// repository; skipping fetch/pull")
 		return clonePath, nil
 	} else {
-		// Check if the path exists and is accessible (git repos only).
-		if _, err := os.Stat(clonePath); err != nil {
-			// The stored path is stale (e.g. from a previous container).
-			// Clone to the correct location for the current environment.
+		// Check if the path exists and is accessible (git repos only). Git
+		// reads only clones inside the clone directory, so a clone left in
+		// another directory (the clone directory moved) is cloned again too.
+		if _, err := os.Stat(clonePath); err != nil || !NewLayout(c.cloneDir, false).Managed(clonePath) {
+			// The stored path is stale (e.g. from a previous container or a
+			// previous clone directory). Clone to the correct location for
+			// the current environment.
 			clonePath = c.ClonePathFromURI(repo.RemoteURL())
 
 			c.logger.Info().Int64("repo_id", repo.ID()).Str("old_path", repo.WorkingCopy().Path()).Str("new_path", clonePath).Msg("relocating repository clone")

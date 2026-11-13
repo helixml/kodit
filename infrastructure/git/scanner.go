@@ -21,13 +21,17 @@ import (
 // Implements domain/service.Scanner interface.
 type RepositoryScanner struct {
 	adapter Adapter
+	layout  Layout
 	logger  zerolog.Logger
 }
 
 // NewRepositoryScanner creates a new RepositoryScanner with the specified adapter.
-func NewRepositoryScanner(adapter Adapter, logger zerolog.Logger) *RepositoryScanner {
+// layout decides which working copies are scanned with git; every other
+// working copy is scanned as a plain directory.
+func NewRepositoryScanner(adapter Adapter, layout Layout, logger zerolog.Logger) *RepositoryScanner {
 	return &RepositoryScanner{
 		adapter: adapter,
+		layout:  layout,
 		logger:  logger,
 	}
 }
@@ -38,10 +42,8 @@ func NewRepositoryScanner(adapter Adapter, logger zerolog.Logger) *RepositorySca
 func (s *RepositoryScanner) ScanCommit(ctx context.Context, clonedPath string, commitSHA string, repoID int64) (service.ScanCommitResult, error) {
 	s.logger.Info().Str("sha", shortSHA(commitSHA)).Str("path", clonedPath).Msg("scanning commit")
 
-	if !isGitRepo(clonedPath) {
-		now := time.Now()
-		author := repository.NewAuthor("kodit", "kodit@local")
-		commit := repository.NewCommit(commitSHA, repoID, "Directory snapshot", author, author, now, now)
+	if !s.layout.IsGitRepository(clonedPath) {
+		commit := repository.NewDirectorySnapshot(commitSHA, repoID, time.Now())
 		files, err := s.filesFromDir(clonedPath, commitSHA)
 		if err != nil {
 			return service.ScanCommitResult{}, fmt.Errorf("list directory files: %w", err)
@@ -94,8 +96,8 @@ func (s *RepositoryScanner) ScanBranch(ctx context.Context, clonedPath string, b
 func (s *RepositoryScanner) ScanAllBranches(ctx context.Context, clonedPath string, repoID int64) ([]repository.Branch, error) {
 	s.logger.Info().Str("path", clonedPath).Msg("scanning all branches")
 
-	if !isGitRepo(clonedPath) {
-		hash, err := dirHash(clonedPath)
+	if !s.layout.IsGitRepository(clonedPath) {
+		hash, err := dirHash(clonedPath, repoID)
 		if err != nil {
 			return nil, fmt.Errorf("compute directory hash: %w", err)
 		}
@@ -122,6 +124,10 @@ func (s *RepositoryScanner) ScanAllBranches(ctx context.Context, clonedPath stri
 // ScanAllTags scans metadata for all tags.
 func (s *RepositoryScanner) ScanAllTags(ctx context.Context, clonedPath string, repoID int64) ([]repository.Tag, error) {
 	s.logger.Info().Str("path", clonedPath).Msg("scanning all tags")
+
+	if !s.layout.IsGitRepository(clonedPath) {
+		return nil, nil
+	}
 
 	tagInfos, err := s.adapter.AllTags(ctx, clonedPath)
 	if err != nil {
@@ -210,10 +216,12 @@ func (s *RepositoryScanner) filesFromInfo(infos []FileInfo, commitSHA string) []
 	return files
 }
 
-// dirHash computes a stable SHA-256 hash over the contents of a directory.
-// Files are processed in sorted order so the hash is deterministic.
-// Returns the first 40 hex characters (matching the length of a git SHA1).
-func dirHash(path string) (string, error) {
+// dirHash computes a stable SHA-256 hash over the contents of a directory,
+// salted with the repository ID so that two repositories never share a
+// directory snapshot SHA, whatever their contents. Files are processed in
+// sorted order so the hash is deterministic. Returns the first 40 hex
+// characters (matching the length of a git SHA1).
+func dirHash(path string, repoID int64) (string, error) {
 	type entry struct {
 		rel     string
 		content []byte
@@ -225,7 +233,7 @@ func dirHash(path string) (string, error) {
 			return err
 		}
 		if d.IsDir() {
-			return nil
+			return skipGitDir(d)
 		}
 		content, err := workingcopy.ReadFile(path, rel)
 		if err != nil {
@@ -241,6 +249,7 @@ func dirHash(path string) (string, error) {
 	sort.Slice(entries, func(i, j int) bool { return entries[i].rel < entries[j].rel })
 
 	h := sha256.New()
+	_, _ = fmt.Fprintf(h, "kodit-directory-snapshot\x00repository:%d\x00", repoID)
 	for _, e := range entries {
 		h.Write([]byte(e.rel))
 		h.Write(e.content)
@@ -261,7 +270,7 @@ func (s *RepositoryScanner) filesFromDir(dirPath, commitSHA string) ([]repositor
 			return err
 		}
 		if d.IsDir() {
-			return nil
+			return skipGitDir(d)
 		}
 		content, err := workingcopy.ReadFile(dirPath, rel)
 		if err != nil {
@@ -282,6 +291,14 @@ func (s *RepositoryScanner) filesFromDir(dirPath, commitSHA string) ([]repositor
 		return nil
 	})
 	return files, err
+}
+
+// skipGitDir skips .git directories when a directory is read as plain files.
+func skipGitDir(d fs.DirEntry) error {
+	if d.Name() == ".git" {
+		return fs.SkipDir
+	}
+	return nil
 }
 
 func shortSHA(sha string) string {

@@ -64,6 +64,9 @@ func NewTestServer(t *testing.T) *TestServer {
 		kodit.WithDataDir(tmpDir),
 		kodit.WithSkipProviderValidation(),
 		kodit.WithPeriodicSyncConfig(syncCfg),
+		// Tests register git repositories created in temporary directories
+		// outside the clone directory.
+		kodit.WithLocalGitRepositories(),
 	)
 	if err != nil {
 		t.Fatalf("create kodit client: %v", err)

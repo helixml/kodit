@@ -424,6 +424,7 @@ kodit serve --env-file .env
 | `WORKER_COUNT` | `1` | Number of background workers |
 | `SEARCH_LIMIT` | `10` | Default search result limit |
 | `DISABLE_TELEMETRY` | `false` | Disable anonymous usage telemetry |
+| `ALLOW_LOCAL_GIT_REPOSITORIES` | `false` | Read `file://` repositories that have a `.git` directory with git. Otherwise every `file://` repository is indexed as a plain directory. Enable only when every `file://` path is trusted |
 | `HTTP_CACHE_DIR` | (empty) | Directory for caching HTTP POST responses to disk; avoids repeated API calls during development |
 | `REPORTING_LOG_TIME_INTERVAL` | `5` | Progress reporting interval in seconds |
 
