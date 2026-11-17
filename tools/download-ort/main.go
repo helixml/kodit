@@ -11,6 +11,7 @@ package main
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -66,7 +67,7 @@ func main() {
 }
 
 func downloadORT(version, destDir string) error {
-	archiveName, libraryName, err := ortPlatform(version)
+	archivePath, libraryName, err := ortPlatform(runtime.GOOS, runtime.GOARCH)
 	if err != nil {
 		return err
 	}
@@ -82,12 +83,12 @@ func downloadORT(version, destDir string) error {
 	_ = os.Remove(destPath)
 
 	url := fmt.Sprintf(
-		"https://github.com/microsoft/onnxruntime/releases/download/v%s/%s",
-		version, archiveName,
+		"https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime/%s/microsoft.ml.onnxruntime.%s.nupkg",
+		version, version,
 	)
 
 	fmt.Printf("Downloading ORT %s from %s\n", version, url)
-	if err := fetchAndExtract(url, destDir, libraryName); err != nil {
+	if err := fetchAndExtract(url, destDir, archivePath); err != nil {
 		return err
 	}
 
@@ -133,15 +134,15 @@ func downloadTokenizers(version, destDir string) error {
 	return nil
 }
 
-func ortPlatform(version string) (archive string, library string, err error) {
-	key := runtime.GOOS + "/" + runtime.GOARCH
+func ortPlatform(goos, goarch string) (archivePath string, library string, err error) {
+	key := goos + "/" + goarch
 	switch key {
 	case "linux/amd64":
-		return fmt.Sprintf("onnxruntime-linux-x64-%s.tgz", version), "libonnxruntime.so", nil
+		return "runtimes/linux-x64/native/libonnxruntime.so", "libonnxruntime.so", nil
 	case "linux/arm64":
-		return fmt.Sprintf("onnxruntime-linux-aarch64-%s.tgz", version), "libonnxruntime.so", nil
+		return "runtimes/linux-arm64/native/libonnxruntime.so", "libonnxruntime.so", nil
 	case "darwin/arm64":
-		return fmt.Sprintf("onnxruntime-osx-arm64-%s.tgz", version), "libonnxruntime.dylib", nil
+		return "runtimes/osx-arm64/native/libonnxruntime.dylib", "libonnxruntime.dylib", nil
 	default:
 		return "", "", fmt.Errorf("no ORT archive for %s", key)
 	}
@@ -187,8 +188,44 @@ func tryFetchAndExtract(url, destDir, filename string) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("HTTP %d for %s", resp.StatusCode, url)
 	}
+	if strings.HasSuffix(url, ".nupkg") {
+		tmp, err := os.CreateTemp(destDir, ".ort-*.nupkg")
+		if err != nil {
+			return fmt.Errorf("create temp package: %w", err)
+		}
+		tmpPath := tmp.Name()
+		defer os.Remove(tmpPath) //nolint:errcheck
+		if _, err := io.Copy(tmp, resp.Body); err != nil {
+			_ = tmp.Close()
+			return fmt.Errorf("download package: %w", err)
+		}
+		if err := tmp.Close(); err != nil {
+			return fmt.Errorf("close package: %w", err)
+		}
+		return extractZip(tmpPath, destDir, filename)
+	}
 
 	return extractTgz(resp.Body, destDir, filename)
+}
+
+func extractZip(packagePath, destDir, filename string) error {
+	zr, err := zip.OpenReader(packagePath)
+	if err != nil {
+		return fmt.Errorf("open package: %w", err)
+	}
+	defer zr.Close() //nolint:errcheck
+	for _, file := range zr.File {
+		if file.Name != filename || !file.FileInfo().Mode().IsRegular() {
+			continue
+		}
+		src, err := file.Open()
+		if err != nil {
+			return fmt.Errorf("open %s: %w", filename, err)
+		}
+		defer src.Close() //nolint:errcheck
+		return writeFile(filepath.Join(destDir, filepath.Base(filename)), src)
+	}
+	return fmt.Errorf("%s not found in package", filename)
 }
 
 func extractTgz(body io.Reader, destDir, filename string) error {
