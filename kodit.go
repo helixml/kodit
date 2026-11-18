@@ -125,7 +125,10 @@ type Client struct {
 	queue        *service.Queue
 	worker       *service.Worker
 	periodicSync *service.PeriodicSync
-	registry     *service.Registry
+
+	workersMu      sync.Mutex
+	workersRunning bool
+	registry       *service.Registry
 
 	// Document text extraction (internal)
 	documentText *extraction.DocumentText
@@ -574,12 +577,12 @@ func New(opts ...Option) (*Client, error) {
 		return nil, err
 	}
 
-	// Start the background worker and periodic sync
-	if err := worker.Start(ctx); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("start worker: %w", err)
+	if !cfg.deferWorkers {
+		if err := client.StartWorkers(ctx); err != nil {
+			_ = db.Close()
+			return nil, err
+		}
 	}
-	periodicSync.Start(ctx)
 
 	return client, nil
 }
@@ -593,9 +596,7 @@ func (c *Client) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Stop the periodic sync and worker
-	c.periodicSync.Stop()
-	c.worker.Stop()
+	c.StopWorkers()
 
 	// Close built-in embedding provider
 	if c.hugotEmbedding != nil {
@@ -618,6 +619,36 @@ func (c *Client) Close() error {
 
 	c.logger.Info().Msg("kodit client closed")
 	return nil
+}
+
+// StartWorkers starts the background worker and periodic sync: those of a
+// client created WithDeferredWorkers, or again after StopWorkers. It does
+// nothing if they are running.
+func (c *Client) StartWorkers(ctx context.Context) error {
+	if c.closed.Load() {
+		return ErrClientClosed
+	}
+	c.workersMu.Lock()
+	defer c.workersMu.Unlock()
+	if c.workersRunning {
+		return nil
+	}
+	if err := c.worker.Start(ctx); err != nil {
+		return fmt.Errorf("start worker: %w", err)
+	}
+	c.periodicSync.Start(ctx)
+	c.workersRunning = true
+	return nil
+}
+
+// StopWorkers stops the background worker and periodic sync, waiting for the
+// task in progress to finish. StartWorkers starts them again.
+func (c *Client) StopWorkers() {
+	c.workersMu.Lock()
+	defer c.workersMu.Unlock()
+	c.periodicSync.Stop()
+	c.worker.Stop()
+	c.workersRunning = false
 }
 
 // WorkerIdle reports whether the background worker has no in-flight tasks.

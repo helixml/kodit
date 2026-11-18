@@ -39,6 +39,7 @@ type clientConfig struct {
 	workerPollPeriod          time.Duration
 	skipProviderValidation    bool
 	skipMigrations            bool
+	deferWorkers              bool
 	allowLocalGitRepositories bool
 	embeddingBudget           search.TokenBudget
 	enrichmentBudget          search.TokenBudget
@@ -251,6 +252,17 @@ func WithSkipProviderValidation() Option {
 func WithSkipMigrations() Option {
 	return func(c *clientConfig) {
 		c.skipMigrations = true
+	}
+}
+
+// WithDeferredWorkers makes New leave the background worker and periodic sync
+// stopped until StartWorkers is called. Use it when several processes share
+// one database and only one of them, elected by the caller, should process
+// the task queue: the worker fails tasks it finds in progress when it starts,
+// and runs one task at a time so that a repository's tasks run in order.
+func WithDeferredWorkers() Option {
+	return func(c *clientConfig) {
+		c.deferWorkers = true
 	}
 }
 
