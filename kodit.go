@@ -157,6 +157,37 @@ type Client struct {
 	mu          sync.Mutex
 }
 
+// Migrate brings the database the options configure up to date and returns,
+// without loading models or starting workers. Pair it with WithSkipMigrations
+// on New to run migrations as a separate step.
+func Migrate(ctx context.Context, opts ...Option) error {
+	cfg := newClientConfig()
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	dbURL, err := buildDatabaseURL(cfg)
+	if err != nil {
+		return fmt.Errorf("build database url: %w", err)
+	}
+	db, err := database.NewDatabase(ctx, dbURL)
+	if err != nil {
+		return fmt.Errorf("open database: %w", err)
+	}
+	return errors.Join(migrate(db), db.Close())
+}
+
+// migrate runs the one-time conversions from the Python-era schema, then
+// AutoMigrate.
+func migrate(db database.Database) error {
+	if err := persistence.PreMigrate(db); err != nil {
+		return fmt.Errorf("pre migrate: %w", err)
+	}
+	if err := persistence.AutoMigrate(db); err != nil {
+		return fmt.Errorf("auto migrate: %w", err)
+	}
+	return nil
+}
+
 // New creates a new Client with the given options.
 // The background worker is started automatically.
 func New(opts ...Option) (*Client, error) {
@@ -238,16 +269,10 @@ func New(opts ...Option) (*Client, error) {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
-	// One-time schema conversions from Python-era database
-	if err := persistence.PreMigrate(db); err != nil {
-		errClose := db.Close()
-		return nil, errors.Join(fmt.Errorf("pre migrate: %w", err), errClose)
-	}
-
-	// Run auto migration
-	if err := persistence.AutoMigrate(db); err != nil {
-		errClose := db.Close()
-		return nil, errors.Join(fmt.Errorf("auto migrate: %w", err), errClose)
+	if !cfg.skipMigrations {
+		if err := migrate(db); err != nil {
+			return nil, errors.Join(err, db.Close())
+		}
 	}
 
 	// Validate schema matches GORM models

@@ -38,6 +38,7 @@ type clientConfig struct {
 	workerCount               int
 	workerPollPeriod          time.Duration
 	skipProviderValidation    bool
+	skipMigrations            bool
 	allowLocalGitRepositories bool
 	embeddingBudget           search.TokenBudget
 	enrichmentBudget          search.TokenBudget
@@ -240,6 +241,16 @@ func WithWorkerPollPeriod(d time.Duration) Option {
 func WithSkipProviderValidation() Option {
 	return func(c *clientConfig) {
 		c.skipProviderValidation = true
+	}
+}
+
+// WithSkipMigrations makes New leave the database schema alone and only
+// validate it. Use it when migrations run as a separate step before the client
+// starts (see Migrate), e.g. a blue/green deploy that migrates once and then
+// starts a new instance next to the running one.
+func WithSkipMigrations() Option {
+	return func(c *clientConfig) {
+		c.skipMigrations = true
 	}
 }
 

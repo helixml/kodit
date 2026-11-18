@@ -196,3 +196,32 @@ func TestWithDataDir_CreatesDirectory(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, info.IsDir())
 }
+
+func TestMigrate_ThenNewWithSkipMigrations(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+
+	require.NoError(t, kodit.Migrate(context.Background(), kodit.WithSQLite(dbPath)))
+
+	client, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithSkipMigrations(),
+		kodit.WithSkipProviderValidation(),
+		kodit.WithEmbeddingProvider(&stubEmbedder{}),
+		kodit.WithWorkerPollPeriod(unitTestPollPeriod),
+	)
+	require.NoError(t, err)
+	assert.NoError(t, client.Close())
+}
+
+func TestNew_WithSkipMigrations_RejectsUnmigratedDatabase(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+
+	_, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithSkipMigrations(),
+		kodit.WithSkipProviderValidation(),
+		kodit.WithEmbeddingProvider(&stubEmbedder{}),
+		kodit.WithWorkerPollPeriod(unitTestPollPeriod),
+	)
+	assert.ErrorContains(t, err, "validate schema")
+}
