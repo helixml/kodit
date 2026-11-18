@@ -153,6 +153,10 @@ func AutoMigrate(db database.Database) error {
 // on affected fields (constraint:-) and create the correct forward FKs here.
 //
 // Also cleans up duplicate Python-era FK constraints that lack ON DELETE CASCADE.
+//
+// Each change is made only when the catalog differs, so a migrated database
+// sees reads only: ALTER TABLE takes an ACCESS EXCLUSIVE lock even when it
+// changes nothing, and re-adding a foreign key re-validates every row.
 func postMigrate(db database.Database) error {
 	if !db.IsPostgres() {
 		return nil
@@ -160,9 +164,8 @@ func postMigrate(db database.Database) error {
 
 	gdb := db.GORM()
 
-	// Forward FK constraints suppressed by constraint:- in models.go.
-	// Drop any old-style (Python-era or previous GORM) versions first, then
-	// create with ON DELETE CASCADE. Idempotent: safe to run on every startup.
+	// Forward FK constraints suppressed by constraint:- in models.go, with
+	// the old-style (Python-era or previous GORM) versions they replace.
 	constraints := []struct {
 		table      string
 		old        []string
@@ -179,16 +182,19 @@ func postMigrate(db database.Database) error {
 
 	for _, c := range constraints {
 		for _, old := range c.old {
-			if err := gdb.Exec(fmt.Sprintf(
-				`ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s`, c.table, old,
-			)).Error; err != nil {
-				return fmt.Errorf("drop old constraint %s.%s: %w", c.table, old, err)
+			if err := dropConstraint(gdb, c.table, old); err != nil {
+				return err
 			}
 		}
-		if err := gdb.Exec(fmt.Sprintf(
-			`ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s`, c.table, c.name,
-		)).Error; err != nil {
-			return fmt.Errorf("drop constraint %s.%s: %w", c.table, c.name, err)
+		current, err := constraintDefinition(gdb, c.table, c.name)
+		if err != nil {
+			return err
+		}
+		if current == c.definition {
+			continue
+		}
+		if err := dropConstraint(gdb, c.table, c.name); err != nil {
+			return err
 		}
 		if err := gdb.Exec(fmt.Sprintf(
 			`ALTER TABLE %s ADD CONSTRAINT %s %s`, c.table, c.name, c.definition,
@@ -206,13 +212,39 @@ func postMigrate(db database.Database) error {
 		{"task_status", "task_status_parent_fkey"},
 	}
 	for _, fk := range oldFKs {
-		if err := gdb.Exec(fmt.Sprintf(
-			`ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s`, fk.table, fk.name,
-		)).Error; err != nil {
-			return fmt.Errorf("drop old constraint %s.%s: %w", fk.table, fk.name, err)
+		if err := dropConstraint(gdb, fk.table, fk.name); err != nil {
+			return err
 		}
 	}
 
+	return nil
+}
+
+// constraintDefinition returns the definition of a table's constraint as
+// pg_get_constraintdef prints it, or "" when there is no such constraint.
+func constraintDefinition(gdb *gorm.DB, table, name string) (string, error) {
+	var definitions []string
+	if err := gdb.Raw(
+		`SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = to_regclass(?) AND conname = ?`,
+		table, name,
+	).Scan(&definitions).Error; err != nil {
+		return "", fmt.Errorf("read constraint %s.%s: %w", table, name, err)
+	}
+	if len(definitions) == 0 {
+		return "", nil
+	}
+	return definitions[0], nil
+}
+
+// dropConstraint drops a table's constraint if it exists.
+func dropConstraint(gdb *gorm.DB, table, name string) error {
+	current, err := constraintDefinition(gdb, table, name)
+	if err != nil || current == "" {
+		return err
+	}
+	if err := gdb.Exec(fmt.Sprintf(`ALTER TABLE %s DROP CONSTRAINT %s`, table, name)).Error; err != nil {
+		return fmt.Errorf("drop constraint %s.%s: %w", table, name, err)
+	}
 	return nil
 }
 
