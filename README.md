@@ -422,11 +422,9 @@ kodit serve --env-file .env
 | `LOG_FORMAT` | `pretty` | Log format: `pretty` or `json` |
 | `API_KEYS` | (empty) | Comma-separated API keys for write endpoints |
 | `WORKER_COUNT` | `1` | Number of background workers |
-| `SEARCH_LIMIT` | `10` | Default search result limit |
 | `DISABLE_TELEMETRY` | `false` | Disable anonymous usage telemetry |
 | `ALLOW_LOCAL_GIT_REPOSITORIES` | `false` | Read `file://` repositories that have a `.git` directory with git. Otherwise every `file://` repository is indexed as a plain directory. Enable only when every `file://` path is trusted: kodit's own git commands override hooks, the filesystem monitor and diff drivers, but some read-only commands run by the bundled Gitea git library use the repository's configuration as it is |
 | `HTTP_CACHE_DIR` | (empty) | Directory for caching HTTP POST responses to disk; avoids repeated API calls during development |
-| `REPORTING_LOG_TIME_INTERVAL` | `5` | Progress reporting interval in seconds |
 
 ### Embedding Provider
 
@@ -520,7 +518,6 @@ ENRICHMENT_ENDPOINT_API_KEY=your-helix-key
 |----------|---------|-------------|
 | `PERIODIC_SYNC_ENABLED` | `true` | Auto-sync repositories on an interval |
 | `PERIODIC_SYNC_INTERVAL_SECONDS` | `1800` | Sync interval (default: 30 minutes) |
-| `PERIODIC_SYNC_RETRY_ATTEMPTS` | `3` | Retry count on sync failure |
 
 ### Chunking
 
