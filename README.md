@@ -185,7 +185,10 @@ The enrichment tools (`architecture_docs`, `api_docs`, `database_schema`, `cookb
 Kodit can be embedded directly as a Go library. This is how [Helix](https://helix.ml) integrates Kodit into its platform.
 
 ```go
-import "github.com/helixml/kodit"
+import (
+    "github.com/helixml/kodit"
+    "github.com/helixml/kodit/application/service"
+)
 
 client, err := kodit.New(
     kodit.WithSQLite(".kodit/data.db"),
