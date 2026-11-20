@@ -38,6 +38,8 @@ type clientConfig struct {
 	workerCount               int
 	workerPollPeriod          time.Duration
 	skipProviderValidation    bool
+	skipMigrations            bool
+	deferWorkers              bool
 	allowLocalGitRepositories bool
 	embeddingBudget           search.TokenBudget
 	enrichmentBudget          search.TokenBudget
@@ -240,6 +242,27 @@ func WithWorkerPollPeriod(d time.Duration) Option {
 func WithSkipProviderValidation() Option {
 	return func(c *clientConfig) {
 		c.skipProviderValidation = true
+	}
+}
+
+// WithSkipMigrations makes New leave the database schema alone and only
+// validate it. Use it when migrations run as a separate step before the client
+// starts (see Migrate), e.g. a blue/green deploy that migrates once and then
+// starts a new instance next to the running one.
+func WithSkipMigrations() Option {
+	return func(c *clientConfig) {
+		c.skipMigrations = true
+	}
+}
+
+// WithDeferredWorkers makes New leave the background worker and periodic sync
+// stopped until StartWorkers is called. Use it when several processes share
+// one database and only one of them, elected by the caller, should process
+// the task queue: the worker fails tasks it finds in progress when it starts,
+// and runs one task at a time so that a repository's tasks run in order.
+func WithDeferredWorkers() Option {
+	return func(c *clientConfig) {
+		c.deferWorkers = true
 	}
 }
 

@@ -125,7 +125,10 @@ type Client struct {
 	queue        *service.Queue
 	worker       *service.Worker
 	periodicSync *service.PeriodicSync
-	registry     *service.Registry
+
+	workersMu      sync.Mutex
+	workersRunning bool
+	registry       *service.Registry
 
 	// Document text extraction (internal)
 	documentText *extraction.DocumentText
@@ -155,6 +158,37 @@ type Client struct {
 	chunkParams chunking.ChunkParams
 	closed      atomic.Bool
 	mu          sync.Mutex
+}
+
+// Migrate brings the database the options configure up to date and returns,
+// without loading models or starting workers. Pair it with WithSkipMigrations
+// on New to run migrations as a separate step.
+func Migrate(ctx context.Context, opts ...Option) error {
+	cfg := newClientConfig()
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	dbURL, err := buildDatabaseURL(cfg)
+	if err != nil {
+		return fmt.Errorf("build database url: %w", err)
+	}
+	db, err := database.NewDatabase(ctx, dbURL)
+	if err != nil {
+		return fmt.Errorf("open database: %w", err)
+	}
+	return errors.Join(migrate(db), db.Close())
+}
+
+// migrate runs the one-time conversions from the Python-era schema, then
+// AutoMigrate.
+func migrate(db database.Database) error {
+	if err := persistence.PreMigrate(db); err != nil {
+		return fmt.Errorf("pre migrate: %w", err)
+	}
+	if err := persistence.AutoMigrate(db); err != nil {
+		return fmt.Errorf("auto migrate: %w", err)
+	}
+	return nil
 }
 
 // New creates a new Client with the given options.
@@ -238,16 +272,10 @@ func New(opts ...Option) (*Client, error) {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
-	// One-time schema conversions from Python-era database
-	if err := persistence.PreMigrate(db); err != nil {
-		errClose := db.Close()
-		return nil, errors.Join(fmt.Errorf("pre migrate: %w", err), errClose)
-	}
-
-	// Run auto migration
-	if err := persistence.AutoMigrate(db); err != nil {
-		errClose := db.Close()
-		return nil, errors.Join(fmt.Errorf("auto migrate: %w", err), errClose)
+	if !cfg.skipMigrations {
+		if err := migrate(db); err != nil {
+			return nil, errors.Join(err, db.Close())
+		}
 	}
 
 	// Validate schema matches GORM models
@@ -549,12 +577,12 @@ func New(opts ...Option) (*Client, error) {
 		return nil, err
 	}
 
-	// Start the background worker and periodic sync
-	if err := worker.Start(ctx); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("start worker: %w", err)
+	if !cfg.deferWorkers {
+		if err := client.StartWorkers(ctx); err != nil {
+			_ = db.Close()
+			return nil, err
+		}
 	}
-	periodicSync.Start(ctx)
 
 	return client, nil
 }
@@ -568,9 +596,7 @@ func (c *Client) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Stop the periodic sync and worker
-	c.periodicSync.Stop()
-	c.worker.Stop()
+	c.StopWorkers()
 
 	// Close built-in embedding provider
 	if c.hugotEmbedding != nil {
@@ -593,6 +619,36 @@ func (c *Client) Close() error {
 
 	c.logger.Info().Msg("kodit client closed")
 	return nil
+}
+
+// StartWorkers starts the background worker and periodic sync: those of a
+// client created WithDeferredWorkers, or again after StopWorkers. It does
+// nothing if they are running.
+func (c *Client) StartWorkers(ctx context.Context) error {
+	if c.closed.Load() {
+		return ErrClientClosed
+	}
+	c.workersMu.Lock()
+	defer c.workersMu.Unlock()
+	if c.workersRunning {
+		return nil
+	}
+	if err := c.worker.Start(ctx); err != nil {
+		return fmt.Errorf("start worker: %w", err)
+	}
+	c.periodicSync.Start(ctx)
+	c.workersRunning = true
+	return nil
+}
+
+// StopWorkers stops the background worker and periodic sync, waiting for the
+// task in progress to finish. StartWorkers starts them again.
+func (c *Client) StopWorkers() {
+	c.workersMu.Lock()
+	defer c.workersMu.Unlock()
+	c.periodicSync.Stop()
+	c.worker.Stop()
+	c.workersRunning = false
 }
 
 // WorkerIdle reports whether the background worker has no in-flight tasks.

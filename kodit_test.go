@@ -9,6 +9,7 @@ import (
 
 	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit/domain/task"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -195,4 +196,83 @@ func TestWithDataDir_CreatesDirectory(t *testing.T) {
 	info, err := os.Stat(dataDir)
 	require.NoError(t, err)
 	assert.True(t, info.IsDir())
+}
+
+func TestMigrate_ThenNewWithSkipMigrations(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+
+	require.NoError(t, kodit.Migrate(context.Background(), kodit.WithSQLite(dbPath)))
+
+	client, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithSkipMigrations(),
+		kodit.WithSkipProviderValidation(),
+		kodit.WithEmbeddingProvider(&stubEmbedder{}),
+		kodit.WithWorkerPollPeriod(unitTestPollPeriod),
+	)
+	require.NoError(t, err)
+	assert.NoError(t, client.Close())
+}
+
+func TestNew_WithSkipMigrations_RejectsUnmigratedDatabase(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+
+	_, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithSkipMigrations(),
+		kodit.WithSkipProviderValidation(),
+		kodit.WithEmbeddingProvider(&stubEmbedder{}),
+		kodit.WithWorkerPollPeriod(unitTestPollPeriod),
+	)
+	assert.ErrorContains(t, err, "validate schema")
+}
+
+// With WithDeferredWorkers nothing takes tasks off the queue until
+// StartWorkers; StopWorkers pauses it again and StartWorkers resumes it.
+func TestDeferredWorkers_ProcessTasksOnlyWhileStarted(t *testing.T) {
+	ctx := context.Background()
+	client, err := kodit.New(
+		kodit.WithSQLite(filepath.Join(t.TempDir(), "test.db")),
+		kodit.WithSkipProviderValidation(),
+		kodit.WithEmbeddingProvider(&stubEmbedder{}),
+		kodit.WithWorkerPollPeriod(unitTestPollPeriod),
+		kodit.WithDeferredWorkers(),
+	)
+	require.NoError(t, err)
+	defer func() { assert.NoError(t, client.Close()) }()
+
+	enqueue := func(repoID int) {
+		t.Helper()
+		require.NoError(t, client.Tasks.Enqueue(ctx, task.NewTask(task.OperationSyncRepository,
+			int(task.PriorityNormal), map[string]any{"repository_id": repoID})))
+	}
+	pending := func() int64 {
+		n, err := client.Tasks.Count(ctx)
+		require.NoError(t, err)
+		return n
+	}
+	assertStaysQueued := func() {
+		t.Helper()
+		time.Sleep(10 * unitTestPollPeriod)
+		assert.Equal(t, int64(1), pending(), "a stopped worker took a task")
+	}
+	assertDrained := func() {
+		t.Helper()
+		assert.Eventually(t, func() bool { return pending() == 0 }, 5*time.Second, unitTestPollPeriod,
+			"a started worker did not take the task")
+	}
+
+	enqueue(1)
+	assertStaysQueued()
+
+	require.NoError(t, client.StartWorkers(ctx))
+	require.NoError(t, client.StartWorkers(ctx), "starting twice is a no-op")
+	assertDrained()
+
+	client.StopWorkers()
+	enqueue(2)
+	assertStaysQueued()
+
+	require.NoError(t, client.StartWorkers(ctx))
+	assertDrained()
 }
