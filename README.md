@@ -234,13 +234,7 @@ for _, result := range results.Enrichments() {
 |--------|-------------|
 | `WithSemanticWeight(w)` | Weight for semantic vs keyword search (0.0 to 1.0) |
 | `WithLimit(n)` | Maximum number of results |
-| `WithOffset(n)` | Offset for pagination |
 | `WithLanguages(langs...)` | Filter by programming languages |
-| `WithRepositories(ids...)` | Filter by repository IDs |
-| `WithMinScore(score)` | Minimum score threshold |
-| `WithEnrichmentTypes(types...)` | Filter results to specific enrichment types |
-| `WithSnippets(include)` | Include code snippets in results |
-| `WithDocuments(include)` | Include enrichment documents in results |
 
 ### Go HTTP client
 
